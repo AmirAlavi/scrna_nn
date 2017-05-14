@@ -1,0 +1,2 @@
+class ScrnaException(Exception):
+    pass
