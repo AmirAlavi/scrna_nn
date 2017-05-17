@@ -1,7 +1,7 @@
 """Single-cell RNA-seq Analysis Pipeline.
 
 Usage:
-    scrna.py train <neural_net_architecture> <hidden_layer_sizes>... [--act=<activation_fcn> --epochs=<nepochs> --data=<path> --sn --gs]
+    scrna.py train <neural_net_architecture> <hidden_layer_sizes>... [options]
     scrna.py evaluate
     scrna.py (-h | --help)
     scrna.py --version
@@ -9,26 +9,36 @@ Usage:
 Options:
     -h --help               Show this screen.
     --version               Show version.
-    --epochs=<nepochs>      Number of epochs to train for [default: 20]. Only used
-                            for 'train' command.
+
+    "train" command options:
+    --epochs=<nepochs>      Number of epochs to train for [default: 20].
     --act=<activation_fcn>  Activation function to use for the layers [default: tanh].
     --data=<path>           Path to input data file [default: data/TPM_mouse_7_8_10_PPITF_gene_9437.txt].
     --sn                    Divide each sample by the total number of reads for that sample.
     --gs                    Subtract the mean and divide by standard deviation within each gene.
-
+    --sgd_lr=<lr>           Learning rate for SGD [default: 0.1].
+    --sgd_d=<decay>         Decay rate for SGD [default: 1e-6].
+    --sgd_m=<momentum>      Momentum for SGD [default: 0.9].
+    --sgd_nesterov          Use Nesterov momentum for SGD.
 """
 from docopt import docopt
 
 from util import ScrnaException
 from neural_nets import get_nn_model
+from myOptimizers import SGD
 from preprocessing import DataContainer
 
 def train(args):
+    # Get the training data
     data = DataContainer(args['--data'], args['--sn'], args['--gs'])
-    data.get_labeled_data()
+    X, y, label_strings_lookup = data.get_labeled_data()
+    # Get the model architecture
     hidden_layer_sizes = [int(x) for x in args['<hidden_layer_sizes>']]
     model = get_nn_model(args['<neural_net_architecture>'], hidden_layer_sizes, 100, args['--act'])
-    print(model.summary())
+    # Set up the optimizer
+    sgd = SGD(lr=args['--sgd_lr'], decay=args['--sgd_d'], momentum=args['--sgd_m'], nesterov=args['--sgd_nesterov'])
+    # model.compile(loss='categorical_crossentropy', optimizer=sgd, metrics=['accuracy'])
+    #print(model.summary())
 
 if __name__ == '__main__':
     args = docopt(__doc__, version='scrna 0.1')

@@ -13,7 +13,8 @@ class DataContainer(object):
     def __init__(self, filepath, sample_normalize=False, gene_standardize=False):
         # Use pandas.read_csv to read in the file
         print('Reading in data from ', filepath)
-        dataframe = pd.read_csv(filepath, sep='\t', index_col=0, header=0, comment='#')
+        # TODO: Right now, because of format of files we currently have, the columns are mixed data types so we have to use low_memory=False
+        dataframe = pd.read_csv(filepath, sep='\t', index_col=0, header=0, comment='#', low_memory=False)
         dataframe = dataframe.T
         # Column 0 is Label and Column 1 is Weight. Columns after these are
         # the genes. Select numeric columns (and convert them to floats)
@@ -29,13 +30,10 @@ class DataContainer(object):
             dataframe.iloc[:, 2:] = scaler.fit_transform(dataframe.iloc[:, 2:])
         self.dataframe = dataframe
 
-
     def get_labeled_data(self):
         print("getting labeled data")
         labeled_data = self.dataframe.loc[lambda df: df.Label != 'None', :]
         expression_mat = labeled_data.iloc[:, 2:].values
-        print(expression_mat.shape)
-        print(expression_mat)
         label_strings = labeled_data.loc[:, 'Label'].values
         # Need to encode the labels as integers (like categorical data)
         # Can do this by getting a list of unique labels, then for each sample,
