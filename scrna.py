@@ -25,7 +25,7 @@ from docopt import docopt
 
 from util import ScrnaException
 from neural_nets import get_nn_model
-from myOptimizers import SGD
+from sparse_optimizers import SparseSGD
 from preprocessing import DataContainer
 
 def train(args):
@@ -36,8 +36,12 @@ def train(args):
     hidden_layer_sizes = [int(x) for x in args['<hidden_layer_sizes>']]
     model = get_nn_model(args['<neural_net_architecture>'], hidden_layer_sizes, 100, args['--act'])
     # Set up the optimizer
-    sgd = SGD(lr=args['--sgd_lr'], decay=args['--sgd_d'], momentum=args['--sgd_m'], nesterov=args['--sgd_nesterov'])
-    # model.compile(loss='categorical_crossentropy', optimizer=sgd, metrics=['accuracy'])
+    lr = float(args['--sgd_lr'])
+    decay = float(args['--sgd_d'])
+    momentum = float(args['--sgd_m'])
+    sgd = SparseSGD(lr=lr, decay=decay, momentum=momentum, nesterov=args['--sgd_nesterov'])
+    model.compile(loss='categorical_crossentropy', optimizer=sgd, metrics=['accuracy'])
+    print("model compiled and ready for training")
     #print(model.summary())
 
 if __name__ == '__main__':
