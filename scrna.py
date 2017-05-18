@@ -26,11 +26,12 @@ from docopt import docopt
 from util import ScrnaException
 from neural_nets import get_nn_model
 from sparse_optimizers import SparseSGD
-from preprocessing import DataContainer
+from data_container import DataContainer
 
 def train(args):
     # Get the training data
     data = DataContainer(args['--data'], args['--sn'], args['--gs'])
+    data.get_gene_names()
     X, y, label_strings_lookup = data.get_labeled_data()
     # Get the model architecture
     hidden_layer_sizes = [int(x) for x in args['<hidden_layer_sizes>']]

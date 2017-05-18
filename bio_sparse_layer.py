@@ -4,9 +4,35 @@ from scipy.sparse import csr_matrix
 from keras.layers import Dense
 from keras import backend as K
 from keras.engine import InputSpec
-from keras import initializations
 from theano import sparse
 import theano
+
+# Hack: Keras 2 does not have a get_fans function in the initializations.py
+# module. This used to be in the initilization.py module in Keras 1. Copying
+# it here for now. TODO: move to Keras 2 API
+def get_fans(shape, dim_ordering='th'):
+    if len(shape) == 2:
+        fan_in = shape[0]
+        fan_out = shape[1]
+    elif len(shape) == 4 or len(shape) == 5:
+        # assuming convolution kernels (2D or 3D).
+        # TH kernel shape: (depth, input_depth, ...)
+        # TF kernel shape: (..., input_depth, depth)
+        if dim_ordering == 'th':
+            receptive_field_size = np.prod(shape[2:])
+            fan_in = shape[1] * receptive_field_size
+            fan_out = shape[0] * receptive_field_size
+        elif dim_ordering == 'tf':
+            receptive_field_size = np.prod(shape[:2])
+            fan_in = shape[-2] * receptive_field_size
+            fan_out = shape[-1] * receptive_field_size
+        else:
+            raise Exception('Invalid dim_ordering: ' + dim_ordering)
+    else:
+        # no specific assumptions
+        fan_in = np.sqrt(np.prod(shape))
+        fan_out = np.sqrt(np.prod(shape))
+    return fan_in, fan_out
 
 class BioSparseLayer(Dense):
     def __init__(self, output_dim, init='glorot_uniform', activation='linear', weights=None,
@@ -20,7 +46,7 @@ class BioSparseLayer(Dense):
         self.input_output_mat=input_output_mat
         self.group_gene_dict=group_gene_dict
         output_dim = self.input_output_mat.shape[1]
-        super(BioSparseLayer, self).__init__(output_dim=output_dim, init, activation, weights, W_regularizer, b_regularizer, activity_regularizer, W_constraint, b_constraint, bias, input_dim, **kwargs)
+        super(BioSparseLayer, self).__init__(output_dim, init, activation, weights, W_regularizer, b_regularizer, activity_regularizer, W_constraint, b_constraint, bias, input_dim, **kwargs)
 
     def build_helper(self, input_shape, W):
         """This function contains the logic taken directly from Keras' Dense, placed here to make the difference
@@ -31,7 +57,7 @@ class BioSparseLayer(Dense):
         print("Input dimension: ", input_dim)
         self.input_spec = [InputSpec(dtype=K.floatx(),
                                      shape=(None, input_dim))]
-        
+
         # The difference between built-in Dense and BioSparseLayer
         self.W = W
 
@@ -67,10 +93,10 @@ class BioSparseLayer(Dense):
 
     def build(self, input_shape):
         assert len(input_shape) == 2
-        
+
         temp_W = np.asarray(self.input_output_mat, dtype=K.floatx())
         if self.input_output_mat is not None:
-            fan_in, fan_out = initializations.get_fans((input_shape[1], self.output_dim), dim_ordering='th')
+            fan_in, fan_out = get_fans((input_shape[1], self.output_dim), dim_ordering='th')
             print("Fan in, Fan out:")
             print (fan_in, fan_out)
             scale = np.sqrt(6. / (fan_in + fan_out))
@@ -78,7 +104,7 @@ class BioSparseLayer(Dense):
                 for j in range(self.input_output_mat.shape[1]):
                     if  self.input_output_mat[i,j] == 1.:
                         temp_W[i,j]=np.random.uniform(low=-scale, high=scale)
-        
+
         temp_W=csr_matrix(temp_W)
         W=theano.shared(value=temp_W, name='{}_W'.format(self.name), strict=False)
 

@@ -30,6 +30,10 @@ class DataContainer(object):
             dataframe.iloc[:, 2:] = scaler.fit_transform(dataframe.iloc[:, 2:])
         self.dataframe = dataframe
 
+    def get_gene_names(self):
+        print(list(self.dataframe))
+        print(list(self.dataframe.columns.values))
+
     def get_labeled_data(self):
         print("getting labeled data")
         labeled_data = self.dataframe.loc[lambda df: df.Label != 'None', :]
