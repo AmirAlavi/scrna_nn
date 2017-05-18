@@ -1,6 +1,7 @@
 from keras.models import Sequential
-from keras.layers.core import Dense
+from keras.layers.core import Dense, Flatten
 
+from bio_sparse_layer import BioSparseLayer
 from util import ScrnaException
 
 
@@ -10,6 +11,9 @@ def get_1layer_autoencoder(hidden_layer_size, input_dim, activation_fcn='tanh'):
     model.add(Dense(input_dim, activation=activation_fcn))
     return model
 
+def get_2layer_ppitf(second_hidden_layer_size, input_dim, activation_fcn='tanh'):
+    left_branch = Sequential()
+    #left_branch.add(BioSparseLayer(input_dim=input_dim, activation=activation_fcn, input_output))
 
 def get_nn_model(model_name, hidden_layer_sizes, input_dim, activation_fcn='tanh'):
     print(hidden_layer_sizes)
