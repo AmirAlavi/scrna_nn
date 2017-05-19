@@ -31,8 +31,7 @@ class DataContainer(object):
         self.dataframe = dataframe
 
     def get_gene_names(self):
-        print(list(self.dataframe))
-        print(list(self.dataframe.columns.values))
+        return self.dataframe.columns.values[2:]
 
     def get_labeled_data(self):
         print("getting labeled data")
