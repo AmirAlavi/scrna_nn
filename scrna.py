@@ -22,18 +22,36 @@ Options:
     --sgd_nesterov          Use Nesterov momentum for SGD.
 """
 from docopt import docopt
+import numpy as np
 
 from util import ScrnaException
-from neural_nets import get_nn_model
+from neural_nets import get_nn_model, autoencoder_model_names
 from sparse_optimizers import SparseSGD
 from data_container import DataContainer
 
-def train(args):
-    # Get the training data
+def get_data(args):
     data = DataContainer(args['--data'], args['--sn'], args['--gs'])
-    data.get_gene_names()
-    X, y, label_strings_lookup = data.get_labeled_data()
-    # Get the model architecture
+    gene_names = data.get_gene_names()
+    if args['<neural_net_architecture>'] in autoencoder_model_names:
+        # Autencoder training is unsupervised, so we don't have to limit
+        # ourselves to labeled samples
+        X_clean, _, label_strings_lookup = data.get_all_data()
+        # Add noise to the data:
+        noise_level = 0.1
+        X = X_clean + noise_level * np.random.normal(loc=0, scale=1, size=X.shape)
+        # For autoencoders, the input is a noisy sample, and the networks goal
+        # is to reconstruct the original sample, and so the output is the same
+        # shape as the input, and our label vector "y" is no longer labels, but
+        # is the uncorrupted samples
+        y = X_clean
+    else:
+        # Supervised training:
+        X, y, label_strings_lookup = data.get_labeled_data()
+    return X, y, label_strings_lookup, gene_names
+
+def train(args):
+    X, y, label_strings_lookup, gene_names = get_data(args)
+    # Set up the model architecture
     hidden_layer_sizes = [int(x) for x in args['<hidden_layer_sizes>']]
     model = get_nn_model(args['<neural_net_architecture>'], hidden_layer_sizes, 100, args['--act'])
     # Set up the optimizer

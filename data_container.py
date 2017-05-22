@@ -46,3 +46,11 @@ class DataContainer(object):
 
     def get_unlabeled_data(self):
         pass
+
+    def get_all_data(self):
+        print("getting all data")
+        expression_mat = self.dataframe.iloc[:, 2:].values
+        # Some might be 'None'
+        label_strings = self.dataframe.loc[:, 'Label'].values
+        uniq_label_strings, labels_as_int = np.unique(label_strings, return_inverse=True)
+        return expression_mat, labels_as_int, uniq_label_strings
