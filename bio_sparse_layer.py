@@ -35,67 +35,53 @@ def get_fans(shape, dim_ordering='th'):
         fan_out = np.sqrt(np.prod(shape))
     return fan_in, fan_out
 
-#@interfaces.legacy_dense_support
+
 class BioSparseLayer(Dense):
-    def __init__(self, output_dim=0, init='glorot_uniform', activation='linear', weights=None,
-                 W_regularizer=None, b_regularizer=None, activity_regularizer=None,
-                 W_constraint=None, b_constraint=None,
+    def __init__(self, units=0,
+                 activation='linear',
+                 use_bias=True,
+                 kernel_initializer='glorot_uniform',
+                 bias_initializer='zeros',
+                 kernel_regularizer=None,
+                 bias_regularizer=None,
+                 activity_regularizer=None,
+                 kernel_constraint=None,
+                 bias_constraint=None,
                  input_output_mat=None,
                  group_gene_dict=None,
-                 bias=True, input_dim=None, **kwargs):
+                 **kwargs):
         if input_output_mat == None:
             raise ValueError("Must provide input_output_mat to BioSparseLayer constructor!")
         self.input_output_mat=input_output_mat
         self.group_gene_dict=group_gene_dict
         output_dim = self.input_output_mat.shape[1]
-        super().__init__(units=output_dim, kernel_initializer=init, activation=activation, kernel_regularizer=W_regularizer, bias_regularizer=b_regularizer, activity_regularizer=activity_regularizer, kernel_constraint=W_constraint, bias_constraint=b_constraint, use_bias=bias, input_dim=input_dim, **kwargs)
+        super().__init__(units=units, kernel_initializer=kernel_initializer, activation=activation, kernel_regularizer=kernel_regularizer, bias_regularizer=bias_regularizer, activity_regularizer=activity_regularizer, kernel_constraint=kernel_constraint, bias_constraint=bias_constraint, use_bias=use_bias, **kwargs)
 
-    def build_helper(self, input_shape, W):
-        """This function contains the logic taken directly from Keras' Dense, placed here to make the difference
-        between BioSparseLayer.build and Dense.build more clear. In other words, build is now a "template method".
-        """
-        assert len(input_shape) == 2
-        input_dim = input_shape[1]
+    def build(self, input_shape):
+        assert len(input_shape) >= 2
+        input_dim = input_shape[-1]
         print("Input dimension: ", input_dim)
+
+
         self.input_spec = [InputSpec(dtype=K.floatx(),
                                      shape=(None, input_dim))]
 
         # The difference between built-in Dense and BioSparseLayer
-        self.W = W
+        self.kernel = self.get_kernel(input_shape)
+        print("kernel type:", type(self.kernel))
 
-        if self.bias:
-            self.b = K.zeros((self.output_dim,),
-                             name='{}_b'.format(self.name))
-            self.trainable_weights = [self.W, self.b]
+        if self.use_bias:
+            self.bias = self.add_weight(shape=(self.units,),
+                                        initializer=self.bias_initializer,
+                                        name='bias',
+                                        regularizer=self.bias_regularizer,
+                                        constraint=self.bias_constraint)
         else:
-            self.trainable_weights = [self.W]
+            self.bias = None
+        self.input_spec = InputSpec(min_ndim=2, axes={-1: input_dim})
+        self.built = True
 
-        self.regularizers = []
-        if self.W_regularizer:
-            self.W_regularizer.set_param(self.W)
-            self.regularizers.append(self.W_regularizer)
-
-        if self.bias and self.b_regularizer:
-            self.b_regularizer.set_param(self.b)
-            self.regularizers.append(self.b_regularizer)
-
-        if self.activity_regularizer:
-            self.activity_regularizer.set_layer(self)
-            self.regularizers.append(self.activity_regularizer)
-
-        self.constraints = {}
-        if self.W_constraint:
-            self.constraints[self.W] = self.W_constraint
-        if self.bias and self.b_constraint:
-            self.constraints[self.b] = self.b_constraint
-
-        if self.initial_weights is not None:
-            self.set_weights(self.initial_weights)
-            del self.initial_weights
-
-    def build(self, input_shape):
-        assert len(input_shape) == 2
-
+    def get_kernel(self, input_shape):
         temp_W = np.asarray(self.input_output_mat, dtype=K.floatx())
         if self.input_output_mat is not None:
             fan_in, fan_out = get_fans((input_shape[1], self.units), dim_ordering='th')
@@ -109,14 +95,22 @@ class BioSparseLayer(Dense):
 
         temp_W=csr_matrix(temp_W)
         W=theano.shared(value=temp_W, name='{}_W'.format(self.name), strict=False)
+        if self.kernel_regularizer is not None:
+            self.add_loss(self.kernel_regularizer(W))
+        if self.kernel_constraint is not None:
+            self.constraints[W] = self.kernel_constraint
+        self._trainable_weights.append(W)
 
-        self.build_helper(input_shape, W)
+        return W
 
-    def call(self, x, mask=None):
-        output = sparse.structured_dot(x, self.W)
-        if self.bias:
-            output += self.b
-        return self.activation(output)
+    def call(self, inputs):
+        print("kernel type: ", type(self.kernel))
+        output = sparse.structured_dot(inputs, self.kernel)
+        if self.use_bias:
+            output += K.bias_add(output, self.bias)
+        if self.activation is not None:
+            output = self.activation(output)
+        return output
 
     def set_weights(self, weights):
         '''Sets the weights of the layer, from Numpy arrays.
