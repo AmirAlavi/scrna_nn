@@ -1,6 +1,6 @@
 from keras.models import Sequential
-from keras.layers.core import Dense, Flatten
-from keras.layers.merge import Concatenate
+from keras.layers.core import Dense
+from keras.layers import Merge
 
 from bio_sparse_layer import BioSparseLayer
 from util import ScrnaException
@@ -19,13 +19,12 @@ def get_2layer_ppitf(second_hidden_layer_size, input_dim, ppitf_groups_mat, outp
     left_branch.add(BioSparseLayer(input_dim=input_dim, activation=activation_fcn, input_output_mat=ppitf_groups_mat.transpose()))
     right_branch = Sequential()
     right_branch.add(Dense(100, input_dim=input_dim))
-    merged = Concatenate([left_branch, right_branch])
-    print("Type of merged: ", type(merged))
+    merged = Merge([left_branch, right_branch], mode='concat')
     model = Sequential()
     model.add(merged)
-    #model = Concatenate([left_branch, right_branch])
     model.add(Dense(second_hidden_layer_size, activation=activation_fcn))
     model.add(Dense(output_dim, activation='softmax'))
+    return model
 
 def get_nn_model(model_name, hidden_layer_sizes, input_dim, activation_fcn='tanh', ppitf_groups_mat=None, output_dim=None):
     print(hidden_layer_sizes)

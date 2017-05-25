@@ -36,6 +36,8 @@ import json
 from docopt import docopt
 import numpy as np
 from keras.utils import np_utils
+#import theano
+#theano.config.optimizer = 'None'
 
 from util import ScrnaException
 from neural_nets import get_nn_model, autoencoder_model_names, ppitf_model_names
@@ -61,6 +63,7 @@ def get_data(args):
         y = X_clean
     else:
         # Supervised training:
+        print("Supervised training")
         X, y, label_strings_lookup = data.get_labeled_data()
         output_dim = max(y) + 1
         y = np_utils.to_categorical(y, output_dim)
@@ -71,13 +74,13 @@ def get_data(args):
         X = [X, X]
     return X, y, input_dim, output_dim, label_strings_lookup, gene_names
 
-def get_model_architecture(args, input_dim, gene_names):
+def get_model_architecture(args, input_dim, output_dim, gene_names):
     ppitf_groups_mat = None
     if args['<neural_net_architecture>'] in ppitf_model_names:
         _, _, ppitf_groups_mat = get_groupings_for_genes(args['--ppitf_groups'], gene_names)
         print("ppitf mat shape: ", ppitf_groups_mat.shape)
     hidden_layer_sizes = [int(x) for x in args['<hidden_layer_sizes>']]
-    return get_nn_model(args['<neural_net_architecture>'], hidden_layer_sizes, input_dim, args['--act'], ppitf_groups_mat)
+    return get_nn_model(args['<neural_net_architecture>'], hidden_layer_sizes, input_dim, args['--act'], ppitf_groups_mat, output_dim)
 
 def get_optimizer(args):
     lr = float(args['--sgd_lr'])
@@ -93,21 +96,25 @@ def train(args):
         makedirs(working_dir_path)
     print("loading data and setting up model...")
     X, y, input_dim, output_dim, label_strings_lookup, gene_names = get_data(args) # TODO: train/test/valid split
-    model = get_model_architecture(args, input_dim, gene_names)
+    print(X[0].shape)
+    print(X[1].shape)
+    model = get_model_architecture(args, input_dim, output_dim, gene_names)
+    print(model.summary())
     sgd = get_optimizer(args)
-    if args['<neural_net_architectures>'] in autoencoder_model_names:
+    if args['<neural_net_architecture>'] in autoencoder_model_names:
         model.compile(loss='mean squared_error', optimizer=sgd)
     else:
         model.compile(loss='categorical_crossentropy', optimizer=sgd, metrics=['accuracy'])
     print("model compiled and ready for training")
     print("training model...")
     validation_data = (X, y) # For now, same as training data
-    model.fit(X, y, epochs=args['--epochs'], verbose=2, validation_data=validation_data)
+    model.fit(X, y, epochs=int(args['--epochs']), verbose=2, validation_data=validation_data)
     print("saving model to folder: " + working_dir_path)
+    model_path = join(working_dir_path, "model.h5")
+    print("model_path: ", model_path )
     model.save(join(working_dir_path, "model.h5"))
     with open(join(working_dir_path, "command_line_args.json"), 'w') as fp:
         json.dump(args, fp)
-    #print(model.summary())
 
 if __name__ == '__main__':
     args = docopt(__doc__, version='scrna 0.1')

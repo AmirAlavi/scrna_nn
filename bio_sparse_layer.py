@@ -54,7 +54,7 @@ class BioSparseLayer(Dense):
             raise ValueError("Must provide input_output_mat to BioSparseLayer constructor!")
         self.input_output_mat=input_output_mat
         self.group_gene_dict=group_gene_dict
-        output_dim = self.input_output_mat.shape[1]
+        units = self.input_output_mat.shape[1]
         super().__init__(units=units, kernel_initializer=kernel_initializer, activation=activation, kernel_regularizer=kernel_regularizer, bias_regularizer=bias_regularizer, activity_regularizer=activity_regularizer, kernel_constraint=kernel_constraint, bias_constraint=bias_constraint, use_bias=use_bias, **kwargs)
 
     def build(self, input_shape):
@@ -105,9 +105,14 @@ class BioSparseLayer(Dense):
 
     def call(self, inputs):
         print("kernel type: ", type(self.kernel))
+        print("bias type: ", type(self.bias))
+        print("input type: ", type(inputs))
         output = sparse.structured_dot(inputs, self.kernel)
         if self.use_bias:
-            output += K.bias_add(output, self.bias)
+            print(self.kernel.shape)
+            print(inputs.shape)
+            print(self.bias.shape)
+            output += self.bias
         if self.activation is not None:
             output = self.activation(output)
         return output
