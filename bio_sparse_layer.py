@@ -4,6 +4,7 @@ from scipy.sparse import csr_matrix
 from keras.layers import Dense
 from keras import backend as K
 from keras.engine import InputSpec
+#from keras.legacy import interfaces
 from theano import sparse
 import theano
 
@@ -34,19 +35,20 @@ def get_fans(shape, dim_ordering='th'):
         fan_out = np.sqrt(np.prod(shape))
     return fan_in, fan_out
 
+#@interfaces.legacy_dense_support
 class BioSparseLayer(Dense):
-    def __init__(self, output_dim, init='glorot_uniform', activation='linear', weights=None,
+    def __init__(self, output_dim=0, init='glorot_uniform', activation='linear', weights=None,
                  W_regularizer=None, b_regularizer=None, activity_regularizer=None,
                  W_constraint=None, b_constraint=None,
                  input_output_mat=None,
                  group_gene_dict=None,
                  bias=True, input_dim=None, **kwargs):
-        if not input_output_mat:
+        if input_output_mat == None:
             raise ValueError("Must provide input_output_mat to BioSparseLayer constructor!")
         self.input_output_mat=input_output_mat
         self.group_gene_dict=group_gene_dict
         output_dim = self.input_output_mat.shape[1]
-        super(BioSparseLayer, self).__init__(output_dim, init, activation, weights, W_regularizer, b_regularizer, activity_regularizer, W_constraint, b_constraint, bias, input_dim, **kwargs)
+        super().__init__(units=output_dim, kernel_initializer=init, activation=activation, kernel_regularizer=W_regularizer, bias_regularizer=b_regularizer, activity_regularizer=activity_regularizer, kernel_constraint=W_constraint, bias_constraint=b_constraint, use_bias=bias, input_dim=input_dim, **kwargs)
 
     def build_helper(self, input_shape, W):
         """This function contains the logic taken directly from Keras' Dense, placed here to make the difference
@@ -96,7 +98,7 @@ class BioSparseLayer(Dense):
 
         temp_W = np.asarray(self.input_output_mat, dtype=K.floatx())
         if self.input_output_mat is not None:
-            fan_in, fan_out = get_fans((input_shape[1], self.output_dim), dim_ordering='th')
+            fan_in, fan_out = get_fans((input_shape[1], self.units), dim_ordering='th')
             print("Fan in, Fan out:")
             print (fan_in, fan_out)
             scale = np.sqrt(6. / (fan_in + fan_out))

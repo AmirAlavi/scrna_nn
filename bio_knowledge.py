@@ -1,6 +1,8 @@
 from collections import defaultdict
 
-def get_groupings_for genes(ppi_tf_groups_filepath, dataset_gene_names):
+import numpy as np
+
+def get_groupings_for_genes(ppi_tf_groups_filepath, dataset_gene_names):
     '''Get the PPI/TF membership of each of the genes in the dataset.
 
     Args:
@@ -20,6 +22,8 @@ def get_groupings_for genes(ppi_tf_groups_filepath, dataset_gene_names):
             ppi/tf group represented by that row. 0 otherwise. It is a sorted
             matrix representation of "ppi_tf_groups_as_indicies".
     '''
+    dataset_gene_names = dataset_gene_names.tolist()
+    print("num gene names: ", len(dataset_gene_names))
     lines = open(ppi_tf_groups_filepath).readlines()
     ppi_tf_groups_as_indicies = defaultdict(list)
     for line in lines:
@@ -31,10 +35,10 @@ def get_groupings_for genes(ppi_tf_groups_filepath, dataset_gene_names):
         # The rest of the tokens are the names of the genes in that group
         for gene in tokens[1:]:
             ppi_tf_groups_as_indicies[group_name].append(dataset_gene_names.index(gene))
-        largest_index = max(map(max, ppi_tf_groups_as_indicies.values()))
-        sorted_group_names = sorted(ppi_tf_groups_as_indicies.keys())
-        binary_group_membership_mat = np.zeros((len(sorted_group_names), largest_index+1), dtype='float32')
-        for group_idx, group_name in enumerate(sorted_group_names):
-            for gene_idx in ppi_tf_groups_as_indicies[group_name]:
-                binary_group_membership_mat[group_idx, gene_idx] = 1
-        return ppi_tf_groups_as_indicies, sorted_group_names, binary_group_membership_mat
+    largest_index = max(map(max, ppi_tf_groups_as_indicies.values()))
+    sorted_group_names = sorted(ppi_tf_groups_as_indicies.keys())
+    binary_group_membership_mat = np.zeros((len(sorted_group_names), largest_index+1), dtype='float32')
+    for group_idx, group_name in enumerate(sorted_group_names):
+        for gene_idx in ppi_tf_groups_as_indicies[group_name]:
+            binary_group_membership_mat[group_idx, gene_idx] = 1
+    return ppi_tf_groups_as_indicies, sorted_group_names, binary_group_membership_mat
