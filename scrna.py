@@ -32,6 +32,7 @@ import time
 from os.path import exists, join
 from os import makedirs
 import json
+import pickle
 
 from docopt import docopt
 import numpy as np
@@ -110,9 +111,10 @@ def train(args):
     validation_data = (X, y) # For now, same as training data
     model.fit(X, y, epochs=int(args['--epochs']), verbose=2, validation_data=validation_data)
     print("saving model to folder: " + working_dir_path)
-    model_path = join(working_dir_path, "model.h5")
+    model_path = join(working_dir_path, "model.p")
     print("model_path: ", model_path )
-    model.save(join(working_dir_path, "model.h5"))
+    #model.save(join(working_dir_path, "model.h5")) # TODO: Why doesn't this work?
+    pickle.dump(model, open(model_path, 'wb'))
     with open(join(working_dir_path, "command_line_args.json"), 'w') as fp:
         json.dump(args, fp)
 
