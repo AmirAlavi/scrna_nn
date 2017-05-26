@@ -2,7 +2,7 @@
 
 Usage:
     scrna.py train <neural_net_architecture> <hidden_layer_sizes>... [options]
-    scrna.py evaluate
+    scrna.py reduce <trained_neural_net_folder> --out_folder=<path> [--data=<path>]
     scrna.py (-h | --help)
     scrna.py --version
 
@@ -10,12 +10,14 @@ Options:
     -h --help               Show this screen.
     --version               Show version.
 
-    "train" command options:
+
+    --data=<path>           Path to input data file.
+                            [default: data/TPM_mouse_7_8_10_PPITF_gene_9437.txt]
+
+    "train" specific command options:
     --epochs=<nepochs>      Number of epochs to train for. [default: 20]
     --act=<activation_fcn>  Activation function to use for the layers.
                             [default: tanh]
-    --data=<path>           Path to input data file.
-                            [default: data/TPM_mouse_7_8_10_PPITF_gene_9437.txt]
     --sn                    Divide each sample by the total number of reads for
                             that sample.
     --gs                    Subtract the mean and divide by standard deviation
@@ -27,6 +29,9 @@ Options:
     --ppitf_groups=<path>   Path to file containing the TF groups and PPI
                             groups, each on separate lines.
                             [default: ppi_tf_merge_cluster.txt]
+
+    "reduce" specific command options:
+    --out_folder=<path>     Path of folder to save reduced data to.
 """
 import time
 from os.path import exists, join
@@ -37,7 +42,7 @@ import pickle
 from docopt import docopt
 import numpy as np
 from keras.utils import np_utils
-#import theano
+import theano
 #theano.config.optimizer = 'None'
 
 from util import ScrnaException
@@ -118,12 +123,47 @@ def train(args):
     with open(join(working_dir_path, "command_line_args.json"), 'w') as fp:
         json.dump(args, fp)
 
+def save_reduced_data(args, X, y, label_strings_lookup):
+    out_folder = args['--out_folder']
+    if not exists(out_folder):
+        makedirs(out_folder)
+    np.save(join(out_folder, "X"), X)
+    np.save(join(out_folder, "y"), y)
+    np.save(join(out_folder, "label_strings_lookup"), label_strings_lookup)
+
+def reduce(args):
+    model_path = join(args['<trained_neural_net_folder>'], "model.p")
+    training_args_path = join(args['<trained_neural_net_folder>'], "command_line_args.json")
+    with open(training_args_path, 'r') as fp:
+        training_args = json.load(fp)
+    # Must ensure that we use the same normalizations/sandardization
+    data_to_transform = DataContainer(args['--data'], training_args['--sn'], training_args['--gs'])
+    X, y, label_strings_lookup = data_to_transform.get_all_data()
+    print(X.shape)
+    model = pickle.load(open(model_path, 'rb'))
+    print(type(model))
+    print(model.summary())
+    print(len(model.layers))
+    # use the last hidden layer of the model as a lower-dimensional representation:
+    last_hidden_layer = model.layers[-2]
+    if training_args['<neural_net_architecture>'] in ppitf_model_names:
+        # these models have special input shape
+        get_activations = theano.function([model.layers[0].layers[0].input, model.layers[0].layers[1].input], last_hidden_layer.output)
+        X_transformed = get_activations(X, X)
+    else:
+        get_activations = theano.function([model.layers[0].input], last_hidden_layer.output)
+        X_transformed = get_activations(X)
+    print("reduced dimensions to: ", X_transformed.shape)
+    save_reduced_data(args, X_transformed, y, label_strings_lookup)
+
 if __name__ == '__main__':
     args = docopt(__doc__, version='scrna 0.1')
     print(args); print()
     try:
         if args['train']:
             train(args)
+        elif args['reduce']:
+            reduce(args)
     except ScrnaException as e:
         msg = e.args[0]
-        print("scrna excption: ", msg)
+        print("scrna exception: ", msg)
