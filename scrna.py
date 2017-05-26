@@ -37,7 +37,7 @@ import time
 from os.path import exists, join
 from os import makedirs
 import json
-import pickle
+#import pickle
 
 from docopt import docopt
 import numpy as np
@@ -46,10 +46,13 @@ import theano
 #theano.config.optimizer = 'None'
 
 from util import ScrnaException
-from neural_nets import get_nn_model, autoencoder_model_names, ppitf_model_names
+from neural_nets import get_nn_model, autoencoder_model_names, ppitf_model_names, save_trained_nn, load_trained_nn
 from bio_knowledge import get_groupings_for_genes
 from sparse_optimizers import SparseSGD
 from data_container import DataContainer
+from bio_sparse_layer import BioSparseLayer
+import keras
+keras.layers.BioSparseLayer = BioSparseLayer
 
 def get_data(args):
     data = DataContainer(args['--data'], args['--sn'], args['--gs'])
@@ -116,10 +119,11 @@ def train(args):
     validation_data = (X, y) # For now, same as training data
     model.fit(X, y, epochs=int(args['--epochs']), verbose=2, validation_data=validation_data)
     print("saving model to folder: " + working_dir_path)
-    model_path = join(working_dir_path, "model.p")
-    print("model_path: ", model_path )
+    architecture_path = join(working_dir_path, "model_architecture.json")
+    weights_path = join(working_dir_path, "model_weights.p")
+    save_trained_nn(model, architecture_path, weights_path)
     #model.save(join(working_dir_path, "model.h5")) # TODO: Why doesn't this work?
-    pickle.dump(model, open(model_path, 'wb'))
+    #pickle.dump(model, open(model_path, 'wb'))
     with open(join(working_dir_path, "command_line_args.json"), 'w') as fp:
         json.dump(args, fp)
 
@@ -132,7 +136,6 @@ def save_reduced_data(args, X, y, label_strings_lookup):
     np.save(join(out_folder, "label_strings_lookup"), label_strings_lookup)
 
 def reduce(args):
-    model_path = join(args['<trained_neural_net_folder>'], "model.p")
     training_args_path = join(args['<trained_neural_net_folder>'], "command_line_args.json")
     with open(training_args_path, 'r') as fp:
         training_args = json.load(fp)
@@ -140,7 +143,11 @@ def reduce(args):
     data_to_transform = DataContainer(args['--data'], training_args['--sn'], training_args['--gs'])
     X, y, label_strings_lookup = data_to_transform.get_all_data()
     print(X.shape)
-    model = pickle.load(open(model_path, 'rb'))
+    model_base_path = args['<trained_neural_net_folder>']
+    architecture_path = join(model_base_path, "model_architecture.json")
+    weights_path = join(model_base_path, "model_weights.p")
+    model = load_trained_nn(architecture_path, weights_path)
+    #model = get_model_architecture(training_args, input_dim, output_dim, gene_names)
     print(type(model))
     print(model.summary())
     print(len(model.layers))

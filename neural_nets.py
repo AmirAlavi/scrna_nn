@@ -1,4 +1,6 @@
-from keras.models import Sequential
+import pickle
+
+from keras.models import Sequential, model_from_json
 from keras.layers.core import Dense
 from keras.layers import Merge
 
@@ -7,6 +9,53 @@ from util import ScrnaException
 
 autoencoder_model_names = ['1layer_ae']
 ppitf_model_names = ['2layer_ppitf']
+
+def save_model_weight_to_pickle(model, path):
+    weight_list=[]
+    for layer in model.layers:
+        weights = layer.get_weights()
+        l=len(weights)
+        if l==0:
+            # l==0 means that this was a special merge layer
+            # (the concatenation layer in ppitf models) and
+            # must be handled in a special way below
+            l1= layer.layers[0].get_weights()
+            l2= layer.layers[1].get_weights()
+            weight_list.append([l,[l1,l2]])
+        else:
+            weight_list.append((l,weights))
+    with open(path, 'wb') as fp:
+        pickle.dump(weight_list, fp)
+
+def load_model_weight_from_pickle(model, path):
+    with open(path, 'rb') as fp:
+        weight_list = pickle.load(fp)
+    for layer, weights in zip(model.layers,weight_list):
+        if weights[0] > 0:
+            layer.set_weights(weights[1])
+        else:
+            # Special case for ppitf models
+            print(type(layer.layers[0]))
+            print(type(layer.layers[1]))
+            layer.layers[0].set_weights(weights[1][0])
+            layer.layers[1].set_weights(weights[1][1])
+    return weight_list
+
+def save_trained_nn(model, architecture_path, weights_path):
+    model_json = model.to_json()
+    with open(architecture_path, "w") as json_file:
+        json_file.write(model_json)
+    save_model_weight_to_pickle(model, weights_path)
+
+def load_trained_nn(architecture_path, weights_path):
+    custom_obj = {'BioSparseLayer': BioSparseLayer}
+    model = model_from_json(open(architecture_path).read(), custom_objects=custom_obj)
+    print(model.summary())
+    load_model_weight_from_pickle(model, weights_path)
+    # Must compile to use it for evaluatoin, but not going to train
+    # this model, so we can compile it arbitrarily
+    model.compile(optimizer='sgd', loss='mse')
+    return model
 
 def get_1layer_autoencoder(hidden_layer_size, input_dim, activation_fcn='tanh'):
     model = Sequential()

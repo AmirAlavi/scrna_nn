@@ -50,11 +50,15 @@ class BioSparseLayer(Dense):
                  input_output_mat=None,
                  group_gene_dict=None,
                  **kwargs):
-        if input_output_mat == None:
-            raise ValueError("Must provide input_output_mat to BioSparseLayer constructor!")
+        # if input_output_mat == None:
+        #     raise ValueError("Must provide input_output_mat to BioSparseLayer constructor!")
         self.input_output_mat=input_output_mat
         self.group_gene_dict=group_gene_dict
-        units = self.input_output_mat.shape[1]
+        # Hack, necessary because of the way deserialization from json calls this constructor,
+        # doesn't provide the input_output_mat, though it doesn't matter because when we load
+        # a model from a file, we will eventually load weights we have already trained.
+        if self.input_output_mat is not None:
+            units = self.input_output_mat.shape[1]
         super().__init__(units=units, kernel_initializer=kernel_initializer, activation=activation, kernel_regularizer=kernel_regularizer, bias_regularizer=bias_regularizer, activity_regularizer=activity_regularizer, kernel_constraint=kernel_constraint, bias_constraint=bias_constraint, use_bias=use_bias, **kwargs)
 
     def build(self, input_shape):
@@ -127,6 +131,7 @@ class BioSparseLayer(Dense):
                 of the layer (i.e. it should match the
                 output of `get_weights`).
         '''
+        print("you used to call me on my cell phone")
         params = self.trainable_weights + self.non_trainable_weights
         if len(params) != len(weights):
             raise Exception('You called `set_weights(weights)` on layer "' + self.name +
