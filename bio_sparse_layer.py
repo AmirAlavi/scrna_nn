@@ -64,15 +64,12 @@ class BioSparseLayer(Dense):
     def build(self, input_shape):
         assert len(input_shape) >= 2
         input_dim = input_shape[-1]
-        print("Input dimension: ", input_dim)
-
 
         self.input_spec = [InputSpec(dtype=K.floatx(),
                                      shape=(None, input_dim))]
 
         # The difference between built-in Dense and BioSparseLayer
         self.kernel = self.get_kernel(input_shape)
-        print("kernel type:", type(self.kernel))
 
         if self.use_bias:
             self.bias = self.add_weight(shape=(self.units,),
@@ -89,7 +86,6 @@ class BioSparseLayer(Dense):
         temp_W = np.asarray(self.input_output_mat, dtype=K.floatx())
         if self.input_output_mat is not None:
             fan_in, fan_out = get_fans((input_shape[1], self.units), dim_ordering='th')
-            print("Fan in, Fan out:")
             print (fan_in, fan_out)
             scale = np.sqrt(6. / (fan_in + fan_out))
             for i in range(self.input_output_mat.shape[0]):
@@ -108,14 +104,8 @@ class BioSparseLayer(Dense):
         return W
 
     def call(self, inputs):
-        print("kernel type: ", type(self.kernel))
-        print("bias type: ", type(self.bias))
-        print("input type: ", type(inputs))
         output = sparse.structured_dot(inputs, self.kernel)
         if self.use_bias:
-            print(self.kernel.shape)
-            print(inputs.shape)
-            print(self.bias.shape)
             output += self.bias
         if self.activation is not None:
             output = self.activation(output)
@@ -131,7 +121,6 @@ class BioSparseLayer(Dense):
                 of the layer (i.e. it should match the
                 output of `get_weights`).
         '''
-        print("you used to call me on my cell phone")
         params = self.trainable_weights + self.non_trainable_weights
         if len(params) != len(weights):
             raise Exception('You called `set_weights(weights)` on layer "' + self.name +

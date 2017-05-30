@@ -37,13 +37,11 @@ import time
 from os.path import exists, join
 from os import makedirs
 import json
-#import pickle
 
 from docopt import docopt
 import numpy as np
 from keras.utils import np_utils
 import theano
-#theano.config.optimizer = 'None'
 
 from util import ScrnaException
 from neural_nets import get_nn_model, autoencoder_model_names, ppitf_model_names, save_trained_nn, load_trained_nn, load_model_weight_from_pickle
@@ -149,24 +147,11 @@ def reduce(args):
     load_model_weight_from_pickle(model, weights_path)
     model.compile(optimizer='sgd', loss='mse') # arbitrary
     print(model.summary())
-    print(len(model.layers))
-    print("in reduce")
-    print(model.layers)
-    print(model.layers[2])
     # use the last hidden layer of the model as a lower-dimensional representation:
     last_hidden_layer = model.layers[-2]
-    print("type of last hidden layer: ", type(last_hidden_layer))
     if training_args['<neural_net_architecture>'] in ppitf_model_names:
         # these models have special input shape
-        print(type(model.layers[0].layers[0].input))
-        print(model.layers[0].layers[0].input)
-        print(type(model.layers[0].layers[1].input))
-        print(model.layers[0].layers[1].input)
         get_activations = theano.function([model.layers[0].layers[0].input, model.layers[0].layers[1].input], last_hidden_layer.output)
-        print(type(X[0]))
-        print(X[0].dtype)
-        print(X[1].dtype)
-        print(X[0].shape)
         X_transformed = get_activations(X[0], X[1])
     else:
         get_activations = theano.function([model.layers[0].input], last_hidden_layer.output)
