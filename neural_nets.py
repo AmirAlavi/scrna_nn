@@ -35,10 +35,10 @@ def load_model_weight_from_pickle(model, path):
             layer.set_weights(weights[1])
         else:
             # Special case for ppitf models
-            print(type(layer.layers[0]))
-            print(type(layer.layers[1]))
-            layer.layers[0].set_weights(weights[1][0])
-            layer.layers[1].set_weights(weights[1][1])
+            print(type(layer.layers[0].layers[0]))
+            print(type(layer.layers[1].layers[0]))
+            layer.layers[0].layers[0].set_weights(weights[1][0])
+            layer.layers[1].layers[0].set_weights(weights[1][1])
     return weight_list
 
 def save_trained_nn(model, architecture_path, weights_path):
@@ -69,10 +69,18 @@ def get_2layer_ppitf(second_hidden_layer_size, input_dim, ppitf_groups_mat, outp
     right_branch = Sequential()
     right_branch.add(Dense(100, input_dim=input_dim))
     merged = Merge([left_branch, right_branch], mode='concat')
+    print(type(merged))
+    print(merged.layers)
+    print(merged.layers[0].layers)
+    print(merged.layers[1].layers)
     model = Sequential()
     model.add(merged)
     model.add(Dense(second_hidden_layer_size, activation=activation_fcn))
     model.add(Dense(output_dim, activation='softmax'))
+    print("hi")
+    print(model.layers[0].layers)
+    print(model.layers[0].layers[0].layers)
+    print("hi")
     return model
 
 def get_nn_model(model_name, hidden_layer_sizes, input_dim, activation_fcn='tanh', ppitf_groups_mat=None, output_dim=None):

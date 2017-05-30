@@ -17,10 +17,9 @@ class DataContainer(object):
         dataframe = pd.read_csv(filepath, sep='\t', index_col=0, header=0, comment='#', low_memory=False)
         dataframe = dataframe.T
         # Column 0 is Label and Column 1 is Weight. Columns after these are
-        # the genes. Select numeric columns (and convert them to floats)
-        # (downcast because float64 might not be needed).
-        converter = lambda series: pd.to_numeric(series, downcast='float')
-        dataframe.iloc[:,1:] = dataframe.iloc[:,1:].apply(converter)
+        # the genes. Convert numeric columns to floats (downcast because
+        # float64 might not be needed).
+        dataframe = dataframe.apply(pd.to_numeric, errors='ignore', downcast='float')
         if sample_normalize:
             normalizer = Normalizer(norm='l1')
             dataframe.iloc[:, 2:] = normalizer.fit_transform(dataframe.iloc[:, 2:])
@@ -28,6 +27,10 @@ class DataContainer(object):
             # Standardize each column by centering and having unit std
             scaler = StandardScaler()
             dataframe.iloc[:, 2:] = scaler.fit_transform(dataframe.iloc[:, 2:])
+        # Hack: for some reason the normalization/standardization operations
+        # above will change the dtype from float32 to float64, so we need to
+        # convert it back
+        dataframe = dataframe.apply(pd.to_numeric, errors='ignore', downcast='float')
         self.dataframe = dataframe
 
     def get_gene_names(self):

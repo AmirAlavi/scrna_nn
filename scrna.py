@@ -15,7 +15,7 @@ Options:
                             [default: data/TPM_mouse_7_8_10_PPITF_gene_9437.txt]
 
     "train" specific command options:
-    --epochs=<nepochs>      Number of epochs to train for. [default: 20]
+    --epochs=<nepochs>      Number of epochs to train for. [default: 100]
     --act=<activation_fcn>  Activation function to use for the layers.
                             [default: tanh]
     --sn                    Divide each sample by the total number of reads for
@@ -46,7 +46,7 @@ import theano
 #theano.config.optimizer = 'None'
 
 from util import ScrnaException
-from neural_nets import get_nn_model, autoencoder_model_names, ppitf_model_names, save_trained_nn, load_trained_nn
+from neural_nets import get_nn_model, autoencoder_model_names, ppitf_model_names, save_trained_nn, load_trained_nn, load_model_weight_from_pickle
 from bio_knowledge import get_groupings_for_genes
 from sparse_optimizers import SparseSGD
 from data_container import DataContainer
@@ -139,24 +139,35 @@ def reduce(args):
     training_args_path = join(args['<trained_neural_net_folder>'], "command_line_args.json")
     with open(training_args_path, 'r') as fp:
         training_args = json.load(fp)
-    # Must ensure that we use the same normalizations/sandardization
-    data_to_transform = DataContainer(args['--data'], training_args['--sn'], training_args['--gs'])
-    X, y, label_strings_lookup = data_to_transform.get_all_data()
-    print(X.shape)
+    # Must ensure that we use the same normalizations/sandardization from when model was trained
+    X, y, input_dim, output_dim, label_strings_lookup, gene_names = get_data(training_args)
     model_base_path = args['<trained_neural_net_folder>']
-    architecture_path = join(model_base_path, "model_architecture.json")
+    #architecture_path = join(model_base_path, "model_architecture.json")
     weights_path = join(model_base_path, "model_weights.p")
-    model = load_trained_nn(architecture_path, weights_path)
-    #model = get_model_architecture(training_args, input_dim, output_dim, gene_names)
-    print(type(model))
+    #model = load_trained_nn(architecture_path, weights_path)
+    model = get_model_architecture(training_args, input_dim, output_dim, gene_names)
+    load_model_weight_from_pickle(model, weights_path)
+    model.compile(optimizer='sgd', loss='mse') # arbitrary
     print(model.summary())
     print(len(model.layers))
+    print("in reduce")
+    print(model.layers)
+    print(model.layers[2])
     # use the last hidden layer of the model as a lower-dimensional representation:
     last_hidden_layer = model.layers[-2]
+    print("type of last hidden layer: ", type(last_hidden_layer))
     if training_args['<neural_net_architecture>'] in ppitf_model_names:
         # these models have special input shape
+        print(type(model.layers[0].layers[0].input))
+        print(model.layers[0].layers[0].input)
+        print(type(model.layers[0].layers[1].input))
+        print(model.layers[0].layers[1].input)
         get_activations = theano.function([model.layers[0].layers[0].input, model.layers[0].layers[1].input], last_hidden_layer.output)
-        X_transformed = get_activations(X, X)
+        print(type(X[0]))
+        print(X[0].dtype)
+        print(X[1].dtype)
+        print(X[0].shape)
+        X_transformed = get_activations(X[0], X[1])
     else:
         get_activations = theano.function([model.layers[0].input], last_hidden_layer.output)
         X_transformed = get_activations(X)
