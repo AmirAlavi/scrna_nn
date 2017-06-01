@@ -10,13 +10,17 @@ class DataContainer(object):
     """Parses and holds the input data table (gene expression file) in memory
     and provides access to various aspects of it.
     """
-    def __init__(self, filepath, sample_normalize=False, gene_standardize=False):
+    def __init__(self, filepath, sample_normalize=False, gene_standardize=False, transpose=True):
         # Use pandas.read_csv to read in the file
         print('Reading in data from ', filepath)
         # TODO: Right now, because of format of files we currently have, the columns are mixed data types so we have to use low_memory=False
         dataframe = pd.read_csv(filepath, sep='\t', index_col=0, header=0, comment='#', low_memory=False)
-        dataframe = dataframe.T
-        # Column 0 is Label and Column 1 is Weight. Columns after these are
+        if transpose:
+            dataframe = dataframe.T
+        # Currently, some input datasets have a Weight column that we want to
+        # be Dataset ID number instead
+        dataframe.rename(columns={'Weight': 'Dataset'}, inplace=True)
+        # Column 0 is Label and Column 1 is Dataset. Columns after these are
         # the genes. Convert numeric columns to floats (downcast because
         # float64 might not be needed).
         dataframe = dataframe.apply(pd.to_numeric, errors='ignore', downcast='float')
@@ -35,6 +39,29 @@ class DataContainer(object):
 
     def get_gene_names(self):
         return self.dataframe.columns.values[2:]
+
+    def get_all_dataset_IDs(self):
+        return self.dataframe.loc[:, 'Dataset'].values
+
+    def get_labeled_dataset_IDs(self):
+        labeled_data = self.dataframe.loc[lambda df: df.Label != 'None', :]
+        return labeled_data.loc[:, 'Dataset'].values
+
+    def get_all_sample_IDs(self):
+        #return self.dataframe.loc[:, 'Sample'].values
+        pass
+
+    def get_labeled_sample_IDs(self):
+        #labeled_data = self.dataframe.loc[lambda df: df.Label != 'None', :]
+        #return labeled_data.loc[:, 'Sample'].values
+        pass
+
+    def get_all_labels(self):
+        return self.dataframe.loc[:, 'Label'].values
+
+    def get_labeled_labels(self):
+        labeled_data = self.dataframe.loc[lambda df: df.Label != 'None', :]
+        return labeled_data.loc[:, 'Label'].values
 
     def get_labeled_data(self):
         print("getting labeled data")

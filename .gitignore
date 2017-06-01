@@ -1,5 +1,7 @@
 data/
 models/
+reduced_data/
+retrieval_results/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
