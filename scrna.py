@@ -31,8 +31,8 @@ Options:
     --sgd_nesterov          Use Nesterov momentum for SGD.
     --ppitf_groups=<path>   Path to file containing the TF groups and PPI
                             groups, each on separate lines.
-                            [default: ppi_tf_merge_cluster.txt]
-    --pt=<pretrain_nn_path> Use initial weights from a pretrained model.
+                            [default: data/ppi_tf_merge_cluster.txt]
+    --pt                    Use initial weights from a pretrained model.
 
     "retrieval" specific command options:
     --dist_metric=<metric>  Distance metric to use for nearest neighbors
@@ -53,7 +53,7 @@ import theano
 from scipy.spatial import distance
 
 from util import ScrnaException
-from neural_nets import get_nn_model, autoencoder_model_names, ppitf_model_names, save_trained_nn, load_trained_nn, load_model_weight_from_pickle
+from neural_nets import get_nn_model, autoencoder_model_names, ppitf_model_names, save_trained_nn, load_trained_nn, load_model_weight_from_pickle, set_pretrained_weights
 from bio_knowledge import get_groupings_for_genes
 from sparse_optimizers import SparseSGD
 from data_container import DataContainer
@@ -126,6 +126,8 @@ def train(args):
     print(X[1].shape)
     model = get_model_architecture(args, input_dim, output_dim, gene_names)
     print(model.summary())
+    if args['--pt']:
+        set_pretrained_weights(model, args)
     sgd = get_optimizer(args)
     if args['<neural_net_architecture>'] in autoencoder_model_names:
         model.compile(loss='mean squared_error', optimizer=sgd)
