@@ -3,10 +3,12 @@
 A pipeline for reducing the dimensions of single-cell RNA-seq data.
 
 The expected directory structure is:
+```
 single_cell_reducer/
 ├── data - any input files (usually CSVs), not provided in repo
 ├── models - output folder where trained models will go
 └── reduced_data -output folder where reduced data will go
+```
 
 scrna.py is the main module. Example invocations:
 
