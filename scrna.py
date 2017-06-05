@@ -53,7 +53,7 @@ import theano
 from scipy.spatial import distance
 
 from util import ScrnaException
-from neural_nets import get_nn_model, autoencoder_model_names, ppitf_model_names, save_trained_nn, load_trained_nn, load_model_weight_from_pickle, set_pretrained_weights
+from neural_nets import get_nn_model, autoencoder_model_names, ppitf_model_names, save_trained_nn, load_trained_nn, load_model_weight_from_pickle, #set_pretrained_weights
 from bio_knowledge import get_groupings_for_genes
 from sparse_optimizers import SparseSGD
 from data_container import DataContainer

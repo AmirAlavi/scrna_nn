@@ -55,6 +55,13 @@ def load_trained_nn(architecture_path, weights_path):
     model.compile(optimizer='sgd', loss='mse')
     return model
 
+def set_pretrained_weights(model, args):
+    pt_2layer_ppitf_ae = None
+    pt_1layer_dense_100 = None
+    pt_1layer_dense_796 = None
+    arch = args['<neural_net_architecture>']
+#    if arch in [
+
 def get_1layer_autoencoder(hidden_layer_size, input_dim, activation_fcn='tanh'):
     model = Sequential()
     model.add(Dense(hidden_layer_size, input_dim=input_dim, activation=activation_fcn))
@@ -93,5 +100,7 @@ def get_nn_model(model_name, hidden_layer_sizes, input_dim, activation_fcn='tanh
         return get_2layer_ppitf_autoencoder(hidden_layer_sizes[0], input_dim, ppitf_groups_mat, output_dim, activation_fcn)
     elif model_name == '2layer_ppitf':
         return get_2layer_ppitf(hidden_layer_sizes[0], input_dim, ppitf_groups_mat, output_dim, activation_fcn)
+    elif model_name == 'pt_2layer_ppitf':
+        pass
     else:
         raise ScrnaException("Bad neural network name: " + model_name)
