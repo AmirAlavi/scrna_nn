@@ -10,13 +10,12 @@ class DataContainer(object):
     """Parses and holds the input data table (gene expression file) in memory
     and provides access to various aspects of it.
     """
-    def __init__(self, filepath, sample_normalize=False, gene_standardize=False, transpose=True):
+    def __init__(self, filepath, sample_normalize=False, gene_standardize=False):
         # Use pandas.read_csv to read in the file
         print('Reading in data from ', filepath)
         # TODO: Right now, because of format of files we currently have, the columns are mixed data types so we have to use low_memory=False
-        dataframe = pd.read_csv(filepath, sep='\t', index_col=0, header=0, comment='#', low_memory=False)
-        if transpose:
-            dataframe = dataframe.T
+        dataframe = pd.read_csv(filepath, sep='\t', index_col=0, header=0, comment='#', low_memory=True)
+        print("Read in data")
         # Currently, some input datasets have a Weight column that we want to
         # be Dataset ID number instead
         dataframe.rename(columns={'Weight': 'Dataset'}, inplace=True)
@@ -24,17 +23,26 @@ class DataContainer(object):
         # the genes. Convert numeric columns to floats (downcast because
         # float64 might not be needed).
         dataframe = dataframe.apply(pd.to_numeric, errors='ignore', downcast='float')
+        print("converted to float")
         if sample_normalize:
-            normalizer = Normalizer(norm='l1')
-            dataframe.iloc[:, 2:] = normalizer.fit_transform(dataframe.iloc[:, 2:])
+            # normalizer = Normalizer(norm='l1')
+            # dataframe.iloc[:, 2:] = normalizer.fit_transform(dataframe.iloc[:, 2:])
+            t0 = time.time()
+            to_normalize = dataframe.iloc[:, 2:]
+            dataframe.iloc[:, 2:] = to_normalize.div(to_normalize.sum(axis=1), axis=0)
+            print("time to normalize: ", time.time() - t0)
+            print("normalized")
         if gene_standardize:
             # Standardize each column by centering and having unit std
-            scaler = StandardScaler()
-            dataframe.iloc[:, 2:] = scaler.fit_transform(dataframe.iloc[:, 2:])
-        # Hack: for some reason the normalization/standardization operations
-        # above will change the dtype from float32 to float64, so we need to
-        # convert it back
-        dataframe = dataframe.apply(pd.to_numeric, errors='ignore', downcast='float')
+            t0 = time.time()
+            # scaler = StandardScaler()
+            # dataframe.iloc[:, 2:] = scaler.fit_transform(dataframe.iloc[:, 2:])
+            to_std = dataframe.iloc[:, 2:]
+            mean = to_std.mean()
+            std = to_std.std(ddof=0)
+            dataframe.iloc[:, 2:] = (to_std - mean).div(std, axis=0)
+            print("time to standardize: ", time.time() - t0)
+            print("standardized")
         self.dataframe = dataframe
 
     def get_gene_names(self):

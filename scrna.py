@@ -11,7 +11,7 @@ Options:
     -h --help               Show this screen.
     --version               Show version.
     --data=<path>           Path to input data file.
-                            [default: data/TPM_mouse_7_8_10_PPITF_gene_9437.txt]
+                            [default: data/TPM_mouse_7_8_10_PPITF_gene_9437_T.txt]
     --out_folder=<path>     Path of folder to save output
                             (trained models/reduced data/retrieval results) to.
                             'None' means that a time-stamped folder will
@@ -163,13 +163,15 @@ def reduce(args):
         training_args = json.load(fp)
     # Must ensure that we use the same normalizations/sandardization from when model was trained
     X, y, input_dim, output_dim, label_strings_lookup, gene_names, data_container = get_data(args['--data'], training_args)
+    print("output_dim ", output_dim)
     model_base_path = args['<trained_neural_net_folder>']
-    #architecture_path = join(model_base_path, "model_architecture.json")
+    architecture_path = join(model_base_path, "model_architecture.json")
     weights_path = join(model_base_path, "model_weights.p")
-    #model = load_trained_nn(architecture_path, weights_path)
-    model = get_model_architecture(training_args, input_dim, output_dim, gene_names)
-    load_model_weight_from_pickle(model, weights_path)
-    model.compile(optimizer='sgd', loss='mse') # arbitrary
+    model = load_trained_nn(architecture_path, weights_path)
+    #model = get_model_architecture(training_args, input_dim, output_dim, gene_names)
+    #model = model_from_json
+    #load_model_weight_from_pickle(model, weights_path)
+    #model.compile(optimizer='sgd', loss='mse') # arbitrary
     print(model.summary())
     # use the last hidden layer of the model as a lower-dimensional representation:
     last_hidden_layer = model.layers[-2]
@@ -211,7 +213,7 @@ def retrieval_test(args):
         training_args = json.load(fp)
     working_dir_path = create_working_directory(args['--out_folder'], "retrieval_results/", training_args['<neural_net_architecture>'])
     # Load the reduced data
-    data = DataContainer(join(args['<reduced_data_folder>'], "reduced.csv"), transpose=False)
+    data = DataContainer(join(args['<reduced_data_folder>'], "reduced.csv"))
     X, _, _ = data.get_labeled_data()
     testing_label_subset = ['2cell','4cell','ICM','zygote','8cell','ESC','lung','TE','thymus','spleen','HSC','neuron']
     modify_data_for_retrieval_test(data, testing_label_subset)
@@ -250,7 +252,7 @@ def retrieval_test(args):
 
             retrieved_labels = []
             for retrieved_idx in sorted_distances_indicies[:total_same_label]:
-                retrieved_labels.append[labels[other_ds_samples_indicies[retrieved_idx]]]
+                retrieved_labels.append(labels[other_ds_samples_indicies[retrieved_idx]])
             avg_precision = average_precision(current_sample_label, retrieved_labels)
             average_precisions_for_label[current_sample_label].append(avg_precision)
 
