@@ -1,4 +1,4 @@
-#import pdb; pdb.set_trace()
+# import pdb; pdb.set_trace()
 import time
 
 import pandas as pd
@@ -25,24 +25,24 @@ class DataContainer(object):
         dataframe = dataframe.apply(pd.to_numeric, errors='ignore', downcast='float')
         print("converted to float")
         if sample_normalize:
-            # normalizer = Normalizer(norm='l1')
-            # dataframe.iloc[:, 2:] = normalizer.fit_transform(dataframe.iloc[:, 2:])
+            print("normalizing...")
             t0 = time.time()
+            eps = np.finfo(np.float32).eps
             to_normalize = dataframe.iloc[:, 2:]
-            dataframe.iloc[:, 2:] = to_normalize.div(to_normalize.sum(axis=1), axis=0)
+            dataframe.iloc[:, 2:] = to_normalize.div(to_normalize.sum(axis=1) + eps, axis=0)
             print("time to normalize: ", time.time() - t0)
-            print("normalized")
         if gene_standardize:
+            print("standardizing...")
             # Standardize each column by centering and having unit std
             t0 = time.time()
-            # scaler = StandardScaler()
-            # dataframe.iloc[:, 2:] = scaler.fit_transform(dataframe.iloc[:, 2:])
-            to_std = dataframe.iloc[:, 2:]
-            mean = to_std.mean()
-            std = to_std.std(ddof=0)
-            dataframe.iloc[:, 2:] = (to_std - mean).div(std, axis=0)
+            for col in range(2, dataframe.shape[1]):
+                std = dataframe.iloc[:, col].std(ddof=0)
+                mean = dataframe.iloc[:, col].mean()
+                dataframe.iloc[:, col] -= mean
+                if std != 0:
+                    dataframe.iloc[:, col] /= std
             print("time to standardize: ", time.time() - t0)
-            print("standardized")
+
         self.dataframe = dataframe
 
     def get_gene_names(self):

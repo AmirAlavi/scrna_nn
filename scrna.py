@@ -38,7 +38,7 @@ Options:
     --dist_metric=<metric>  Distance metric to use for nearest neighbors
                             retrieval [default: euclidean].
 """
-#import pdb; pdb.set_trace()
+# import pdb; pdb.set_trace()
 import time
 from os.path import exists, join
 from os import makedirs
