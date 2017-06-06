@@ -2,6 +2,8 @@ data/
 models/
 reduced_data/
 retrieval_results/
+# All pickle files
+*.p
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

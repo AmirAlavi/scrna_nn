@@ -53,7 +53,7 @@ import theano
 from scipy.spatial import distance
 
 from util import ScrnaException
-from neural_nets import get_nn_model, autoencoder_model_names, ppitf_model_names, save_trained_nn, load_trained_nn, load_model_weight_from_pickle#,set_pretrained_weights
+from neural_nets import get_nn_model, autoencoder_model_names, ppitf_model_names, save_trained_nn, load_trained_nn, load_model_weight_from_pickle, set_pretrained_weights
 from bio_knowledge import get_groupings_for_genes
 from sparse_optimizers import SparseSGD
 from data_container import DataContainer
@@ -79,7 +79,7 @@ def get_data(data_path, args):
         X_clean, _, label_strings_lookup = data.get_all_data()
         # Add noise to the data:
         noise_level = 0.1
-        X = X_clean + noise_level * np.random.normal(loc=0, scale=1, size=X.shape)
+        X = X_clean + noise_level * np.random.normal(loc=0, scale=1, size=X_clean.shape)
         X = np.clip(X, -1., 1.)
         # For autoencoders, the input is a noisy sample, and the networks goal
         # is to reconstruct the original sample, and so the output is the same
@@ -127,10 +127,11 @@ def train(args):
     model = get_model_architecture(args, input_dim, output_dim, gene_names)
     print(model.summary())
     if args['--pt']:
-        set_pretrained_weights(model, args)
+        hidden_layer_sizes = [int(x) for x in args['<hidden_layer_sizes>']]
+        set_pretrained_weights(model, args['<neural_net_architecture>'], hidden_layer_sizes)
     sgd = get_optimizer(args)
     if args['<neural_net_architecture>'] in autoencoder_model_names:
-        model.compile(loss='mean squared_error', optimizer=sgd)
+        model.compile(loss='mean_squared_error', optimizer=sgd)
     else:
         model.compile(loss='categorical_crossentropy', optimizer=sgd, metrics=['accuracy'])
     print("model compiled and ready for training")

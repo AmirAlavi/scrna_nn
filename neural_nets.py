@@ -1,3 +1,4 @@
+# import pdb; pdb.set_trace()
 import pickle
 
 from keras.models import Sequential, model_from_json
@@ -7,8 +8,8 @@ from keras.layers import Merge
 from bio_sparse_layer import BioSparseLayer
 from util import ScrnaException
 
-autoencoder_model_names = ['1layer_ae']
-ppitf_model_names = ['2layer_ppitf']
+autoencoder_model_names = ['1layer_ae', '2layer_ppitf_ae']
+ppitf_model_names = ['2layer_ppitf', '2layer_ppitf_ae']
 
 def save_model_weight_to_pickle(model, path):
     weight_list=[]
@@ -55,12 +56,51 @@ def load_trained_nn(architecture_path, weights_path):
     model.compile(optimizer='sgd', loss='mse')
     return model
 
-def set_pretrained_weights(model, args):
-    pt_2layer_ppitf_ae = None
-    pt_1layer_dense_100 = None
-    pt_1layer_dense_796 = None
-    arch = args['<neural_net_architecture>']
-#    if arch in [
+def get_pretrained_weights(pt_file):
+    weight_list = []
+    with open(pt_file, 'rb') as weights_file:
+        weight_list = pickle.load(weights_file)
+    return weight_list
+
+def set_pretrained_weights_ppitf_helper(model, pt_file, num_hidden_layers):
+    weight_list = get_pretrained_weights(pt_file)
+    # The first layer is special, because it is the concatenation of a 
+    # BioSparseLayer and a Dense layer
+    sparse_weights = weight_list[0][1][0]
+    # model.layers[0].layers[0].set_weights(sparse_weights)
+    model.layers[0].layers[0].layers[0].set_weights(sparse_weights)
+    dense_weights = weight_list[0][1][1]
+    model.layers[0].layers[1].set_weights(dense_weights)
+    for i in range(1, num_hidden_layers):
+        model.layers[i].set_weights(weight_list[i][1])
+
+
+def set_pretrained_weights_dense_helper(model, pt_file, num_hidden_layers):
+    weight_list = get_pretrained_weights(pt_file)
+    for i in range(num_hidden_layers):
+        model.layers[i].set_weights(weight_list[i][1])
+
+def set_pretrained_weights(model, model_name, hidden_layer_sizes):
+    pt_2layer_ppitf = 'pretrained_models/pt_2layer_ppitf_ae_weights.p'
+    pt_1layer_ppitf = 'pretrained_models/pt_1layer_ppitf_ae_weights.p'
+    pt_1layer_dense_100 = 'pretrained_models/pt_1layer_dense_100_ae_weights.p'
+    pt_1layer_dense_796 = 'pretrained_models/pt_1layer_dense_796_ae_weights.p'
+    pt_2layer_dense_796_100 = 'pretrained_models/pt_2layer_dense_796_100_ae_weights.p'
+    if model_name == '2layer_ppitf':
+        set_pretrained_weights_ppitf_helper(model, pt_2layer_ppitf, 2)
+    elif model_name == '1layer_ppitf':
+        set_pretrained_weights_ppitf_helper(model, pt_1layer_ppitf, 1)
+    elif model_name == 'dense':
+        if len(hidden_layer_sizes) == 1:
+            if hidden_layers_sizes[0] == 100:
+                set_pretrained_weights_dense_helper(model, pt_1layer_dense_100, 1)
+            elif hidden_layer_sizes[0] == 796:
+                set_pretrained_weights_dense_helper(model, pt_1layer_dense_796, 1)
+        elif len(hidden_layer_sizes) == 2:
+            set_pretrained_weights_dense_helper(model, pt_2layer_dense_796_100, 2)
+    else:
+        raise ScrnaException("Pretrained model weights not available for this architecture!")
+    print("Using pretrained weights")
 
 def get_1layer_autoencoder(hidden_layer_size, input_dim, activation_fcn='tanh'):
     model = Sequential()
@@ -100,7 +140,5 @@ def get_nn_model(model_name, hidden_layer_sizes, input_dim, activation_fcn='tanh
         return get_2layer_ppitf_autoencoder(hidden_layer_sizes[0], input_dim, ppitf_groups_mat, output_dim, activation_fcn)
     elif model_name == '2layer_ppitf':
         return get_2layer_ppitf(hidden_layer_sizes[0], input_dim, ppitf_groups_mat, output_dim, activation_fcn)
-    elif model_name == 'pt_2layer_ppitf':
-        pass
     else:
         raise ScrnaException("Bad neural network name: " + model_name)
