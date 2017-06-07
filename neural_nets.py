@@ -1,9 +1,10 @@
 # import pdb; pdb.set_trace()
 import pickle
 
-from keras.models import Sequential, model_from_json
-from keras.layers.core import Dense
-from keras.layers import Merge
+from keras.models import Sequential, Model, model_from_json
+from keras.layers import Dense, Merge, Input, Lambda
+#from keras.layers import Merge
+from keras import backend as K
 
 from bio_sparse_layer import BioSparseLayer
 from util import ScrnaException
@@ -131,6 +132,41 @@ def get_2layer_ppitf(second_hidden_layer_size, input_dim, ppitf_groups_mat, outp
     model.add(Dense(second_hidden_layer_size, activation=activation_fcn))
     model.add(Dense(output_dim, activation='softmax'))
     return model
+
+# *** BEGIN SIAMESE NEURAL NETWORK CODE
+# Modified from https://github.com/fchollet/keras/blob/master/examples/mnist_siamese_graph.py
+def euclidean_distance(vects):
+    x, y = vects
+    return K.sqrt(K.maximum(K.sum(K.square(x - y), axis=1, keepdims=True), K.epsilon()))
+
+def eucl_dist_output_shape(shapes):
+    shape1, shape2 = shapes
+    return (shape1[0], 1)
+
+def contrastive_loss(y_true, y_pred):
+    '''Contrastive loss from Hadsell-et-al.'06
+    http://yann.lecun.com/exdb/publis/pdf/hadsell-chopra-lecun-06.pdf
+    '''
+    margin = 1
+    return K.mean(y_true * K.square(y_pred) +
+                  (1 - y_true) * K.square(K.maximum(margin - y_pred, 0)))
+
+def get_siamese(base_network, input_dim):
+    # Create a siamese neural network with the provided base_network as two conjoined twins.
+    # Load pretrained weights before calling this function.
+    # First, remove the last layer (output layer) from base_network
+    base_network.pop()
+    input_a = Input(shape=(input_dim,))
+    input_b = Input(shape=(input_dim,))
+    
+    processed_a = base_network([input_a, input_a])
+    processed_b = base_network([input_b, input_b])
+
+    distance = Lambda(euclidean_distance, output_shape=eucl_dist_output_shape)([processed_a, processed_b])
+
+    model = Model([input_a, input_b], distance)
+    return model
+# *** END SIAMESE NEURAL NETWORK CODE
 
 def get_nn_model(model_name, hidden_layer_sizes, input_dim, activation_fcn='tanh', ppitf_groups_mat=None, output_dim=None):
     print(hidden_layer_sizes)
