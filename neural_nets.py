@@ -4,6 +4,7 @@ import pickle
 from keras.models import Sequential, Model, model_from_json
 from keras.layers import Dense, Merge, Input, Lambda
 #from keras.layers import Merge
+from keras.utils import plot_model
 from keras import backend as K
 
 from bio_sparse_layer import BioSparseLayer
@@ -165,6 +166,8 @@ def get_siamese(base_network, input_dim):
     distance = Lambda(euclidean_distance, output_shape=eucl_dist_output_shape)([processed_a, processed_b])
 
     model = Model([input_a, input_b], distance)
+    print("plotting model")
+    plot_model(model, to_file='siamese_architecture.png', show_shapes=True)
     return model
 # *** END SIAMESE NEURAL NETWORK CODE
 
