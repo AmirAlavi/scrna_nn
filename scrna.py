@@ -1,7 +1,7 @@
 """Single-cell RNA-seq Analysis Pipeline.
 
 Usage:
-    scrna.py train <neural_net_architecture> <hidden_layer_sizes>... [options]
+    scrna.py train <neural_net_architecture> [options] <hidden_layer_sizes>...
     scrna.py reduce <trained_neural_net_folder> [--out_folder=<path> --data=<path>]
     scrna.py retrieval <reduced_data_folder> [--dist_metric=<metric> --out_folder=<path>]
     scrna.py (-h | --help)
@@ -36,16 +36,18 @@ Options:
     --siamese               Uses a siamese neural network architecture, using
                             <neural_net_architecture> as the base network.
                             Using this flag has many implications, see code.
-                            
+
     "retrieval" specific command options:
     --dist_metric=<metric>  Distance metric to use for nearest neighbors
                             retrieval [default: euclidean].
+
 """
 # import pdb; pdb.set_trace()
 import time
 from os.path import exists, join
 from os import makedirs
 import json
+import sys
 from collections import defaultdict
 
 from docopt import docopt
@@ -99,7 +101,7 @@ def get_data(data_path, args):
     # TODO: For ppitf models, since their architectures require a merge layer, the
     # input dimensions will look different, and get_data should take care of that
     if args['<neural_net_architecture>'] in nn.ppitf_model_names:
-        X = np.array([X, X])
+        X = [X, X]
         # if args['<neural_net_architecture>'] in nn.autoencoder_model_names:
         #     # The output shape of an autoencocer must match the input shape, so
         #     # we need to do the same as above for the y
@@ -281,6 +283,7 @@ def retrieval_test(args):
     summary_csv_file.close()
 
 if __name__ == '__main__':
+    print(sys.argv)
     args = docopt(__doc__, version='scrna 0.1')
     print(args); print()
     try:
