@@ -32,6 +32,9 @@ SLURM_RETRIEVAL_COMMAND="""sbatch --array=0-{num_jobs} --mail-user {email} \
 --output {out_folder}/scrna_retrieval_array_%A_%a.out
 --error {err_folder}/scrna_retrieval_array_%A_%a.err -d afterok:{depends} slurm_retrieval_array.sh"""
 
+# The cell types that were used for retrieval testing in the Lin et al. paper
+paper_cell_types = ['HSC', '4cell', 'ICM', 'spleen', '8cell', 'neuron', 'zygote', '2cell', 'ESC']
+
 class SafeDict(dict):
     """Allows for string formatting with unused keyword arguments
     """
@@ -150,9 +153,14 @@ class Experiment(object):
             print(model_name)
             results_file = join(results_folder, 'retrieval_summary.csv')
             cell_types_and_scores = self.get_avg_score_for_each_cell_type(results_file)
+            scores_list = []
             for cell_type, score in cell_types_and_scores.items():
                 # Iterate through cell types
                 overall_results.append({'model': model_name, 'cell_type': cell_type, 'avg_score': score})
+                if cell_type in paper_cell_types:
+                    scores_list.append(score)
+            avg_across_paper_cell_types = np.mean(scores_list)
+            overall_results.append({'model': model_name, 'cell_type': 'average', 'avg_score': avg_across_paper_cell_types})
         with open(join(self.working_dir_path, 'full_results_table.csv'), 'w') as csv_file:
             writer = csv.DictWriter(csv_file, fieldnames=overall_results_fieldnames)
             writer.writeheader()
