@@ -134,6 +134,14 @@ def get_2layer_ppitf(second_hidden_layer_size, input_dim, ppitf_groups_mat, outp
     model.add(Dense(output_dim, activation='softmax'))
     return model
 
+def get_dense(hidden_layer_sizes, input_dim, output_dim, activation_fcn='tanh'):
+    model = Sequential()
+    model.add(Dense(hidden_layer_sizes[0], input_dim=input_dim, activation=activation_fcn))
+    for i in range(1, len(hidden_layer_sizes)):
+        model.add(Dense(hidden_layer_sizes[i], activation=activation_fcn))
+    model.add(Dense(output_dim, activation='softmax'))
+    return model
+
 # *** BEGIN SIAMESE NEURAL NETWORK CODE
 # Modified from https://github.com/fchollet/keras/blob/master/examples/mnist_siamese_graph.py
 def euclidean_distance(vects):
@@ -179,5 +187,7 @@ def get_nn_model(model_name, hidden_layer_sizes, input_dim, activation_fcn='tanh
         return get_2layer_ppitf_autoencoder(hidden_layer_sizes[0], input_dim, ppitf_groups_mat, output_dim, activation_fcn)
     elif model_name == '2layer_ppitf':
         return get_2layer_ppitf(hidden_layer_sizes[0], input_dim, ppitf_groups_mat, output_dim, activation_fcn)
+    elif model_name == 'dense':
+        return get_dense(hidden_layer_sizes, input_dim, output_dim, activation_fcn)
     else:
         raise ScrnaException("Bad neural network name: " + model_name)
