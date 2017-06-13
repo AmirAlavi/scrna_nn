@@ -1,6 +1,7 @@
 # import pdb; pdb.set_trace()
 import pickle
 
+import keras
 from keras.models import Sequential, Model, model_from_json
 from keras.layers import Dense, Merge, Input, Lambda
 #from keras.layers import Merge
@@ -11,7 +12,7 @@ from bio_sparse_layer import BioSparseLayer
 from util import ScrnaException
 
 autoencoder_model_names = ['1layer_ae', '2layer_ppitf_ae', 'lin_ae_dense_100', 'lin_ae_dense_796']
-ppitf_model_names = ['2layer_ppitf', '2layer_ppitf_ae', 'lin_ppitf_696.100', 'lin_ppitf_696.100_100', 'lin_pt_ppitf_696.100', 'lin_pt_ppitf_696.100_100']
+ppitf_model_names = ['2layer_ppitf', '2layer_ppitf_ae', 'lin_ppitf_696.100', 'lin_ppitf_696.100_100', 'lin_pt_ppitf_696.100', 'lin_pt_ppitf_696.100_100', 'test']
 
 def save_model_weight_to_pickle(model, path):
     weight_list=[]
@@ -159,7 +160,7 @@ def get_1layer_ppitf(input_dim, ppitf_groups_mat, output_dim, activation_fcn='ta
     return model
 
 def get_2layer_ppitf_new(second_hidden_layer_size, input_dim, ppitf_groups_mat, output_dim, activation_fcn='tanh'):
-    inputs = Input(shape=input_dim)
+    inputs = Input(shape=(input_dim,))
 
     # hidden layers
     # first hidden layer
@@ -173,9 +174,8 @@ def get_2layer_ppitf_new(second_hidden_layer_size, input_dim, ppitf_groups_mat, 
     classification = Dense(output_dim, activation='softmax')(dense_out)
     model = Model(inputs=inputs, outputs=classification)
     print("plotting model")
-    plot_model(model, to_file='siamese_architecture.png', show_shapes=True)
+    plot_model(model, to_file='new_ppitf_architecture.png', show_shapes=True)
     return model
-    
 
 def get_2layer_ppitf(second_hidden_layer_size, input_dim, ppitf_groups_mat, output_dim, activation_fcn='tanh'):
     left_branch = Sequential()
