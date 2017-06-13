@@ -4,7 +4,7 @@
 #SBATCH --partition=gpu
 #SBATCH --gres=gpu:1
 #SBATCH --ntasks=1
-#SBATCH --mem-per-cpu=16Gb
+#SBATCH --mem-per-cpu=50Gb
 #SBATCH --mail-type FAIL
 
 module load cuda-8.0

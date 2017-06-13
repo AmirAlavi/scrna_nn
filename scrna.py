@@ -1,9 +1,9 @@
 """Single-cell RNA-seq Analysis Pipeline.
 
 Usage:
-    scrna.py train <neural_net_architecture> [options] <hidden_layer_sizes>...
-    scrna.py reduce <trained_neural_net_folder> [--out_folder=<path> --data=<path>]
-    scrna.py retrieval <reduced_data_folder> [--dist_metric=<metric> --out_folder=<path>]
+    scrna.py train <neural_net_architecture> [--sn --gs --data=<path> --out=<path> --act=<activation_fcn> --epochs=<nepochs> --sgd_lr=<lr> --sgd_d=<decay> --sgd_m=<momentum> --sgd_nesterov --ppitf_groups=<path> --pt --siamese]
+    scrna.py reduce <trained_neural_net_folder> [--out=<path> --data=<path>]
+    scrna.py retrieval <reduced_data_folder> [--dist_metric=<metric> --out=<path>]
     scrna.py (-h | --help)
     scrna.py --version
 
@@ -12,7 +12,7 @@ Options:
     --version               Show version.
     --data=<path>           Path to input data file.
                             [default: data/TPM_mouse_7_8_10_PPITF_gene_9437_T.txt]
-    --out_folder=<path>     Path of folder to save output
+    --out=<path>            Path of folder to save output
                             (trained models/reduced data/retrieval results) to.
                             'None' means that a time-stamped folder will
                             automatically be created. [default: None]
@@ -49,6 +49,8 @@ from os import makedirs
 import json
 import sys
 from collections import defaultdict
+from itertools import combinations
+import random
 
 from docopt import docopt
 import numpy as np
@@ -73,6 +75,63 @@ def create_working_directory(out_path, parent, suffix):
     if not exists(out_path):
         makedirs(out_path)
     return out_path
+
+def create_data_pairs(X, y, indices_lists, is_ppitf):
+    pairs = []
+    labels = []
+    for label in range(len(indices_lists)):
+        same_count = 0
+        combs = combinations(indices_lists[label], 2)
+        for comb in combs:
+            if is_ppitf:
+                x1 = [ X[comb[0]], X[comb[0]] ]
+                x2 = [ X[comb[1]], X[comb[1]] ]
+            else:
+                x1 = X[comb[0]]
+                x2 = X[comb[1]]
+            pairs += [[ x1, x2 ]]
+            labels += [1]
+            same_count += 1
+        # create the same number of different pairs
+        diff_count = 0
+        while diff_count < same_count:
+            a = X[random.choice(indices_lists[label])]
+            diff_idx = random.randint(0, X.shape[0]-1)
+            while(y[diff_idx] == label):
+                diff_idx = random.randint(0, X.shape[0]-1)
+            b = X[diff_idx]
+            if is_ppitf:
+                a = [a, a]
+                b = [b, b]
+            pairs += [[ a, b ]]
+            labels += [0]
+            diff_count += 1
+    print("Generated ", len(pairs), " pairs")
+    print("Distribution of different and same pairs: ", np.bincount(labels))
+    return np.array(pairs), np.array(labels)
+
+def build_indices_master_list(X, y):
+    indices_lists = defaultdict(list) # dictionary of lists
+    print(X.shape[0], "examples in dataset")
+    for sample_idx in range(X.shape[0]):
+        indices_lists[y[sample_idx]].append(sample_idx)
+    return indices_lists
+
+def get_data_for_siamese(data_path, args):
+    is_ppitf = args['<neural_net_architecture>'] in nn.ppitf_model_names
+    data = DataContainer(data_path, args['--sn'], args['--gs'])
+    gene_names = data.get_gene_names()
+    output_dim = None
+    X, y, label_strings_lookup = data.get_labeled_data()
+    output_dim = max(y) + 1
+    input_dim = X.shape[1]
+    print("bincount")
+    print(np.bincount(y))
+    indices_lists = build_indices_master_list(X, y)
+    X, y = create_data_pairs(X, y, indices_lists, is_ppitf)
+    print("X shape: ", X.shape)
+    print("y shape: ", y.shape)
+    return X, y
 
 def get_data(data_path, args):
     data = DataContainer(data_path, args['--sn'], args['--gs'])
@@ -113,7 +172,8 @@ def get_model_architecture(args, input_dim, output_dim, gene_names):
     if args['<neural_net_architecture>'] in nn.ppitf_model_names:
         _, _, ppitf_groups_mat = get_groupings_for_genes(args['--ppitf_groups'], gene_names)
         print("ppitf mat shape: ", ppitf_groups_mat.shape)
-    hidden_layer_sizes = [int(x) for x in args['<hidden_layer_sizes>']]
+    # hidden_layer_sizes = [int(x) for x in args['<hidden_layer_sizes>']]
+    hidden_layer_sizes = []
     return nn.get_nn_model(args['<neural_net_architecture>'], hidden_layer_sizes, input_dim, args['--act'], ppitf_groups_mat, output_dim)
 
 def get_optimizer(args):
@@ -128,6 +188,7 @@ def compile_model(model, args, optimizer):
     if args['<neural_net_architecture>'] in nn.autoencoder_model_names:
         loss = 'mean_squared_error'
     elif args['--siamese']:
+        print("Using contrastive loss")
         loss = nn.contrastive_loss
     else:
         loss = 'categorical_crossentropy'
@@ -136,19 +197,25 @@ def compile_model(model, args, optimizer):
 
 def train(args):
     # create a unique working directory for this model
-    working_dir_path = create_working_directory(args['--out_folder'], "models/", args['<neural_net_architecture>'])
+    working_dir_path = create_working_directory(args['--out'], "models/", args['<neural_net_architecture>'])
     print("loading data and setting up model...")
+    # if args['--siamese']:
+    #     get_data_for_siamese(args['--data'], args)
     X, y, input_dim, output_dim, label_strings_lookup, gene_names, data_container = get_data(args['--data'], args) # TODO: train/test/valid split
     print(X[0].shape)
     print(X[1].shape)
     model = get_model_architecture(args, input_dim, output_dim, gene_names)
     print(model.summary())
     if args['--pt']:
-        hidden_layer_sizes = [int(x) for x in args['<hidden_layer_sizes>']]
-        nn.set_pretrained_weights(model, args['<neural_net_architecture>'], hidden_layer_sizes)
+        #hidden_layer_sizes = [int(x) for x in args['<hidden_layer_sizes>']]
+        #nn.set_pretrained_weights(model, args['<neural_net_architecture>'], hidden_layer_sizes)
+        nn.set_pretrained_weights(model, args['<neural_net_architecture>'], [])
     if args['--siamese']:
-        base_net_input_dim = X.shape
+        #base_net_input_dim = X.shape
+        if args['<neural_net_architecture>'] in nn.ppitf_model_names:
+            input_dim = (2, input_dim)
         model = nn.get_siamese(model, input_dim)
+        X, y = get_data_for_siamese(args['--data'], args)
     sgd = get_optimizer(args)
     compile_model(model, args, sgd)
     print("model compiled and ready for training")
@@ -203,7 +270,7 @@ def reduce(args):
         get_activations = theano.function([model.layers[0].input], last_hidden_layer.output)
         X_transformed = get_activations(X)
     print("reduced dimensions to: ", X_transformed.shape)
-    working_dir_path = create_working_directory(args['--out_folder'], "reduced_data/", training_args['<neural_net_architecture>'])
+    working_dir_path = create_working_directory(args['--out'], "reduced_data/", training_args['<neural_net_architecture>'])
     save_reduced_data(working_dir_path, X_transformed, y, label_strings_lookup)
     save_reduced_data_to_csv(working_dir_path, X_transformed, data_container)
     with open(join(working_dir_path, "training_command_line_args.json"), 'w') as fp:
@@ -231,7 +298,7 @@ def retrieval_test(args):
     training_args_path = join(args['<reduced_data_folder>'], "training_command_line_args.json")
     with open(training_args_path, 'r') as fp:
         training_args = json.load(fp)
-    working_dir_path = create_working_directory(args['--out_folder'], "retrieval_results/", training_args['<neural_net_architecture>'])
+    working_dir_path = create_working_directory(args['--out'], "retrieval_results/", training_args['<neural_net_architecture>'])
     # Load the reduced data
     data = DataContainer(join(args['<reduced_data_folder>'], "reduced.csv"))
     X, _, _ = data.get_labeled_data()

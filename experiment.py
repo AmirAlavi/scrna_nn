@@ -19,10 +19,10 @@ import numpy as np
 DEFAULT_WORKING_DIR_ROOT='experiments'
 DEFAULT_MODELS_FILE='experiment_models.list'
 REDUCE_COMMAND_TEMPLATE="""python scrna.py reduce {trained_nn_folder} \
---data=data/integrate_imputing_dataset_kNN10_simgene_T.txt --out_folder={output_folder}"""
+--data=data/integrate_imputing_dataset_kNN10_simgene_T.txt --out={output_folder}"""
 
 RETRIEVAL_COMMAND_TEMPLATE="""python scrna.py retrieval {reduced_data_folder} \
---out_folder={output_folder}"""
+--out={output_folder}"""
 
 SLURM_TRANSFORM_COMMAND="""sbatch --array=0-{num_jobs} --mail-user {email} \
 --output {out_folder}/scrna_transform_array_%A_%a.out
