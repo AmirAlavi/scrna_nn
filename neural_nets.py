@@ -168,12 +168,12 @@ def get_2layer_ppitf_new(second_hidden_layer_size, input_dim, ppitf_groups_mat, 
     dense_out = Dense(100)(inputs)
     merged = keras.layers.concatenate([sparse_out, dense_out])
     # second hidden layer
-    dense_out = Dense(100, activation=activation_fcn)(merged)
+    dense_out = Dense(100, activation=activation_fcn, name="last_hidden_layer")(merged)
 
     # output layer
     classification = Dense(output_dim, activation='softmax')(dense_out)
     model = Model(inputs=inputs, outputs=classification)
-    print("plotting model")
+    print("plotting ppitf model")
     plot_model(model, to_file='new_ppitf_architecture.png', show_shapes=True)
     return model
 
@@ -220,18 +220,22 @@ def get_siamese(base_network, input_dim):
     # Load pretrained weights before calling this function.
     # First, remove the last layer (output layer) from base_network
     print("Siamese base Input shape: ", input_dim)
-    base_network.pop()
-    input_a = Input(shape=input_dim)
-    input_b = Input(shape=input_dim)
+    base_model = Model(input = base_network.layers[0].input, output = base_network.layers[-2].output, name="BaseNetwork")
+    input_a = Input(shape=(input_dim,))
+    input_b = Input(shape=(input_dim,))
 
-    processed_a = base_network(input_a)
-    processed_b = base_network(input_b)
+    processed_a = base_model(input_a)
+    processed_b = base_model(input_b)
 
-    distance = Lambda(euclidean_distance, output_shape=eucl_dist_output_shape)([processed_a, processed_b])
+    distance = Lambda(euclidean_distance, output_shape=eucl_dist_output_shape, name="Distance")([processed_a, processed_b])
 
     model = Model([input_a, input_b], distance)
-    #print("plotting model")
-    #plot_model(model, to_file='siamese_architecture.png', show_shapes=True)
+    print("siamese layers:")
+    print(model.layers)
+    print("base_model layers")
+    print(model.layers[2].layers)
+    print("plotting siamese model")
+    plot_model(model, to_file='siamese_architecture.png', show_shapes=True)
     return model
 # *** END SIAMESE NEURAL NETWORK CODE
 
@@ -247,7 +251,7 @@ def get_nn_model(model_name, hidden_layer_sizes, input_dim, activation_fcn='tanh
         return get_dense(hidden_layer_sizes, input_dim, output_dim, activation_fcn)
     elif model_name == 'test':
         return get_2layer_ppitf_new(100, input_dim, ppitf_groups_mat, output_dim, activation_fcn)
-        
+
     # Models from Lin et al paper
     elif model_name == 'lin_dense_100':
         return get_dense([100], input_dim, output_dim, activation_fcn)

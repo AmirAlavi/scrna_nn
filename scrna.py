@@ -1,7 +1,7 @@
 """Single-cell RNA-seq Analysis Pipeline.
 
 Usage:
-    scrna.py train <neural_net_architecture> [--sn --gs --data=<path> --out=<path> --act=<activation_fcn> --epochs=<nepochs> --sgd_lr=<lr> --sgd_d=<decay> --sgd_m=<momentum> --sgd_nesterov --ppitf_groups=<path> --pt --siamese]
+    scrna.py train <neural_net_architecture> <hidden_layer_sizes>... [--sn --gs --data=<path> --out=<path> --act=<activation_fcn> --epochs=<nepochs> --sgd_lr=<lr> --sgd_d=<decay> --sgd_m=<momentum> --sgd_nesterov --ppitf_groups=<path> --pt --siamese]
     scrna.py reduce <trained_neural_net_folder> [--out=<path> --data=<path>]
     scrna.py retrieval <reduced_data_folder> [--dist_metric=<metric> --out=<path>]
     scrna.py (-h | --help)
@@ -76,20 +76,46 @@ def create_working_directory(out_path, parent, suffix):
         makedirs(out_path)
     return out_path
 
-def create_data_pairs(X, y, indices_lists, is_ppitf):
+def create_data_pairs_diff_datasets(X, y, dataset_IDs, indices_lists):
     pairs = []
     labels = []
     for label in range(len(indices_lists)):
         same_count = 0
         combs = combinations(indices_lists[label], 2)
         for comb in combs:
-            if is_ppitf:
-                x1 = [ X[comb[0]], X[comb[0]] ]
-                x2 = [ X[comb[1]], X[comb[1]] ]
-            else:
-                x1 = X[comb[0]]
-                x2 = X[comb[1]]
-            pairs += [[ x1, x2 ]]
+            # only add this pair to the list if each sample comes from a different dataset
+            a_idx = comb[0]
+            b_idx = comb[1]
+            if dataset_IDs[a_idx] == dataset_IDs[b_idx]:
+                continue
+            pairs += [[ X[a_idx], X[b_idx] ]]
+            labels += [1]
+            same_count += 1
+        # create the same number of different pairs
+        diff_count = 0
+        while diff_count < same_count:
+            a_idx = random.choice(indices_lists[label])
+            a = X[a_idx]
+            diff_idx = random.randint(0, X.shape[0]-1)
+            # Pick another sample that has a different label AND comes from a different dataset
+            while(y[diff_idx] == label or dataset_IDs[a_idx] == dataset_IDs[diff_idx]):
+                diff_idx = random.randint(0, X.shape[0]-1)
+            b = X[diff_idx]
+            pairs += [[ a, b ]]
+            labels += [0]
+            diff_count += 1
+    print("Generated ", len(pairs), " pairs")
+    print("Distribution of different and same pairs: ", np.bincount(labels))
+    return np.array(pairs), np.array(labels)
+
+def create_data_pairs(X, y, indices_lists):
+    pairs = []
+    labels = []
+    for label in range(len(indices_lists)):
+        same_count = 0
+        combs = combinations(indices_lists[label], 2)
+        for comb in combs:
+            pairs += [[ X[comb[0]], X[comb[1]] ]]
             labels += [1]
             same_count += 1
         # create the same number of different pairs
@@ -100,9 +126,6 @@ def create_data_pairs(X, y, indices_lists, is_ppitf):
             while(y[diff_idx] == label):
                 diff_idx = random.randint(0, X.shape[0]-1)
             b = X[diff_idx]
-            if is_ppitf:
-                a = [a, a]
-                b = [b, b]
             pairs += [[ a, b ]]
             labels += [0]
             diff_count += 1
@@ -172,8 +195,7 @@ def get_model_architecture(args, input_dim, output_dim, gene_names):
     if args['<neural_net_architecture>'] in nn.ppitf_model_names:
         _, _, ppitf_groups_mat = get_groupings_for_genes(args['--ppitf_groups'], gene_names)
         print("ppitf mat shape: ", ppitf_groups_mat.shape)
-    # hidden_layer_sizes = [int(x) for x in args['<hidden_layer_sizes>']]
-    hidden_layer_sizes = []
+    hidden_layer_sizes = [int(x) for x in args['<hidden_layer_sizes>']]
     return nn.get_nn_model(args['<neural_net_architecture>'], hidden_layer_sizes, input_dim, args['--act'], ppitf_groups_mat, output_dim)
 
 def get_optimizer(args):
@@ -207,13 +229,10 @@ def train(args):
     model = get_model_architecture(args, input_dim, output_dim, gene_names)
     print(model.summary())
     if args['--pt']:
-        #hidden_layer_sizes = [int(x) for x in args['<hidden_layer_sizes>']]
-        #nn.set_pretrained_weights(model, args['<neural_net_architecture>'], hidden_layer_sizes)
-        nn.set_pretrained_weights(model, args['<neural_net_architecture>'], [])
+        hidden_layer_sizes = [int(x) for x in args['<hidden_layer_sizes>']]
+        nn.set_pretrained_weights(model, args['<neural_net_architecture>'], hidden_layer_sizes)
     if args['--siamese']:
         #base_net_input_dim = X.shape
-        if args['<neural_net_architecture>'] in nn.ppitf_model_names:
-            input_dim = (2, input_dim)
         model = nn.get_siamese(model, input_dim)
         X, y = get_data_for_siamese(args['--data'], args)
     sgd = get_optimizer(args)
