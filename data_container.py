@@ -49,11 +49,11 @@ class DataContainer(object):
         return self.dataframe.columns.values[2:]
 
     def get_all_dataset_IDs(self):
-        return self.dataframe.loc[:, 'Dataset'].values
+        return self.dataframe.loc[:, 'Dataset'].values.astype(int)
 
     def get_labeled_dataset_IDs(self):
         labeled_data = self.dataframe.loc[lambda df: df.Label != 'None', :]
-        return labeled_data.loc[:, 'Dataset'].values
+        return labeled_data.loc[:, 'Dataset'].values.astype(int)
 
     def get_all_sample_IDs(self):
         #return self.dataframe.loc[:, 'Sample'].values

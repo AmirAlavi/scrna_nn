@@ -52,6 +52,8 @@ from collections import defaultdict
 from itertools import combinations
 import random
 
+import matplotlib; matplotlib.use('Agg')
+import matplotlib.pyplot as plt
 from docopt import docopt
 import numpy as np
 import pandas as pd
@@ -76,7 +78,7 @@ def create_working_directory(out_path, parent, suffix):
         makedirs(out_path)
     return out_path
 
-def create_data_pairs_diff_datasets(X, y, dataset_IDs, indices_lists):
+def create_data_pairs_diff_datasets(X, y, dataset_IDs, indices_lists, same_lim):
     pairs = []
     labels = []
     for label in range(len(indices_lists)):
@@ -91,6 +93,8 @@ def create_data_pairs_diff_datasets(X, y, dataset_IDs, indices_lists):
             pairs += [[ X[a_idx], X[b_idx] ]]
             labels += [1]
             same_count += 1
+            if same_count == same_lim:
+                break
         # create the same number of different pairs
         diff_count = 0
         while diff_count < same_count:
@@ -108,7 +112,7 @@ def create_data_pairs_diff_datasets(X, y, dataset_IDs, indices_lists):
     print("Distribution of different and same pairs: ", np.bincount(labels))
     return np.array(pairs), np.array(labels)
 
-def create_data_pairs(X, y, indices_lists):
+def create_data_pairs(X, y, indices_lists, same_lim):
     pairs = []
     labels = []
     for label in range(len(indices_lists)):
@@ -118,6 +122,8 @@ def create_data_pairs(X, y, indices_lists):
             pairs += [[ X[comb[0]], X[comb[1]] ]]
             labels += [1]
             same_count += 1
+            if same_count == same_lim:
+                break
         # create the same number of different pairs
         diff_count = 0
         while diff_count < same_count:
@@ -140,21 +146,25 @@ def build_indices_master_list(X, y):
         indices_lists[y[sample_idx]].append(sample_idx)
     return indices_lists
 
-def get_data_for_siamese(data_path, args):
-    is_ppitf = args['<neural_net_architecture>'] in nn.ppitf_model_names
-    data = DataContainer(data_path, args['--sn'], args['--gs'])
-    gene_names = data.get_gene_names()
-    output_dim = None
-    X, y, label_strings_lookup = data.get_labeled_data()
-    output_dim = max(y) + 1
-    input_dim = X.shape[1]
+def get_data_for_siamese(data_container, args, same_lim):
+    X, y, label_strings_lookup = data_container.get_labeled_data()
     print("bincount")
     print(np.bincount(y))
     indices_lists = build_indices_master_list(X, y)
-    X, y = create_data_pairs(X, y, indices_lists, is_ppitf)
-    print("X shape: ", X.shape)
-    print("y shape: ", y.shape)
-    return X, y
+    X_siamese, y_siamese = create_data_pairs(X, y, indices_lists, same_lim)
+    print("X shape: ", X_siamese.shape)
+    print("y shape: ", y_siamese.shape)
+
+    # Try with dataset-aware pair creation
+    dataset_IDs = data_container.get_labeled_dataset_IDs()
+    print("num samples: ", len(y))
+    print("len(dataset_IDs): ", len(dataset_IDs))
+    assert(len(dataset_IDs) == len(y))
+    X_siamese, y_siamese = create_data_pairs_diff_datasets(X, y, dataset_IDs, indices_lists, same_lim)
+    print("X shape: ", X_siamese.shape)
+    print("y shape: ", y_siamese.shape)
+    X_siamese = [ X_siamese[:, 0], X_siamese[:, 1] ]
+    return X_siamese, y_siamese
 
 def get_data(data_path, args):
     data = DataContainer(data_path, args['--sn'], args['--gs'])
@@ -234,21 +244,28 @@ def train(args):
     if args['--siamese']:
         #base_net_input_dim = X.shape
         model = nn.get_siamese(model, input_dim)
-        X, y = get_data_for_siamese(args['--data'], args)
+        X, y = get_data_for_siamese(data_container, args, 500)
     sgd = get_optimizer(args)
     compile_model(model, args, sgd)
     print("model compiled and ready for training")
     print("training model...")
     validation_data = (X, y) # For now, same as training data
-    model.fit(X, y, epochs=int(args['--epochs']), verbose=2, validation_data=validation_data)
+    history = model.fit(X, y, epochs=int(args['--epochs']), verbose=1, validation_data=validation_data)
     print("saving model to folder: " + working_dir_path)
+    with open(join(working_dir_path, "command_line_args.json"), 'w') as fp:
+        json.dump(args, fp)
+    plt.plot(history.history['loss'])
+    plt.plot(history.history['val_loss'])
+    plt.title('Model loss')
+    plt.ylabel('loss')
+    plt.xlabel('epoch')
+    plt.legend(['train', 'test'], loc='upper left')
+    plt.savefig(join(working_dir_path, 'loss.png'))
     architecture_path = join(working_dir_path, "model_architecture.json")
     weights_path = join(working_dir_path, "model_weights.p")
     nn.save_trained_nn(model, architecture_path, weights_path)
     #model.save(join(working_dir_path, "model.h5")) # TODO: Why doesn't this work?
     #pickle.dump(model, open(model_path, 'wb'))
-    with open(join(working_dir_path, "command_line_args.json"), 'w') as fp:
-        json.dump(args, fp)
 
 def save_reduced_data_to_csv(out_folder, X_reduced, data_container):
     # Remove old data from the data container (but keep the Sample, Lable, and

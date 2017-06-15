@@ -1,5 +1,6 @@
 # import pdb; pdb.set_trace()
 import pickle
+import math
 
 import keras
 from keras.models import Sequential, Model, model_from_json
@@ -212,6 +213,9 @@ def contrastive_loss(y_true, y_pred):
     http://yann.lecun.com/exdb/publis/pdf/hadsell-chopra-lecun-06.pdf
     '''
     margin = 1
+    # margin = math.sqrt(10)
+    # margin = math.sqrt(100)
+    # margin = math.sqrt(1000)
     return K.mean(y_true * K.square(y_pred) +
                   (1 - y_true) * K.square(K.maximum(margin - y_pred, 0)))
 
