@@ -1,7 +1,7 @@
 """Single-cell RNA-seq Analysis Pipeline.
 
 Usage:
-    scrna.py train <neural_net_architecture> <hidden_layer_sizes>... [--sn --gs --data=<path> --out=<path> --act=<activation_fcn> --epochs=<nepochs> --sgd_lr=<lr> --sgd_d=<decay> --sgd_m=<momentum> --sgd_nesterov --ppitf_groups=<path> --pt --siamese]
+    scrna.py train <neural_net_architecture> [<hidden_layer_sizes>...] [--sn --gs --data=<path> --out=<path> --act=<activation_fcn> --epochs=<nepochs> --sgd_lr=<lr> --sgd_d=<decay> --sgd_m=<momentum> --sgd_nesterov --ppitf_groups=<path> --pt --siamese]
     scrna.py reduce <trained_neural_net_folder> [--out=<path> --data=<path>]
     scrna.py retrieval <reduced_data_folder> [--dist_metric=<metric> --out=<path>]
     scrna.py (-h | --help)
@@ -93,8 +93,8 @@ def create_data_pairs_diff_datasets(X, y, dataset_IDs, indices_lists, same_lim):
             pairs += [[ X[a_idx], X[b_idx] ]]
             labels += [1]
             same_count += 1
-            if same_count == same_lim:
-                break
+            # if same_count == same_lim:
+            #     break
         # create the same number of different pairs
         diff_count = 0
         while diff_count < same_count:
@@ -151,9 +151,9 @@ def get_data_for_siamese(data_container, args, same_lim):
     print("bincount")
     print(np.bincount(y))
     indices_lists = build_indices_master_list(X, y)
-    X_siamese, y_siamese = create_data_pairs(X, y, indices_lists, same_lim)
-    print("X shape: ", X_siamese.shape)
-    print("y shape: ", y_siamese.shape)
+    # X_siamese, y_siamese = create_data_pairs(X, y, indices_lists, same_lim)
+    # print("X shape: ", X_siamese.shape)
+    # print("y shape: ", y_siamese.shape)
 
     # Try with dataset-aware pair creation
     dataset_IDs = data_container.get_labeled_dataset_IDs()
