@@ -192,7 +192,7 @@ def get_data(data_path, args):
     input_dim = X.shape[1]
     # TODO: For ppitf models, since their architectures require a merge layer, the
     # input dimensions will look different, and get_data should take care of that
-    if args['<neural_net_architecture>'] in nn.ppitf_model_names:
+    if args['<neural_net_architecture>'] in nn.ppitf_model_names and not args['--siamese']:
         X = [X, X]
         # if args['<neural_net_architecture>'] in nn.autoencoder_model_names:
         #     # The output shape of an autoencocer must match the input shape, so
@@ -263,7 +263,13 @@ def train(args):
     plt.savefig(join(working_dir_path, 'loss.png'))
     architecture_path = join(working_dir_path, "model_architecture.json")
     weights_path = join(working_dir_path, "model_weights.p")
-    nn.save_trained_nn(model, architecture_path, weights_path)
+    is_functional = False
+    if args['--siamese']:
+        # For siamese nets, we only care about saving the subnetwork, not the whole siamese net
+        model = model.layers[2] # For now, seems safe to assume index 2 corresponds to base net
+        is_functional = True
+    #nn.save_functional_model(model, join(working_dir_path, "trained_model.h5"))
+    nn.save_trained_nn(model, architecture_path, weights_path, is_functional)
     #model.save(join(working_dir_path, "model.h5")) # TODO: Why doesn't this work?
     #pickle.dump(model, open(model_path, 'wb'))
 
@@ -290,15 +296,22 @@ def reduce(args):
     model_base_path = args['<trained_neural_net_folder>']
     architecture_path = join(model_base_path, "model_architecture.json")
     weights_path = join(model_base_path, "model_weights.p")
-    model = nn.load_trained_nn(architecture_path, weights_path)
+    is_functional = False
+    if training_args['--siamese']:
+        is_functional = True
+    model = nn.load_trained_nn(architecture_path, weights_path, is_functional)
     #model = get_model_architecture(training_args, input_dim, output_dim, gene_names)
     #model = model_from_json
     #nn.load_model_weight_from_pickle(model, weights_path)
     #model.compile(optimizer='sgd', loss='mse') # arbitrary
     print(model.summary())
     # use the last hidden layer of the model as a lower-dimensional representation:
-    last_hidden_layer = model.layers[-2]
-    if training_args['<neural_net_architecture>'] in nn.ppitf_model_names:
+    if training_args['--siamese']:
+        print("Model was trained in a siamese architecture")
+        last_hidden_layer = model.layers[-1]
+    else:
+        last_hidden_layer = model.layers[-2]
+    if training_args['<neural_net_architecture>'] in nn.ppitf_model_names and not is_functional:
         # these models have special input shape
         get_activations = theano.function([model.layers[0].layers[0].input, model.layers[0].layers[1].input], last_hidden_layer.output)
         X_transformed = get_activations(X[0], X[1])

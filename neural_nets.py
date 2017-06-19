@@ -15,6 +15,17 @@ from util import ScrnaException
 autoencoder_model_names = ['1layer_ae', '2layer_ppitf_ae', 'lin_ae_dense_100', 'lin_ae_dense_796']
 ppitf_model_names = ['2layer_ppitf', '2layer_ppitf_ae', 'lin_ppitf_696.100', 'lin_ppitf_696.100_100', 'lin_pt_ppitf_696.100', 'lin_pt_ppitf_696.100_100', 'test']
 
+def load_functional_model_weights(model, path):
+    with open(path, 'rb') as fp:
+        weight_list = pickle.load(fp)
+    for layer, weights in zip(model.layers, weight_list):
+        layer.set_weights(weights)
+
+def save_functional_model_weights(model, path):
+    weight_list = [layer.get_weights() for layer in model.layers]
+    with open(path, 'wb') as fp:
+        pickle.dump(weight_list, fp)
+
 def save_model_weight_to_pickle(model, path):
     weight_list=[]
     for layer in model.layers:
@@ -44,17 +55,23 @@ def load_model_weight_from_pickle(model, path):
             layer.layers[1].layers[0].set_weights(weights[1][1])
     return weight_list
 
-def save_trained_nn(model, architecture_path, weights_path):
+def save_trained_nn(model, architecture_path, weights_path, is_functional):
     model_json = model.to_json()
     with open(architecture_path, "w") as json_file:
         json_file.write(model_json)
-    save_model_weight_to_pickle(model, weights_path)
+    if is_functional:
+        save_functional_model_weights(model, weights_path)
+    else:
+        save_model_weight_to_pickle(model, weights_path)
 
-def load_trained_nn(architecture_path, weights_path):
+def load_trained_nn(architecture_path, weights_path, is_functional):
     custom_obj = {'BioSparseLayer': BioSparseLayer}
     model = model_from_json(open(architecture_path).read(), custom_objects=custom_obj)
     print(model.summary())
-    load_model_weight_from_pickle(model, weights_path)
+    if is_functional:
+        load_functional_model_weights(model, weights_path)
+    else:
+        load_model_weight_from_pickle(model, weights_path)
     # Must compile to use it for evaluatoin, but not going to train
     # this model, so we can compile it arbitrarily
     model.compile(optimizer='sgd', loss='mse')
@@ -240,6 +257,9 @@ def get_siamese(base_network, input_dim):
     print(model.layers[2].layers)
     print("plotting siamese model")
     plot_model(model, to_file='siamese_architecture.png', show_shapes=True)
+    print("\nsummary of base net")
+    m = model.layers[2]
+    print(m.summary())
     return model
 # *** END SIAMESE NEURAL NETWORK CODE
 
