@@ -4,6 +4,7 @@ reduced_data/
 retrieval_results/
 # All pickle files
 *.p
+*.png
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

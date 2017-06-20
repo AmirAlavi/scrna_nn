@@ -1,7 +1,7 @@
 """Single-cell RNA-seq Analysis Pipeline.
 
 Usage:
-    scrna.py train <neural_net_architecture> [<hidden_layer_sizes>...] [--sn --gs --data=<path> --out=<path> --act=<activation_fcn> --epochs=<nepochs> --sgd_lr=<lr> --sgd_d=<decay> --sgd_m=<momentum> --sgd_nesterov --ppitf_groups=<path> --pt --siamese]
+    scrna.py train <neural_net_architecture> [<hidden_layer_sizes>...] [--sn --gs --data=<path> --out=<path> --act=<activation_fcn> --epochs=<nepochs> --sgd_lr=<lr> --sgd_d=<decay> --sgd_m=<momentum> --sgd_nesterov --ppitf_groups=<path> --ae --pt=<weights_file> --siamese]
     scrna.py reduce <trained_neural_net_folder> [--out=<path> --data=<path>]
     scrna.py retrieval <reduced_data_folder> [--dist_metric=<metric> --out=<path>]
     scrna.py (-h | --help)
@@ -32,7 +32,8 @@ Options:
     --ppitf_groups=<path>   Path to file containing the TF groups and PPI
                             groups, each on separate lines.
                             [default: data/ppi_tf_merge_cluster.txt]
-    --pt                    Use initial weights from a pretrained model.
+    --pt=<weights_file>     Use initial weights from a pretrained model weights file.
+    --ae                    Use an unsupervised autoencoder architecture.
     --siamese               Uses a siamese neural network architecture, using
                             <neural_net_architecture> as the base network.
                             Using this flag has many implications, see code.
@@ -57,7 +58,7 @@ import matplotlib.pyplot as plt
 from docopt import docopt
 import numpy as np
 import pandas as pd
-from keras.utils import np_utils
+from keras.utils import np_utils, plot_model
 import theano
 from scipy.spatial import distance
 
@@ -170,7 +171,7 @@ def get_data(data_path, args):
     data = DataContainer(data_path, args['--sn'], args['--gs'])
     gene_names = data.get_gene_names()
     output_dim = None
-    if args['<neural_net_architecture>'] in nn.autoencoder_model_names:
+    if args['--ae']:
         # Autencoder training is unsupervised, so we don't have to limit
         # ourselves to labeled samples
         X_clean, _, label_strings_lookup = data.get_all_data()
@@ -190,23 +191,15 @@ def get_data(data_path, args):
         output_dim = max(y) + 1
         y = np_utils.to_categorical(y, output_dim)
     input_dim = X.shape[1]
-    # TODO: For ppitf models, since their architectures require a merge layer, the
-    # input dimensions will look different, and get_data should take care of that
-    if args['<neural_net_architecture>'] in nn.ppitf_model_names and not args['--siamese']:
-        X = [X, X]
-        # if args['<neural_net_architecture>'] in nn.autoencoder_model_names:
-        #     # The output shape of an autoencocer must match the input shape, so
-        #     # we need to do the same as above for the y
-        #     y = [y, y]
     return X, y, input_dim, output_dim, label_strings_lookup, gene_names, data
 
 def get_model_architecture(args, input_dim, output_dim, gene_names):
     ppitf_groups_mat = None
-    if args['<neural_net_architecture>'] in nn.ppitf_model_names:
+    if args['<neural_net_architecture>'] == 'ppitf':
         _, _, ppitf_groups_mat = get_groupings_for_genes(args['--ppitf_groups'], gene_names)
         print("ppitf mat shape: ", ppitf_groups_mat.shape)
     hidden_layer_sizes = [int(x) for x in args['<hidden_layer_sizes>']]
-    return nn.get_nn_model(args['<neural_net_architecture>'], hidden_layer_sizes, input_dim, args['--act'], ppitf_groups_mat, output_dim)
+    return nn.get_nn_model(args['<neural_net_architecture>'], hidden_layer_sizes, input_dim, args['--ae'], args['--act'], ppitf_groups_mat, output_dim)
 
 def get_optimizer(args):
     lr = float(args['--sgd_lr'])
@@ -217,7 +210,7 @@ def get_optimizer(args):
 def compile_model(model, args, optimizer):
     loss = None
     metrics = None
-    if args['<neural_net_architecture>'] in nn.autoencoder_model_names:
+    if args['--ae']:
         loss = 'mean_squared_error'
     elif args['--siamese']:
         print("Using contrastive loss")
@@ -227,6 +220,15 @@ def compile_model(model, args, optimizer):
         metrics = ['accuracy']
     model.compile(loss=loss, optimizer=optimizer, metrics=metrics)
 
+def plot_training_history(history, path):
+    plt.plot(history.history['loss'])
+    plt.plot(history.history['val_loss'])
+    plt.title('Model loss')
+    plt.ylabel('loss')
+    plt.xlabel('epoch')
+    plt.legend(['train', 'test'], loc='upper left')
+    plt.savefig(path)
+    
 def train(args):
     # create a unique working directory for this model
     working_dir_path = create_working_directory(args['--out'], "models/", args['<neural_net_architecture>'])
@@ -237,13 +239,13 @@ def train(args):
     print(X[0].shape)
     print(X[1].shape)
     model = get_model_architecture(args, input_dim, output_dim, gene_names)
+    plot_model(model, to_file=join(working_dir_path, 'architecture.png'), show_shapes=True)
     print(model.summary())
     if args['--pt']:
-        hidden_layer_sizes = [int(x) for x in args['<hidden_layer_sizes>']]
-        nn.set_pretrained_weights(model, args['<neural_net_architecture>'], hidden_layer_sizes)
+        nn.set_pretrained_weights(model, args['--pt'])
     if args['--siamese']:
-        #base_net_input_dim = X.shape
         model = nn.get_siamese(model, input_dim)
+        plot_model(model, to_file='siamese_architecture.png', show_shapes=True)
         X, y = get_data_for_siamese(data_container, args, 500)
     sgd = get_optimizer(args)
     compile_model(model, args, sgd)
@@ -254,24 +256,13 @@ def train(args):
     print("saving model to folder: " + working_dir_path)
     with open(join(working_dir_path, "command_line_args.json"), 'w') as fp:
         json.dump(args, fp)
-    plt.plot(history.history['loss'])
-    plt.plot(history.history['val_loss'])
-    plt.title('Model loss')
-    plt.ylabel('loss')
-    plt.xlabel('epoch')
-    plt.legend(['train', 'test'], loc='upper left')
-    plt.savefig(join(working_dir_path, 'loss.png'))
+    plot_training_history(history, join(working_dir_path, "loss.png"))
     architecture_path = join(working_dir_path, "model_architecture.json")
     weights_path = join(working_dir_path, "model_weights.p")
-    is_functional = False
     if args['--siamese']:
         # For siamese nets, we only care about saving the subnetwork, not the whole siamese net
         model = model.layers[2] # For now, seems safe to assume index 2 corresponds to base net
-        is_functional = True
-    #nn.save_functional_model(model, join(working_dir_path, "trained_model.h5"))
-    nn.save_trained_nn(model, architecture_path, weights_path, is_functional)
-    #model.save(join(working_dir_path, "model.h5")) # TODO: Why doesn't this work?
-    #pickle.dump(model, open(model_path, 'wb'))
+    nn.save_trained_nn(model, architecture_path, weights_path)
 
 def save_reduced_data_to_csv(out_folder, X_reduced, data_container):
     # Remove old data from the data container (but keep the Sample, Lable, and
@@ -296,10 +287,7 @@ def reduce(args):
     model_base_path = args['<trained_neural_net_folder>']
     architecture_path = join(model_base_path, "model_architecture.json")
     weights_path = join(model_base_path, "model_weights.p")
-    is_functional = False
-    if training_args['--siamese']:
-        is_functional = True
-    model = nn.load_trained_nn(architecture_path, weights_path, is_functional)
+    model = nn.load_trained_nn(architecture_path, weights_path)
     #model = get_model_architecture(training_args, input_dim, output_dim, gene_names)
     #model = model_from_json
     #nn.load_model_weight_from_pickle(model, weights_path)
@@ -311,13 +299,8 @@ def reduce(args):
         last_hidden_layer = model.layers[-1]
     else:
         last_hidden_layer = model.layers[-2]
-    if training_args['<neural_net_architecture>'] in nn.ppitf_model_names and not is_functional:
-        # these models have special input shape
-        get_activations = theano.function([model.layers[0].layers[0].input, model.layers[0].layers[1].input], last_hidden_layer.output)
-        X_transformed = get_activations(X[0], X[1])
-    else:
-        get_activations = theano.function([model.layers[0].input], last_hidden_layer.output)
-        X_transformed = get_activations(X)
+    get_activations = theano.function([model.layers[0].input], last_hidden_layer.output)
+    X_transformed = get_activations(X)
     print("reduced dimensions to: ", X_transformed.shape)
     working_dir_path = create_working_directory(args['--out'], "reduced_data/", training_args['<neural_net_architecture>'])
     save_reduced_data(working_dir_path, X_transformed, y, label_strings_lookup)
