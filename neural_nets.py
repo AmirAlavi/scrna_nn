@@ -97,8 +97,10 @@ def set_pretrained_weights_ppitf_helper(model, pt_file, num_hidden_layers):
 
 def lin_set_pretrain_weights(model):
     print("Setting pretrained weights using same method in Lin et al...")
-    pt_file100="pretrained_models/lin_ae_dense_100_weights.p"
-    pt_file796="pretrained_models/lin_ae_dense_796_weights.p"
+    #pt_file100="pretrained_models/lin_ae_dense_100_weights.p"
+    pt_file100="pretrained_models/exp_6.19_lin_ae_dense_100_weights.p"
+    #pt_file796="pretrained_models/lin_ae_dense_796_weights.p"
+    pt_file796="pretrained_models/exp_6.19_lin_ae_dense_796_weights.p"
     weight_list=[]
     for index,layer in enumerate(model.layers):
         weights = layer.get_weights()
