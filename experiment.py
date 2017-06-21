@@ -15,6 +15,7 @@ import csv
 
 from docopt import docopt
 import numpy as np
+from tabulate import tabulate
 
 DEFAULT_WORKING_DIR_ROOT='experiments'
 DEFAULT_MODELS_FILE='experiment_models.list'
@@ -33,7 +34,7 @@ SLURM_RETRIEVAL_COMMAND="""sbatch --array=0-{num_jobs} --mail-user {email} \
 --error {err_folder}/scrna_retrieval_array_%A_%a.err -d afterok:{depends} slurm_retrieval_array.sh"""
 
 # The cell types that were used for retrieval testing in the Lin et al. paper
-paper_cell_types = ['HSC', '4cell', 'ICM', 'spleen', '8cell', 'neuron', 'zygote', '2cell', 'ESC']
+PAPER_CELL_TYPES = ['HSC', '4cell', 'ICM', 'spleen', '8cell', 'neuron', 'zygote', '2cell', 'ESC']
 
 class SafeDict(dict):
     """Allows for string formatting with unused keyword arguments
@@ -121,8 +122,8 @@ class Experiment(object):
         print("Slurm array job submitted, id: ", retrieval_job_id)
         # Must wait for retrieval jobs to finish in order to use their results
         print("Waiting for retrieval jobs to finish...")
-        wait_cmd = "srun -J waiter -d afterok:{depends} -p zbj1 echo '(done waiting)'"
-        subprocess.run(wait_cmd.format(depends=retrieval_job_id).split())
+        wait_cmd = "srun -J completion -d afterok:{depends} --mail-type END,FAIL --mail-user {email} -p zbj1 echo '(done waiting)'"
+        subprocess.run(wait_cmd.format(depends=retrieval_job_id, email=email_addr).split())
 
     def get_avg_score_for_each_cell_type(self, path_to_csv):
         with open(path_to_csv) as csv_file:
@@ -139,6 +140,25 @@ class Experiment(object):
             cell_type_avg_score_dict[cell_type] = np.mean(scores_list)
         return cell_type_avg_score_dict
 
+    def write_out_table(self, unique_cell_types_set, compiled_results):
+        header = ['Model'] + list(unique_cell_types_set) + ['Average']
+        table = []
+        for model_name, scores_dict in compiled_results.items():
+            current_row = [model_name]
+            for cell_type in unique_cell_types_set:
+                current_row.append(scores_dict[cell_type])
+            current_row.append(scores_dict['average'])
+            table.append(current_row)
+        # write out
+        with open(join(self.working_dir_path, 'results_table.txt'), 'w') as txt_file:
+            txt_file.write(tabulate(table, headers=header))
+        with open(join(self.working_dir_path, 'results_table.csv'), 'w', newline='') as csv_file:
+            table_writer = csv.writer(csv_file, delimiter=',')
+            table_writer.writerow(header)
+            for row in table:
+                table_writer.writerow(row)
+            
+    
     def create_overall_results_table(self):
         '''Compiles results into various tables:
         - overall table - contains all of the raw data in a single table
@@ -146,33 +166,32 @@ class Experiment(object):
         root_folder: the path to the folder that contains a folder for each model
         Returns: overall results table
         '''
-        overall_results_fieldnames = ['model', 'cell_type', 'avg_score']
-        overall_results = []
+        compiled_results = {} # <model_name:dict>
+        unique_cell_types_set = set()
+        
         for model_name, results_folder in self.retrieval_result_folders.items():
             # Iterate through models
+            current_model = {} # <cell_type:score>
             print(model_name)
             results_file = join(results_folder, 'retrieval_summary.csv')
             cell_types_and_scores = self.get_avg_score_for_each_cell_type(results_file)
             scores_list = []
             for cell_type, score in cell_types_and_scores.items():
                 # Iterate through cell types
-                overall_results.append({'model': model_name, 'cell_type': cell_type, 'avg_score': score})
-                if cell_type in paper_cell_types:
+                if cell_type in PAPER_CELL_TYPES:
+                    unique_cell_types_set.update([cell_type])
+                    current_model[cell_type] = score
                     scores_list.append(score)
             avg_across_paper_cell_types = np.mean(scores_list)
-            overall_results.append({'model': model_name, 'cell_type': 'average', 'avg_score': avg_across_paper_cell_types})
-        with open(join(self.working_dir_path, 'full_results_table.csv'), 'w') as csv_file:
-            writer = csv.DictWriter(csv_file, fieldnames=overall_results_fieldnames)
-            writer.writeheader()
-            for row in overall_results:
-                writer.writerow(row)
-        return overall_results
+            current_model['average'] = avg_across_paper_cell_types
+            compiled_results[model_name] = current_model
+        self.write_out_table(unique_cell_types_set, compiled_results)
 
     def compile_results(self):
         """Create a summary of the retrieval experiment results
         """
         print("Compiling results...")
-        results = self.create_overall_results_table()
+        self.create_overall_results_table()
 
 
 if __name__ == '__main__':

@@ -11,7 +11,7 @@ from bio_sparse_layer import BioSparseLayer
 from util import ScrnaException
 
 
-def load_model_weights_from_pickel(model, path):
+def load_model_weights_from_pickle(model, path):
     with open(path, 'rb') as fp:
         weight_list = pickle.load(fp)
     for layer, weights in zip(model.layers, weight_list):
