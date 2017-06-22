@@ -98,7 +98,7 @@ def create_data_pairs_diff_datasets(X, y, dataset_IDs, indices_lists, same_lim):
             #     break
         # create the same number of different pairs
         diff_count = 0
-        while diff_count < (10 * same_count):
+        while diff_count < (2 * same_count):
             a_idx = random.choice(indices_lists[label])
             a = X[a_idx]
             diff_idx = random.randint(0, X.shape[0]-1)

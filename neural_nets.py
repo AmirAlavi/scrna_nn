@@ -103,7 +103,7 @@ def get_ppitf(hidden_layer_sizes, input_dim, ppitf_groups_mat, activation_fcn='t
     # Hidden layers
     # first hidden layer
     sparse_out = BioSparseLayer(activation=activation_fcn, input_output_mat=ppitf_groups_mat.transpose())(inputs)
-    dense_out = Dense(100)(inputs)
+    dense_out = Dense(100, activation=activation_fcn)(inputs)
     x = keras.layers.concatenate([sparse_out, dense_out])
     # other hidden layers
     for size in hidden_layer_sizes:
