@@ -1,7 +1,7 @@
 """Single-cell RNA-seq Analysis Pipeline.
 
 Usage:
-    scrna.py train <neural_net_architecture> [<hidden_layer_sizes>...] [--sn --gs --data=<path> --out=<path> --act=<activation_fcn> --epochs=<nepochs> --sgd_lr=<lr> --sgd_d=<decay> --sgd_m=<momentum> --sgd_nesterov --ppitf_groups=<path> --ae --pt=<weights_file> --siamese]
+    scrna.py train <neural_net_architecture> [<hidden_layer_sizes>...] [--sn --gs --data=<path> --out=<path> --act=<activation_fcn> --epochs=<nepochs> --sgd_lr=<lr> --sgd_d=<decay> --sgd_m=<momentum> --sgd_nesterov --ppitf_groups=<path> --ae --pt=<weights_file> --siamese --online_train=<n>]
     scrna.py reduce <trained_neural_net_folder> [--out=<path> --data=<path>]
     scrna.py retrieval <reduced_data_folder> [--dist_metric=<metric> --out=<path>]
     scrna.py (-h | --help)
@@ -37,6 +37,8 @@ Options:
     --siamese               Uses a siamese neural network architecture, using
                             <neural_net_architecture> as the base network.
                             Using this flag has many implications, see code.
+    --online_train=<n>      Dynamically generate hard pairs after n epochs for
+                            siamese neural network training.
 
     "retrieval" specific command options:
     --dist_metric=<metric>  Distance metric to use for nearest neighbors
@@ -49,7 +51,7 @@ from os.path import exists, join
 from os import makedirs
 import json
 import sys
-from collections import defaultdict
+from collections import defaultdict, namedtuple
 from itertools import combinations
 import random
 
@@ -61,6 +63,7 @@ import pandas as pd
 from keras.utils import np_utils, plot_model
 import theano
 from scipy.spatial import distance
+from sklearn.metrics.pairwise import euclidean_distances
 
 from util import ScrnaException
 import neural_nets as nn
@@ -228,7 +231,80 @@ def plot_training_history(history, path):
     plt.xlabel('epoch')
     plt.legend(['train', 'test'], loc='upper left')
     plt.savefig(path)
+
+def get_hard_pairs(X, indices_lists, same_lim, ratio_hard_negatives, siamese_model=None):
+    t0 = time.time()
+    pairs = []
+    labels = []
+    if siamese_model:
+        base_net = siamese_model.layers[2]
+        get_embedding = theano.function([base_net.layers[0].input], base_net.layers[-1].output)
+    # Initially generate pairs by going through each cell type, generate all same pairs, and
+    # then list all the different samples sorted by their distance and choose the closest samples
+    for cell_type in range(len(indices_lists)):
+        # same pairs
+        same_count = 0
+        combs = list(combinations(indices_lists[cell_type], 2))
+        random.shuffle(combs)
+        for comb in combs:
+            pairs += [[ X[comb[0]], X[comb[1]] ]]
+            labels += [1]
+            same_count += 1
+            if same_count == same_lim:
+                break
+        # hard different pairs
+        # Pick a random representative of the current cell type
+        rep_idx = random.choice(indices_lists[cell_type]) 
+        rep  = X[rep_idx]
+        if siamese_model:
+            rep = get_embedding([rep])[0]
+        # Get a list of all of the samples with different label
+        all_different_indices = []
+        for diff_cell_type in [x for x in range(len(indices_lists)) if x != cell_type]:
+            all_different_indices += indices_lists[diff_cell_type]
+        all_different_indices = np.array(all_different_indices)
+        all_different = X[all_different_indices]
+        if siamese_model:
+            all_different = get_embedding(all_different)
+        # Sort them by distance to the representative
+        distances = euclidean_distances(all_different, [rep])
+        sorted_different_indices = all_different_indices[distances.argsort()]
+        # Select pairs from these
+        for i in range(same_count*ratio_hard_negatives):
+            pairs += [[ X[rep_idx], X[sorted_different_indices[i]][0] ]]
+            labels += [0]
+    pairs = np.array(pairs)
+    pairs = [ pairs[:, 0], pairs[:, 1] ]
+    labels = np.array(labels)
+    print("Picking new pairs took ", time.time()-t0, " seconds")
+    return pairs, labels
     
+def online_siamese_training(model, data_container, epochs, n, same_lim, ratio_hard_negatives):
+    X_orig, y_orig, label_strings_lookup = data_container.get_labeled_data()
+    indices_lists = build_indices_master_list(X_orig, y_orig)
+    pairs = []
+    labels = []
+    # Initially generate pairs by going through each cell type, generate all same pairs, and
+    # then list all the different samples sorted by their distance and choose the closest samples
+    X, y = get_hard_pairs(X_orig, indices_lists, same_lim, ratio_hard_negatives)
+    print("Generated ", len(X[0]), " pairs")
+    print("Distribution of different and same pairs: ", np.bincount(y))
+    loss_list = []
+    val_loss_list = []
+    for epoch in range(0, epochs):
+        print("Epoch ", epoch+1)
+        epoch_hist = model.fit(X, y, epochs=1, verbose=1, validation_data=(X, y))
+        loss_list.append(epoch_hist.history['loss'])
+        val_loss_list.append(epoch_hist.history['val_loss'])
+        if epoch % n == 0:
+            # Get new pairs
+            X, y = get_hard_pairs(X_orig, indices_lists, same_lim, ratio_hard_negatives, model)
+    hist = {}
+    hist['loss'] = loss_list
+    hist['val_loss'] = val_loss_list
+    History = namedtuple('History', ['history'])
+    return History(history=hist)
+                                
 def train(args):
     # create a unique working directory for this model
     working_dir_path = create_working_directory(args['--out'], "models/", args['<neural_net_architecture>'])
@@ -246,17 +322,24 @@ def train(args):
     if args['--siamese']:
         model = nn.get_siamese(model, input_dim)
         plot_model(model, to_file='siamese_architecture.png', show_shapes=True)
-        X, y = get_data_for_siamese(data_container, args, 500)
     sgd = get_optimizer(args)
     compile_model(model, args, sgd)
     print("model compiled and ready for training")
     print("training model...")
     validation_data = (X, y) # For now, same as training data
-    history = model.fit(X, y, epochs=int(args['--epochs']), verbose=1, validation_data=validation_data)
+    if args['--siamese'] and args['--online_train']:
+        # Special online training (only an option for siamese nets)
+        history = online_siamese_training(model, data_container, int(args['--epochs']), int(args['--online_train']), same_lim=50, ratio_hard_negatives=2)
+    else:
+        # Normal training
+        if args['--siamese']:
+            X, y = get_data_for_siamese(data_container, args, 500)
+            validation_data = (X, y)
+        history = model.fit(X, y, epochs=int(args['--epochs']), verbose=1, validation_data=validation_data)
+    plot_training_history(history, join(working_dir_path, "loss.png"))
     print("saving model to folder: " + working_dir_path)
     with open(join(working_dir_path, "command_line_args.json"), 'w') as fp:
         json.dump(args, fp)
-    plot_training_history(history, join(working_dir_path, "loss.png"))
     architecture_path = join(working_dir_path, "model_architecture.json")
     weights_path = join(working_dir_path, "model_weights.p")
     if args['--siamese']:
