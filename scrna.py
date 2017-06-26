@@ -1,7 +1,7 @@
 """Single-cell RNA-seq Analysis Pipeline.
 
 Usage:
-    scrna.py train <neural_net_architecture> [<hidden_layer_sizes>...] [--sn --gs --data=<path> --out=<path> --act=<activation_fcn> --epochs=<nepochs> --sgd_lr=<lr> --sgd_d=<decay> --sgd_m=<momentum> --sgd_nesterov --ppitf_groups=<path> --ae --pt=<weights_file> --siamese --online_train=<n>]
+    scrna.py train <neural_net_architecture> [<hidden_layer_sizes>...] [--sn --gs --data=<path> --out=<path> --act=<activation_fcn> --epochs=<nepochs> --sgd_lr=<lr> --sgd_d=<decay> --sgd_m=<momentum> --sgd_nesterov --ppitf_groups=<path> --ae --pt=<weights_file> --siamese --online_train=<n> --viz]
     scrna.py reduce <trained_neural_net_folder> [--out=<path> --data=<path>]
     scrna.py retrieval <reduced_data_folder> [--dist_metric=<metric> --out=<path>]
     scrna.py (-h | --help)
@@ -39,6 +39,7 @@ Options:
                             Using this flag has many implications, see code.
     --online_train=<n>      Dynamically generate hard pairs after n epochs for
                             siamese neural network training.
+    --viz                   Visualize the data in the embedding space.
 
     "retrieval" specific command options:
     --dist_metric=<metric>  Distance metric to use for nearest neighbors
@@ -65,6 +66,7 @@ from keras.utils import np_utils, plot_model
 import theano
 from scipy.spatial import distance
 from sklearn.metrics.pairwise import euclidean_distances
+from sklearn.manifold import TSNE
 
 from util import ScrnaException
 import neural_nets as nn
@@ -311,7 +313,33 @@ def online_siamese_training(model, data_container, epochs, n, same_lim, ratio_ha
     hist['val_loss'] = val_loss_list
     History = namedtuple('History', ['history'])
     return History(history=hist)
-                                
+
+def visualize_embedding(X, labels, path):
+    print(X.shape)
+    label_subset = {'HSC':'blue', '4cell':'green', 'spleen':'red', '8cell':'cyan', 'neuron':'magenta', '2cell':'yellow', 'ESC':'black'}
+    # Only plot the subset of data
+    subset_idx = []
+    colors = []
+    for i in range(len(labels)):
+        if labels[i] in label_subset.keys():
+            subset_idx.append(i)
+            colors.append(label_subset[labels[i]])
+    print("subset")
+    print(len(subset_idx))
+    subset_points = X[subset_idx]
+    print(subset_points.shape)
+    subset_labels = labels[subset_idx]
+    tsne = TSNE(n_components=2, random_state=0)
+    embedding = tsne.fit_transform(subset_points)
+    plt.clf()
+    plt.scatter(embedding[:,0], embedding[:,1], c=colors)
+    plt.savefig(path)
+
+def modify_data_for_retrieval_test(data_container, test_labels):
+    data_container.dataframe.replace(to_replace=['cortex', 'CNS', 'brain'], value='neuron', inplace=True)
+    regexs = ['^.*'+label+'.*$' for label in test_labels]
+    data_container.dataframe.replace(to_replace=regexs, value=test_labels, inplace=True, regex=True)
+    
 def train(args):
     # create a unique working directory for this model
     working_dir_path = create_working_directory(args['--out'], "models/", args['<neural_net_architecture>'])
@@ -353,6 +381,19 @@ def train(args):
         # For siamese nets, we only care about saving the subnetwork, not the whole siamese net
         model = model.layers[2] # For now, seems safe to assume index 2 corresponds to base net
     nn.save_trained_nn(model, architecture_path, weights_path)
+    if args['--viz']:
+        print("Visualizing...")
+        testing_label_subset = ['2cell','4cell','ICM','zygote','8cell','ESC','lung','TE','thymus','spleen','HSC','neuron']
+        modify_data_for_retrieval_test(data_container, testing_label_subset)
+        X, _, _ = data_container.get_labeled_data()
+        labels = data_container.get_labeled_labels()
+        if args['--siamese']:
+            last_hidden_layer = model.layers[-1]
+        else:
+            last_hidden_layer = model.layers[-2]
+        get_activations = theano.function([model.layers[0].input], last_hidden_layer.output)
+        X_embedded = get_activations(X)
+        visualize_embedding(X_embedded, labels, join(working_dir_path, "tsne.png"))
 
 def save_reduced_data_to_csv(out_folder, X_reduced, data_container):
     # Remove old data from the data container (but keep the Sample, Lable, and
@@ -397,11 +438,6 @@ def reduce(args):
     save_reduced_data_to_csv(working_dir_path, X_transformed, data_container)
     with open(join(working_dir_path, "training_command_line_args.json"), 'w') as fp:
         json.dump(training_args, fp)
-
-def modify_data_for_retrieval_test(data_container, test_labels):
-    data_container.dataframe.replace(to_replace=['cortex', 'CNS', 'brain'], value='neuron', inplace=True)
-    regexs = ['^.*'+label+'.*$' for label in test_labels]
-    data_container.dataframe.replace(to_replace=regexs, value=test_labels, inplace=True, regex=True)
 
 def average_precision(target, retrieved_list):
     total = 0
