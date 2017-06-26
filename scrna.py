@@ -46,6 +46,7 @@ Options:
 
 """
 # import pdb; pdb.set_trace()
+import cProfile
 import time
 from os.path import exists, join
 from os import makedirs
@@ -245,7 +246,8 @@ def get_hard_pairs(X, indices_lists, same_lim, ratio_hard_negatives, siamese_mod
         # same pairs
         same_count = 0
         combs = list(combinations(indices_lists[cell_type], 2))
-        random.shuffle(combs)
+        np.random.shuffle(combs)
+        #random.shuffle(combs)
         for comb in combs:
             pairs += [[ X[comb[0]], X[comb[1]] ]]
             labels += [1]
@@ -254,7 +256,7 @@ def get_hard_pairs(X, indices_lists, same_lim, ratio_hard_negatives, siamese_mod
                 break
         # hard different pairs
         # Pick a random representative of the current cell type
-        rep_idx = random.choice(indices_lists[cell_type]) 
+        rep_idx = random.choice(indices_lists[cell_type])
         rep  = X[rep_idx]
         if siamese_model:
             rep = get_embedding([rep])[0]
@@ -268,6 +270,8 @@ def get_hard_pairs(X, indices_lists, same_lim, ratio_hard_negatives, siamese_mod
             all_different = get_embedding(all_different)
         # Sort them by distance to the representative
         distances = euclidean_distances(all_different, [rep])
+        #distances = np.linalg.norm(rep-all_different, axis=1) #slowest
+        #distances = distance.cdist([rep], all_different, 'euclidean') #slow
         sorted_different_indices = all_different_indices[distances.argsort()]
         # Select pairs from these
         for i in range(same_count*ratio_hard_negatives):
@@ -286,6 +290,9 @@ def online_siamese_training(model, data_container, epochs, n, same_lim, ratio_ha
     labels = []
     # Initially generate pairs by going through each cell type, generate all same pairs, and
     # then list all the different samples sorted by their distance and choose the closest samples
+    # print("profiling...")
+    # cProfile.runctx('get_hard_pairs(X_orig, indices_lists, same_lim, ratio_hard_negatives)', globals={'get_hard_pairs':get_hard_pairs}, locals={'X_orig':X_orig, 'indices_lists':indices_lists, 'same_lim':same_lim, 'ratio_hard_negatives':ratio_hard_negatives}, filename='pairs_stats')
+    # print("done profiling")
     X, y = get_hard_pairs(X_orig, indices_lists, same_lim, ratio_hard_negatives)
     print("Generated ", len(X[0]), " pairs")
     print("Distribution of different and same pairs: ", np.bincount(y))
@@ -329,7 +336,7 @@ def train(args):
     validation_data = (X, y) # For now, same as training data
     if args['--siamese'] and args['--online_train']:
         # Special online training (only an option for siamese nets)
-        history = online_siamese_training(model, data_container, int(args['--epochs']), int(args['--online_train']), same_lim=50, ratio_hard_negatives=2)
+        history = online_siamese_training(model, data_container, int(args['--epochs']), int(args['--online_train']), same_lim=500, ratio_hard_negatives=2)
     else:
         # Normal training
         if args['--siamese']:
