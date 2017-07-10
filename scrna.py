@@ -73,9 +73,9 @@ import neural_nets as nn
 from bio_knowledge import get_groupings_for_genes
 from sparse_optimizers import SparseSGD
 from data_container import DataContainer
-from bio_sparse_layer import BioSparseLayer
+from sparse_layer import Sparse
 import keras
-keras.layers.BioSparseLayer = BioSparseLayer
+keras.layers.Sparse = Sparse
 
 CLEAN_LABEL_SUBSET = ['2cell','4cell','ICM','zygote','8cell','ESC','lung','TE','thymus','spleen','HSC','neuron']
 TESTING_LABEL_SUBSET = ['2cell','ESC','spleen','HSC','neuron']

@@ -7,7 +7,7 @@ from keras.models import Sequential, Model, model_from_json
 from keras.layers import Dense, Input, Lambda
 from keras import backend as K
 
-from bio_sparse_layer import BioSparseLayer
+from sparse_layer import Sparse
 from util import ScrnaException
 
 
@@ -29,7 +29,7 @@ def save_trained_nn(model, architecture_path, weights_path):
     save_model_weights_to_pickle(model, weights_path)
 
 def load_trained_nn(architecture_path, weights_path):
-    custom_obj = {'BioSparseLayer': BioSparseLayer}
+    custom_obj = {'Sparse': Sparse}
     model = model_from_json(open(architecture_path).read(), custom_objects=custom_obj)
     print(model.summary())
     load_model_weights_from_pickle(model, weights_path)
@@ -102,7 +102,7 @@ def get_ppitf(hidden_layer_sizes, input_dim, ppitf_groups_mat, activation_fcn='t
     inputs = Input(shape=(input_dim,))
     # Hidden layers
     # first hidden layer
-    sparse_out = BioSparseLayer(activation=activation_fcn, input_output_mat=ppitf_groups_mat.transpose())(inputs)
+    sparse_out = Sparse(activation=activation_fcn, adjacency_mat=ppitf_groups_mat.transpose())(inputs)
     dense_out = Dense(100, activation=activation_fcn)(inputs)
     x = keras.layers.concatenate([sparse_out, dense_out])
     # other hidden layers
