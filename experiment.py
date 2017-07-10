@@ -35,6 +35,8 @@ SLURM_RETRIEVAL_COMMAND="""sbatch --array=0-{num_jobs} --mail-user {email} \
 
 # The cell types that were used for retrieval testing in the Lin et al. paper
 PAPER_CELL_TYPES = ['HSC', '4cell', 'ICM', 'spleen', '8cell', 'neuron', 'zygote', '2cell', 'ESC']
+# A smaller subset that have above a threshold of samples present:
+from scrna import TESTING_LABEL_SUBSET
 
 class SafeDict(dict):
     """Allows for string formatting with unused keyword arguments
@@ -178,7 +180,8 @@ class Experiment(object):
             scores_list = []
             for cell_type, score in cell_types_and_scores.items():
                 # Iterate through cell types
-                if cell_type in PAPER_CELL_TYPES:
+                # if cell_type in PAPER_CELL_TYPES:
+                if cell_type in TESTING_LABEL_SUBSET:
                     unique_cell_types_set.update([cell_type])
                     current_model[cell_type] = score
                     scores_list.append(score)

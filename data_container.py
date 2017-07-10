@@ -1,5 +1,6 @@
 # import pdb; pdb.set_trace()
 import time
+from os.path import join
 
 import pandas as pd
 import numpy as np
@@ -11,6 +12,7 @@ class DataContainer(object):
     and provides access to various aspects of it.
     """
     def __init__(self, filepath, sample_normalize=False, gene_standardize=False):
+        self.filepath = filepath
         # Use pandas.read_csv to read in the file
         print('Reading in data from ', filepath)
         # TODO: Right now, because of format of files we currently have, the columns are mixed data types so we have to use low_memory=False
@@ -92,3 +94,14 @@ class DataContainer(object):
         label_strings = self.dataframe.loc[:, 'Label'].values
         uniq_label_strings, labels_as_int = np.unique(label_strings, return_inverse=True)
         return expression_mat, labels_as_int, uniq_label_strings
+
+    def save_about_data(self, folder_to_save_in):
+        """Save some descriptive info about this data to a text file.
+        """
+        with open(join(folder_to_save_in, 'about_data.txt'), 'w') as f:
+            f.write("Source file: ", self.filepath, "\n")
+            f.write("\nLabels present:\n")
+            uniq, counts = np.unique(self.get_labeled_labels(), return_counts=True)
+            f.write(uniq, "\n")
+            f.write("\nCount for each label:\n")
+            f.write(counts, "\n")

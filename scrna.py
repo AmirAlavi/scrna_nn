@@ -77,6 +77,14 @@ from bio_sparse_layer import BioSparseLayer
 import keras
 keras.layers.BioSparseLayer = BioSparseLayer
 
+CLEAN_LABEL_SUBSET = ['2cell','4cell','ICM','zygote','8cell','ESC','lung','TE','thymus','spleen','HSC','neuron']
+TESTING_LABEL_SUBSET = ['2cell','ESC','spleen','HSC','neuron']
+
+def preprocess_data(datacontainer):
+    """Clean up the labels
+    """
+    modify_data_for_retrieval_test(datacontainer, CLEAN_LABEL_SUBSET)
+
 def create_working_directory(out_path, parent, suffix):
     if out_path == 'None':
         time_str = time.strftime("%Y_%m_%d-%H:%M:%S")
@@ -88,6 +96,7 @@ def create_working_directory(out_path, parent, suffix):
 def create_data_pairs_diff_datasets(X, y, dataset_IDs, indices_lists, same_lim):
     pairs = []
     labels = []
+    print("num labels: ", len(indices_lists))
     for label in range(len(indices_lists)):
         same_count = 0
         combs = combinations(indices_lists[label], 2)
@@ -100,8 +109,8 @@ def create_data_pairs_diff_datasets(X, y, dataset_IDs, indices_lists, same_lim):
             pairs += [[ X[a_idx], X[b_idx] ]]
             labels += [1]
             same_count += 1
-            # if same_count == same_lim:
-            #     break
+            if same_count == same_lim:
+                break
         # create the same number of different pairs
         diff_count = 0
         while diff_count < (2 * same_count):
@@ -175,6 +184,8 @@ def get_data_for_siamese(data_container, args, same_lim):
 
 def get_data(data_path, args):
     data = DataContainer(data_path, args['--sn'], args['--gs'])
+    print("Cleaning up the data first...")
+    preprocess_data(data)
     gene_names = data.get_gene_names()
     output_dim = None
     if args['--ae']:
@@ -316,7 +327,7 @@ def online_siamese_training(model, data_container, epochs, n, same_lim, ratio_ha
 
 def visualize_embedding(X, labels, path):
     print(X.shape)
-    label_subset = {'HSC':'blue', '4cell':'green', 'spleen':'red', '8cell':'cyan', 'neuron':'magenta', '2cell':'yellow', 'ESC':'black'}
+    label_subset = {'HSC':'blue', '2cell':'green', 'spleen':'red', 'neuron':'cyan', 'ESC':'black'}
     # Only plot the subset of data
     subset_idx = []
     colors = []
@@ -336,7 +347,9 @@ def visualize_embedding(X, labels, path):
     plt.savefig(path)
 
 def modify_data_for_retrieval_test(data_container, test_labels):
-    data_container.dataframe.replace(to_replace=['cortex', 'CNS', 'brain'], value='neuron', inplace=True)
+    neuron_labels = ['cortex', 'CNS', 'brain']
+    neuron_regexes = ['^.*'+label+'.*$' for label in neuron_labels]
+    data_container.dataframe.replace(to_replace=neuron_regexes, value='neuron', inplace=True, regex=True)
     regexs = ['^.*'+label+'.*$' for label in test_labels]
     data_container.dataframe.replace(to_replace=regexs, value=test_labels, inplace=True, regex=True)
     
@@ -364,11 +377,11 @@ def train(args):
     validation_data = (X, y) # For now, same as training data
     if args['--siamese'] and args['--online_train']:
         # Special online training (only an option for siamese nets)
-        history = online_siamese_training(model, data_container, int(args['--epochs']), int(args['--online_train']), same_lim=500, ratio_hard_negatives=2)
+        history = online_siamese_training(model, data_container, int(args['--epochs']), int(args['--online_train']), same_lim=2000, ratio_hard_negatives=2)
     else:
         # Normal training
         if args['--siamese']:
-            X, y = get_data_for_siamese(data_container, args, 500)
+            X, y = get_data_for_siamese(data_container, args, 2000)
             validation_data = (X, y)
         history = model.fit(X, y, epochs=int(args['--epochs']), verbose=1, validation_data=validation_data)
     plot_training_history(history, join(working_dir_path, "loss.png"))
@@ -383,8 +396,6 @@ def train(args):
     nn.save_trained_nn(model, architecture_path, weights_path)
     if args['--viz']:
         print("Visualizing...")
-        testing_label_subset = ['2cell','4cell','ICM','zygote','8cell','ESC','lung','TE','thymus','spleen','HSC','neuron']
-        modify_data_for_retrieval_test(data_container, testing_label_subset)
         X, _, _ = data_container.get_labeled_data()
         labels = data_container.get_labeled_labels()
         if args['--siamese']:
@@ -459,9 +470,9 @@ def retrieval_test(args):
     working_dir_path = create_working_directory(args['--out'], "retrieval_results/", training_args['<neural_net_architecture>'])
     # Load the reduced data
     data = DataContainer(join(args['<reduced_data_folder>'], "reduced.csv"))
+    print("Cleaning up the data first...")
+    preprocess_data(data)
     X, _, _ = data.get_labeled_data()
-    testing_label_subset = ['2cell','4cell','ICM','zygote','8cell','ESC','lung','TE','thymus','spleen','HSC','neuron']
-    modify_data_for_retrieval_test(data, testing_label_subset)
 
     datasetIDs = data.get_labeled_dataset_IDs()
     labels = data.get_labeled_labels()
@@ -484,7 +495,7 @@ def retrieval_test(args):
         for index, distances in enumerate(distance_matrix):
             current_sample_idx = current_ds_samples_indicies[index]
             current_sample_label = labels[current_sample_idx]
-            if current_sample_label not in testing_label_subset:
+            if current_sample_label not in CLEAN_LABEL_SUBSET:
                 continue
             sorted_distances_indicies = np.argsort(distances)
 
