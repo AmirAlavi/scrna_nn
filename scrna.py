@@ -1,49 +1,66 @@
 """Single-cell RNA-seq Analysis Pipeline.
 
 Usage:
-    scrna.py train <neural_net_architecture> [<hidden_layer_sizes>...] [--sn --gs --data=<path> --out=<path> --act=<activation_fcn> --epochs=<nepochs> --sgd_lr=<lr> --sgd_d=<decay> --sgd_m=<momentum> --sgd_nesterov --ppitf_groups=<path> --ae --pt=<weights_file> --siamese --online_train=<n> --viz]
+    scrna.py train <neural_net_architecture> [<hidden_layer_sizes>...] [--out=<path> --data=<path>] [options]
     scrna.py reduce <trained_neural_net_folder> [--out=<path> --data=<path>]
     scrna.py retrieval <reduced_data_folder> [--dist_metric=<metric> --out=<path>]
     scrna.py (-h | --help)
     scrna.py --version
 
+Neural Net Architectures:
+    dense                     Simple, fully connected layers, uses Keras's built-in Dense Layer.
+                              'hidden_layer_sizes' specifies the number and sizes of the hidden layers
+    sparse                    The connections between the input layer and the 1st hidden layer
+                              are sparse (not all input nodes are connected to all 1st hidden layer
+                              units, as in 'dense') using a custom Sparse layer. These connections are
+                              specified through a 'grouping' file, see the 'sparse_groupings' option. In
+                              addition, one can add Dense units in the first hidden layer to be
+                              concatenated with these Sparse units with the 'with_dense' option. Any
+                              additional hidden layers specified by 'hidden_layer_sizes' are added as
+                              Dense layers on top of the 1st hidden layer.
+    GO                        (not implemented)
+    GO_ppitf_dense            (not implemented)
+
 Options:
-    -h --help               Show this screen.
-    --version               Show version.
-    --data=<path>           Path to input data file.
-                            [default: data/TPM_mouse_7_8_10_PPITF_gene_9437_T.txt]
-    --out=<path>            Path of folder to save output
-                            (trained models/reduced data/retrieval results) to.
-                            'None' means that a time-stamped folder will
-                            automatically be created. [default: None]
+    -h --help                 Show this screen.
+    --version                 Show version.
+    --data=<path>             Path to input data file.
+                              [default: data/TPM_mouse_7_8_10_PPITF_gene_9437_T.txt]
+    --out=<path>              Path of folder to save output
+                              (trained models/reduced data/retrieval results) to.
+                              'None' means that a time-stamped folder will
+                              automatically be created. [default: None]
 
     "train" specific command options:
-    --epochs=<nepochs>      Number of epochs to train for. [default: 100]
-    --act=<activation_fcn>  Activation function to use for the layers.
-                            [default: tanh]
-    --sn                    Divide each sample by the total number of reads for
-                            that sample.
-    --gs                    Subtract the mean and divide by standard deviation
-                            within each gene.
-    --sgd_lr=<lr>           Learning rate for SGD. [default: 0.1]
-    --sgd_d=<decay>         Decay rate for SGD. [default: 1e-6]
-    --sgd_m=<momentum>      Momentum for SGD. [default: 0.9]
-    --sgd_nesterov          Use Nesterov momentum for SGD.
-    --ppitf_groups=<path>   Path to file containing the TF groups and PPI
-                            groups, each on separate lines.
-                            [default: data/ppi_tf_merge_cluster.txt]
-    --pt=<weights_file>     Use initial weights from a pretrained model weights file.
-    --ae                    Use an unsupervised autoencoder architecture.
-    --siamese               Uses a siamese neural network architecture, using
-                            <neural_net_architecture> as the base network.
-                            Using this flag has many implications, see code.
-    --online_train=<n>      Dynamically generate hard pairs after n epochs for
-                            siamese neural network training.
-    --viz                   Visualize the data in the embedding space.
+    --epochs=<nepochs>        Number of epochs to train for. [default: 100]
+    --act=<activation_fcn>    Activation function to use for the layers.
+                              [default: tanh]
+    --sn                      Divide each sample by the total number of reads for
+                              that sample.
+    --gs                      Subtract the mean and divide by standard deviation
+                              within each gene.
+    --sgd_lr=<lr>             Learning rate for SGD. [default: 0.1]
+    --sgd_d=<decay>           Decay rate for SGD. [default: 1e-6]
+    --sgd_m=<momentum>        Momentum for SGD. [default: 0.9]
+    --sgd_nesterov            Use Nesterov momentum for SGD.
+    --sparse_groupings=<path> (For 'sparse' architecture) Path to file containing the genes
+                              grouped to nodes for a sparse layer.
+                              [default: data/ppi_tf_merge_cluster.txt]
+    --with_dense=<num_units>  (For 'sparse' architecture) Number of Dense units to add in the same
+                              layer as the Sparse layer. [default: 100]
+    --go_arch=<path>          Path to folder containing files that define a GO-based architecture
+    --pt=<weights_file>       Use initial weights from a pretrained model weights file.
+    --ae                      Use an unsupervised autoencoder architecture.
+    --siamese                 Uses a siamese neural network architecture, using
+                              <neural_net_architecture> as the base network.
+                              Using this flag has many implications, see code.
+    --online_train=<n>        Dynamically generate hard pairs after n epochs for
+                              siamese neural network training.
+    --viz                     Visualize the data in the embedding space.
 
     "retrieval" specific command options:
-    --dist_metric=<metric>  Distance metric to use for nearest neighbors
-                            retrieval [default: euclidean].
+    --dist_metric=<metric>    Distance metric to use for nearest neighbors
+                              retrieval [default: euclidean].
 
 """
 # import pdb; pdb.set_trace()
@@ -70,7 +87,7 @@ from sklearn.manifold import TSNE
 
 from util import ScrnaException
 import neural_nets as nn
-from bio_knowledge import get_groupings_for_genes
+from bio_knowledge import get_adj_mat_from_groupings
 from sparse_optimizers import SparseSGD
 from data_container import DataContainer
 from sparse_layer import Sparse
@@ -211,15 +228,12 @@ def get_data(data_path, args):
     return X, y, input_dim, output_dim, label_strings_lookup, gene_names, data
 
 def get_model_architecture(args, input_dim, output_dim, gene_names):
-    ppitf_groups_mat = None
-    go_300_groups_mat = None
-    if args['<neural_net_architecture>'] == 'ppitf':
-        _, _, ppitf_groups_mat = get_groupings_for_genes(args['--ppitf_groups'], gene_names)
-        print("ppitf mat shape: ", ppitf_groups_mat.shape)
-    elif args['<neural_net_architecture>'] == 'go_300':
-        pass # TODO: Generate GO adjacency matrix
+    adj_mat = None
+    if args['<neural_net_architecture>'] == 'sparse':
+        _, _, adj_mat = get_adj_mat_from_groupings(args['--sparse_groupings'], gene_names)
+        print("Sparse layer adjacency mat shape: ", adj_mat.shape)
     hidden_layer_sizes = [int(x) for x in args['<hidden_layer_sizes>']]
-    return nn.get_nn_model(args['<neural_net_architecture>'], hidden_layer_sizes, input_dim, args['--ae'], args['--act'], ppitf_groups_mat, go_300_groups_mat, output_dim)
+    return nn.get_nn_model(args['<neural_net_architecture>'], hidden_layer_sizes, input_dim, args['--ae'], args['--act'], adj_mat, output_dim, int(args['--with_dense']))
 
 def get_optimizer(args):
     lr = float(args['--sgd_lr'])
