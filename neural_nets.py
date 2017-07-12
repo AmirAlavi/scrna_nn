@@ -102,7 +102,7 @@ def get_ppitf(hidden_layer_sizes, input_dim, ppitf_groups_mat, activation_fcn='t
     inputs = Input(shape=(input_dim,))
     # Hidden layers
     # first hidden layer
-    sparse_out = Sparse(activation=activation_fcn, adjacency_mat=ppitf_groups_mat.transpose())(inputs)
+    sparse_out = Sparse(activation=activation_fcn, adjacency_mat=ppitf_groups_mat)(inputs)
     dense_out = Dense(100, activation=activation_fcn)(inputs)
     x = keras.layers.concatenate([sparse_out, dense_out])
     # other hidden layers
@@ -110,13 +110,15 @@ def get_ppitf(hidden_layer_sizes, input_dim, ppitf_groups_mat, activation_fcn='t
         x = Dense(size, activation=activation_fcn)(x)
     return inputs, x
 
-def get_nn_model(model_name, hidden_layer_sizes, input_dim, is_autoencoder, activation_fcn='tanh', ppitf_groups_mat=None, output_dim=None):
+def get_nn_model(model_name, hidden_layer_sizes, input_dim, is_autoencoder, activation_fcn='tanh', ppitf_groups_mat=None, go_300_groups_mat=None, output_dim=None):
     print(hidden_layer_sizes)
     # First get the tensors from hidden layers
     if model_name == 'dense':
         in_tensors, hidden_tensors = get_dense(hidden_layer_sizes, input_dim, activation_fcn)
     elif model_name == 'ppitf':
         in_tensors, hidden_tensors = get_ppitf(hidden_layer_sizes, input_dim, ppitf_groups_mat, activation_fcn)
+    elif model_name == 'go_300':
+        in_tensors, hidden_tensors = get_go_300(hidden_layer_sizes, input_dim, go_300_groups_mat, activation_fcn)
     else:
         raise ScrnaException("Bad neural network name: " + model_name)
     

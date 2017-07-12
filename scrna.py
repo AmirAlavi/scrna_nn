@@ -212,11 +212,14 @@ def get_data(data_path, args):
 
 def get_model_architecture(args, input_dim, output_dim, gene_names):
     ppitf_groups_mat = None
+    go_300_groups_mat = None
     if args['<neural_net_architecture>'] == 'ppitf':
         _, _, ppitf_groups_mat = get_groupings_for_genes(args['--ppitf_groups'], gene_names)
         print("ppitf mat shape: ", ppitf_groups_mat.shape)
+    elif args['<neural_net_architecture>'] == 'go_300':
+        pass # TODO: Generate GO adjacency matrix
     hidden_layer_sizes = [int(x) for x in args['<hidden_layer_sizes>']]
-    return nn.get_nn_model(args['<neural_net_architecture>'], hidden_layer_sizes, input_dim, args['--ae'], args['--act'], ppitf_groups_mat, output_dim)
+    return nn.get_nn_model(args['<neural_net_architecture>'], hidden_layer_sizes, input_dim, args['--ae'], args['--act'], ppitf_groups_mat, go_300_groups_mat, output_dim)
 
 def get_optimizer(args):
     lr = float(args['--sgd_lr'])

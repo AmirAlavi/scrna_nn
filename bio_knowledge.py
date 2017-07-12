@@ -25,24 +25,35 @@ def get_groupings_for_genes(ppi_tf_groups_filepath, dataset_gene_names):
     dataset_gene_names = dataset_gene_names.tolist()
     print("num gene names: ", len(dataset_gene_names))
     lines = open(ppi_tf_groups_filepath).readlines()
-    ppi_tf_groups_as_indices = defaultdict(list)
+    ppi_tf_groups_as_indices = []
+    group_names = []
+    largest_index = -1
     for line in lines:
         # Get tab separated tokens in the line
         tokens = line.replace('\n', '').replace('\r', '').split('\t')
         # The first token is the name of that group (either 'TF tfname' or
         # 'ppi_groupnumber')
-        group_name = tokens[0]
+        group_names.append(tokens[0])
+        indices_list = []
         # The rest of the tokens are the names of the genes in that group
         for gene in tokens[1:]:
             if gene in dataset_gene_names:# Decoupling the set of genes in dataset from set of genes in PPITF knowledge
-                ppi_tf_groups_as_indices[group_name].append(dataset_gene_names.index(gene))
-    largest_index = max(map(max, ppi_tf_groups_as_indices.values()))
-    sorted_group_names = sorted(ppi_tf_groups_as_indices.keys())
-    binary_group_membership_mat = np.zeros((len(sorted_group_names), largest_index+1), dtype='float32')
-    for group_idx, group_name in enumerate(sorted_group_names):
-        for gene_idx in ppi_tf_groups_as_indices[group_name]:
-            binary_group_membership_mat[group_idx, gene_idx] = 1
-    return ppi_tf_groups_as_indices, sorted_group_names, binary_group_membership_mat
+                #ppi_tf_groups_as_indices[group_name].append(dataset_gene_names.index(gene))
+                idx = dataset_gene_names.index(gene)
+                if idx > largest_index:
+                    largest_index = idx
+                indices_list.append(idx)
+        ppi_tf_groups_as_indices.append(indices_list)
+    #largest_index = max(map(max, ppi_tf_groups_as_indices.values()))
+    #sorted_group_names = sorted(ppi_tf_groups_as_indices.keys())
+    binary_group_membership_mat = np.zeros((largest_index+1, len(group_names)), dtype='float32')
+    for group_idx in range(len(group_names)):
+        for gene_idx in ppi_tf_groups_as_indices[group_idx]:
+            binary_group_membership_mat[gene_idx, group_idx] = 1
+    # for group_idx, group_name in enumerate(sorted_group_names):
+    #     for gene_idx in ppi_tf_groups_as_indices[group_name]:
+    #         binary_group_membership_mat[group_idx, gene_idx] = 1
+    return ppi_tf_groups_as_indices, group_names, binary_group_membership_mat
 
 '''
 def get_groupings_for_genes_new(dataset_gene_names, tf_master_list, ppi_master_list):

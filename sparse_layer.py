@@ -47,7 +47,7 @@ class Sparse(Dense):
                  activity_regularizer=None,
                  kernel_constraint=None,
                  bias_constraint=None,
-                 adjacency_mat=None,
+                 adjacency_mat=None, #Specifies which inputs (rows) are connected to which outputs (columns)
                  **kwargs):
         # if adjacency_mat == None:
         #     raise ValueError("Must provide adjacency_mat to Sparse constructor!")
