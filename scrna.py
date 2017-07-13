@@ -36,7 +36,13 @@ Neural Net Architectures:
                               - Additional hidden layers specified by '<hidden_layer_sizes>' are added as
                                 Dense layers on top of the 1st hidden layer.
 
-    GO_ppitf                  (not implemented)
+    GO_ppitf                  Combination of GO tree architecture and PPI/TF groupings in the 1st hidden layer.
+                              Architecture specification is done through the arguments required for 'sparse' and
+                              'GO' architectures.
+                              - Can add Dense units in the first hidden layer to be concatenated with these
+                                Sparse units with the '--with_dense' option.
+                              - Additional hidden layers specified by '<hidden_layer_sizes>' are added as
+                                Dense layers on top of the 1st hidden layer.
 
 Options:
     -h --help                 Show this screen.
@@ -250,25 +256,29 @@ def get_data(data_path, args):
 
 def get_model_architecture(args, input_dim, output_dim, gene_names):
     adj_mat = None
+    go_first_level_adj_mat = None
     go_other_levels_adj_mats = None
     flatGO_ppitf_adj_mats = None
-    if args['<neural_net_architecture>'] == 'sparse':
+    if args['<neural_net_architecture>'] == 'sparse' or args['<neural_net_architecture>'] == 'GO_ppitf':
         _, _, adj_mat = get_adj_mat_from_groupings(args['--sparse_groupings'], gene_names)
         print("Sparse layer adjacency mat shape: ", adj_mat.shape)
-    elif args['<neural_net_architecture>'] == 'GO':
+    if args['<neural_net_architecture>'] == 'GO' or args['<neural_net_architecture>'] == 'GO_ppitf':
         # For now, we expect these file names
         # TODO: decouple file naming
         go_first_level_groupings_file = join(args['--go_arch'], 'GO_arch_first_level_groupings.txt')
-        _, _, adj_mat = get_adj_mat_from_groupings(go_first_level_groupings_file, gene_names)
-        print("(GO first level) Sparse layer adjacency mat shape: ", adj_mat.shape)
+        _, _, go_first_level_adj_mat = get_adj_mat_from_groupings(go_first_level_groupings_file, gene_names)
+        print("(GO first level) Sparse layer adjacency mat shape: ", go_first_level_adj_mat.shape)
         go_other_levels_adj_mats_file = join(args['--go_arch'], 'GO_arch_other_levels_adj_mats.pickle')
         go_other_levels_adj_mats = pickle.load(go_other_levels_adj_mats_file)
     elif args['<neural_net_architecture>'] == 'flatGO_ppitf':
         _, _, flatGO_adj_mat = get_adj_mat_from_groupings(args['--fGO_ppitf_grps'].split(',')[0], gene_names)
         _, _, ppitf_adj_mat = get_adj_mat_from_groupings(args['--fGO_ppitf_grps'].split(',')[1], gene_names)
         flatGO_ppitf_adj_mats = [flatGO_adj_mat, ppitf_adj_mat]
+    elif args['<neural_net_architecture>'] == 'GO_ppitf':
+        _, _, adj_mat = get_adj_mat_from_groupings(args['--sparse_groupings'], gene_names)
+        
     hidden_layer_sizes = [int(x) for x in args['<hidden_layer_sizes>']]
-    return nn.get_nn_model(args['<neural_net_architecture>'], hidden_layer_sizes, input_dim, args['--ae'], args['--act'], output_dim, adj_mat, go_other_levels_adj_mats, flatGO_ppitf_adj_mats, int(args['--with_dense']))
+    return nn.get_nn_model(args['<neural_net_architecture>'], hidden_layer_sizes, input_dim, args['--ae'], args['--act'], output_dim, adj_mat, go_first_level_adj_mat, go_other_levels_adj_mats, flatGO_ppitf_adj_mats, int(args['--with_dense']))
 
 def get_optimizer(args):
     lr = float(args['--sgd_lr'])
