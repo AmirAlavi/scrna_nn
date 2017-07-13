@@ -132,7 +132,23 @@ def get_GO(hidden_layer_sizes, input_dim, adj_mat, go_other_levels_adj_mats, act
         x = Dense(size, activation=activation_fcn)(x)
     return inputs, x
 
-def get_nn_model(model_name, hidden_layer_sizes, input_dim, is_autoencoder, activation_fcn='tanh', output_dim=None, adj_mat=None, go_other_levels_adj_mats=None, extra_dense_units=0):
+def get_flatGO_ppitf(hidden_layer_sizes, input_dim, flatGO_ppitf_adj_mats, activation_fcn='tanh', extra_dense_units=0):
+    inputs = Input(shape=(input_dim,))
+    # Hidden layers
+    # first hidden layer
+    sparse_flatGO_out = Sparse(activation=activation_fcn, adjacency_mat=flatGO_ppitf_adj_mats[0])(inputs)
+    sparse_ppitf_out = Sparse(activation=activation_fcn, adjacency_mat=flatGO_ppitf_adj_mats[1])(inputs)
+    if extra_dense_units > 0:
+        dense_out = Dense(extra_dense_units, activation=activation_fcn)(inputs)
+        x = keras.layers.concatenate([sparse_flatGO_out, sparse_ppitf_out, dense_out])
+    else:
+        x = keras.layers.concatenate([sparse_flatGO_out, sparse_ppitf_out])
+    # other hidden layers
+    for size in hidden_layer_sizes:
+        x = Dense(size, activation=activation_fcn)(x)
+    return inputs, x
+
+def get_nn_model(model_name, hidden_layer_sizes, input_dim, is_autoencoder, activation_fcn='tanh', output_dim=None, adj_mat=None, go_other_levels_adj_mats=None, flatGO_ppitf_adj_mats=None, extra_dense_units=0):
     print(hidden_layer_sizes)
     # First get the tensors from hidden layers
     if model_name == 'dense':
@@ -142,7 +158,7 @@ def get_nn_model(model_name, hidden_layer_sizes, input_dim, is_autoencoder, acti
     elif model_name == 'GO':
         in_tensors, hidden_tensors = get_GO(hidden_layer_sizes, input_dim, adj_mat, go_other_levels_adj_mats, activation_fcn, extra_dense_units)
     elif model_name == 'flatGO_ppitf':
-        raise NotImplementedError()
+        in_tensors, hidden_tensors = get_flatGO_ppitf(hidden_layer_sizes, input_dim, flatGO_ppitf_adj_mats, activation_fcn, extra_dense_units)
     elif model_name == 'GO_ppitf':
         raise NotImplementedError()
     else:
