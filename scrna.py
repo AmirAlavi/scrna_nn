@@ -48,7 +48,7 @@ Options:
     -h --help                 Show this screen.
     --version                 Show version.
     --data=<path>             Path to input data file.
-                              [default: data/TPM_mouse_7_8_10_PPITF_gene_9437_T.txt]
+                              [default: data/lin_et_al_data/TPM_mouse_7_8_10_PPITF_gene_9437_T.txt]
     --out=<path>              Path of folder to save output
                               (trained models/reduced data/retrieval results) to.
                               'None' means that a time-stamped folder will
@@ -68,11 +68,12 @@ Options:
     --sgd_nesterov            Use Nesterov momentum for SGD.
     --sparse_groupings=<path> (For 'sparse' architecture) Path to file containing the genes
                               grouped to nodes for a sparse layer.
-                              [default: data/ppi_tf_merge_cluster.txt]
+                              [default: data/mouse_ppitf_groups.txt]
     --fGO_ppitf_grps=<path,path> (For 'flatGO_ppitf' architecture) Paths to files containing the genes
                               grouped to nodes for sparse layers for a combined flatGO and ppitf architecture.
-                              [default: data/ppi_tf_merge_cluster.txt,data/flat_go300_groups.txt]
-    --go_arch=<path>          Path to folder containing files that define a GO-based architecture
+                              [default: data/flat_GO300_groups.txt,data/mouse_ppitf_groups.txt]
+    --go_arch=<path>          Path to folder containing files that define a GO-based architecture.
+                              [default: data/GO_4lvl_arch]]
     --with_dense=<num_units>  (For 'sparse' architecture) Number of Dense units to add in the same
                               layer as the Sparse layer. [default: 100]
     --pt=<weights_file>       Use initial weights from a pretrained model weights file.
