@@ -113,13 +113,38 @@ def get_sparse(hidden_layer_sizes, input_dim, adj_mat, activation_fcn='tanh', ex
         x = Dense(size, activation=activation_fcn)(x)
     return inputs, x
 
-def get_nn_model(model_name, hidden_layer_sizes, input_dim, is_autoencoder, activation_fcn='tanh', adj_mat=None, output_dim=None, extra_dense_units=0):
+def get_GO(hidden_layer_sizes, input_dim, adj_mat, go_other_levels_adj_mats, activation_fcn='tanh', extra_dense_units=0):
+    inputs = Input(shape=(input_dim,))
+    # Hidden layers
+    # first hidden layer
+    # (Condsider entire GO tree (multi-level) as being in the 1st hidden layer)
+    go_out = Sparse(activation=activation_fcn, adjacency_mat=adj_mat)(inputs)
+    for other_adj_mat in go_other_levels_adj_mats:
+        go_out = Sparse(activation=activation_fcn, adjacency_mat=other_adj_mat)(go_out)
+    # Finished constructing GO tree
+    if extra_dense_units > 0:
+        dense_out = Dense(extra_dense_units, activation=activation_fcn)(inputs)
+        x = keras.layers.concatenate([go_out, dense_out])
+    else:
+        x = go_out
+    # other hidden layers
+    for size in hidden_layer_sizes:
+        x = Dense(size, activation=activation_fcn)(x)
+    return inputs, x
+
+def get_nn_model(model_name, hidden_layer_sizes, input_dim, is_autoencoder, activation_fcn='tanh', output_dim=None, adj_mat=None, go_other_levels_adj_mats=None, extra_dense_units=0):
     print(hidden_layer_sizes)
     # First get the tensors from hidden layers
     if model_name == 'dense':
         in_tensors, hidden_tensors = get_dense(hidden_layer_sizes, input_dim, activation_fcn)
     elif model_name == 'sparse':
         in_tensors, hidden_tensors = get_sparse(hidden_layer_sizes, input_dim, adj_mat, activation_fcn, extra_dense_units)
+    elif model_name == 'GO':
+        in_tensors, hidden_tensors = get_GO(hidden_layer_sizes, input_dim, adj_mat, go_other_levels_adj_mats, activation_fcn, extra_dense_units)
+    elif model_name == 'flatGO_ppitf':
+        raise NotImplementedError()
+    elif model_name == 'GO_ppitf':
+        raise NotImplementedError()
     else:
         raise ScrnaException("Bad neural network name: " + model_name)
     

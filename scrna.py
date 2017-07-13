@@ -9,16 +9,27 @@ Usage:
 
 Neural Net Architectures:
     dense                     Simple, fully connected layers, uses Keras's built-in Dense Layer.
-                              'hidden_layer_sizes' specifies the number and sizes of the hidden layers
+                              '<hidden_layer_sizes>' specifies the number and sizes of the hidden layers
+
     sparse                    The connections between the input layer and the 1st hidden layer
                               are sparse (not all input nodes are connected to all 1st hidden layer
                               units, as in 'dense') using a custom Sparse layer. These connections are
-                              specified through a 'grouping' file, see the 'sparse_groupings' option. In
-                              addition, one can add Dense units in the first hidden layer to be
-                              concatenated with these Sparse units with the 'with_dense' option. Any
-                              additional hidden layers specified by 'hidden_layer_sizes' are added as
-                              Dense layers on top of the 1st hidden layer.
-    GO                        (not implemented)
+                              specified through a 'grouping' file, see the '--sparse_groupings' option.
+                              - Can add Dense units in the first hidden layer to be concatenated with these
+                                Sparse units with the '--with_dense' option.
+                              - Additional hidden layers specified by '<hidden_layer_sizes>' are added as
+                                Dense layers on top of the 1st hidden layer.
+
+    GO                        This architecture is based on the Gene Ontology. It is a tree, where each node
+                              is a GO term, and its location in the tree and connections to ancestors is based
+                              on the structure of GO (which is a DAG). This architecture is built up from multiple
+                              Sparse layers, the connections defined by '--go_arch' option.'
+                              - Can add Dense units in the first hidden layer to be concatenated with these
+                                Sparse units with the '--with_dense' option.
+                              - Additional hidden layers specified by '<hidden_layer_sizes>' are added as
+                                Dense layers on top of the 1st hidden layer.
+
+    flatGO_ppitf_dense        (not implemented)
     GO_ppitf_dense            (not implemented)
 
 Options:
@@ -65,6 +76,7 @@ Options:
 """
 # import pdb; pdb.set_trace()
 import cProfile
+import pickle
 import time
 from os.path import exists, join
 from os import makedirs
@@ -229,11 +241,20 @@ def get_data(data_path, args):
 
 def get_model_architecture(args, input_dim, output_dim, gene_names):
     adj_mat = None
+    go_other_levels_adj_mats = None
     if args['<neural_net_architecture>'] == 'sparse':
         _, _, adj_mat = get_adj_mat_from_groupings(args['--sparse_groupings'], gene_names)
         print("Sparse layer adjacency mat shape: ", adj_mat.shape)
+    elif args['<neural_net_architecture>'] == 'GO':
+        # For now, we expect these file names
+        # TODO: decouple file naming
+        go_first_level_groupings_file = join(args['--go_arch'], 'GO_arch_first_level_groupings.txt')
+        _, _, adj_mat = get_adj_mat_from_groupings(go_first_level_groupings_file, gene_names)
+        print("(GO first level) Sparse layer adjacency mat shape: ", adj_mat.shape)
+        go_other_levels_adj_mats_file = join(args['--go_arch'], 'GO_arch_other_levels_adj_mats.pickle')
+        go_other_levels_adj_mats = pickle.load(go_other_levels_adj_mats_file)
     hidden_layer_sizes = [int(x) for x in args['<hidden_layer_sizes>']]
-    return nn.get_nn_model(args['<neural_net_architecture>'], hidden_layer_sizes, input_dim, args['--ae'], args['--act'], adj_mat, output_dim, int(args['--with_dense']))
+    return nn.get_nn_model(args['<neural_net_architecture>'], hidden_layer_sizes, input_dim, args['--ae'], args['--act'], output_dim, adj_mat, go_other_levels_adj_mats, int(args['--with_dense']))
 
 def get_optimizer(args):
     lr = float(args['--sgd_lr'])
