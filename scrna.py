@@ -1,8 +1,8 @@
 """Single-cell RNA-seq Analysis Pipeline.
 
 Usage:
-    scrna.py train <neural_net_architecture> [<hidden_layer_sizes>...] [--out=<path> --data=<path>] [options]
-    scrna.py reduce <trained_neural_net_folder> [--out=<path> --data=<path>]
+    scrna.py train (--nn=<nn_architecture> | --pca=<n_comp>) <neural_net_architecture> [<hidden_layer_sizes>...] [--out=<path> --data=<path>] [options]
+    scrna.py reduce <trained_model_folder> [--out=<path> --data=<path>]
     scrna.py retrieval <reduced_data_folder> [--dist_metric=<metric> --out=<path>]
     scrna.py (-h | --help)
     scrna.py --version
@@ -55,6 +55,8 @@ Options:
                               automatically be created. [default: None]
 
     "train" specific command options:
+    --nn=<nn_architecture>    Train an instance of a nn_architecture neural network.
+    --pca=<n_comp>            Fit a PCA model with n_comp principal components.
     --epochs=<nepochs>        Number of epochs to train for. [default: 100]
     --act=<activation_fcn>    Activation function to use for the layers.
                               [default: tanh]
@@ -79,7 +81,7 @@ Options:
     --pt=<weights_file>       Use initial weights from a pretrained model weights file.
     --ae                      Use an unsupervised autoencoder architecture.
     --siamese                 Uses a siamese neural network architecture, using
-                              <neural_net_architecture> as the base network.
+                              <nn_architecture> as the base network.
                               Using this flag has many implications, see code.
     --online_train=<n>        Dynamically generate hard pairs after n epochs for
                               siamese neural network training.
@@ -112,6 +114,7 @@ import theano
 from scipy.spatial import distance
 from sklearn.metrics.pairwise import euclidean_distances
 from sklearn.manifold import TSNE
+from sklearn.decomposition import PCA
 
 from util import ScrnaException
 import neural_nets as nn
@@ -260,10 +263,10 @@ def get_model_architecture(args, input_dim, output_dim, gene_names):
     go_first_level_adj_mat = None
     go_other_levels_adj_mats = None
     flatGO_ppitf_adj_mats = None
-    if args['<neural_net_architecture>'] == 'sparse' or args['<neural_net_architecture>'] == 'GO_ppitf':
+    if args['--nn'] == 'sparse' or args['--nn'] == 'GO_ppitf':
         _, _, adj_mat = get_adj_mat_from_groupings(args['--sparse_groupings'], gene_names)
         print("Sparse layer adjacency mat shape: ", adj_mat.shape)
-    if args['<neural_net_architecture>'] == 'GO' or args['<neural_net_architecture>'] == 'GO_ppitf':
+    if args['--nn'] == 'GO' or args['--nn'] == 'GO_ppitf':
         # For now, we expect these file names
         # TODO: decouple file naming
         go_first_level_groupings_file = join(args['--go_arch'], 'GO_arch_first_level_groupings.txt')
@@ -271,15 +274,15 @@ def get_model_architecture(args, input_dim, output_dim, gene_names):
         print("(GO first level) Sparse layer adjacency mat shape: ", go_first_level_adj_mat.shape)
         go_other_levels_adj_mats_file = join(args['--go_arch'], 'GO_arch_other_levels_adj_mats.pickle')
         go_other_levels_adj_mats = pickle.load(go_other_levels_adj_mats_file)
-    elif args['<neural_net_architecture>'] == 'flatGO_ppitf':
+    elif args['--nn'] == 'flatGO_ppitf':
         _, _, flatGO_adj_mat = get_adj_mat_from_groupings(args['--fGO_ppitf_grps'].split(',')[0], gene_names)
         _, _, ppitf_adj_mat = get_adj_mat_from_groupings(args['--fGO_ppitf_grps'].split(',')[1], gene_names)
         flatGO_ppitf_adj_mats = [flatGO_adj_mat, ppitf_adj_mat]
-    elif args['<neural_net_architecture>'] == 'GO_ppitf':
+    elif args['--nn'] == 'GO_ppitf':
         _, _, adj_mat = get_adj_mat_from_groupings(args['--sparse_groupings'], gene_names)
         
     hidden_layer_sizes = [int(x) for x in args['<hidden_layer_sizes>']]
-    return nn.get_nn_model(args['<neural_net_architecture>'], hidden_layer_sizes, input_dim, args['--ae'], args['--act'], output_dim, adj_mat, go_first_level_adj_mat, go_other_levels_adj_mats, flatGO_ppitf_adj_mats, int(args['--with_dense']))
+    return nn.get_nn_model(args['--nn'], hidden_layer_sizes, input_dim, args['--ae'], args['--act'], output_dim, adj_mat, go_first_level_adj_mat, go_other_levels_adj_mats, flatGO_ppitf_adj_mats, int(args['--with_dense']))
 
 def get_optimizer(args):
     lr = float(args['--sgd_lr'])
@@ -417,57 +420,66 @@ def modify_data_for_retrieval_test(data_container, test_labels):
     data_container.dataframe.replace(to_replace=regexs, value=test_labels, inplace=True, regex=True)
     
 def train(args):
+    model_type = args['--nn'] if args['--nn'] is not None else "pca"
     # create a unique working directory for this model
-    working_dir_path = create_working_directory(args['--out'], "models/", args['<neural_net_architecture>'])
+    working_dir_path = create_working_directory(args['--out'], "models/", model_type)
     print("loading data and setting up model...")
     # if args['--siamese']:
     #     get_data_for_siamese(args['--data'], args)
     X, y, input_dim, output_dim, label_strings_lookup, gene_names, data_container = get_data(args['--data'], args) # TODO: train/test/valid split
     print(X[0].shape)
     print(X[1].shape)
-    model = get_model_architecture(args, input_dim, output_dim, gene_names)
-    plot_model(model, to_file=join(working_dir_path, 'architecture.png'), show_shapes=True)
-    print(model.summary())
-    if args['--pt']:
-        nn.set_pretrained_weights(model, args['--pt'])
-    if args['--siamese']:
-        model = nn.get_siamese(model, input_dim)
-        plot_model(model, to_file='siamese_architecture.png', show_shapes=True)
-    sgd = get_optimizer(args)
-    compile_model(model, args, sgd)
-    print("model compiled and ready for training")
-    print("training model...")
-    validation_data = (X, y) # For now, same as training data
-    if args['--siamese'] and args['--online_train']:
-        # Special online training (only an option for siamese nets)
-        history = online_siamese_training(model, data_container, int(args['--epochs']), int(args['--online_train']), same_lim=2000, ratio_hard_negatives=2)
+    if args['--pca']:
+        print("Training a PCA model...")
+        model = PCA(n_components=int(args['--pca']))
+        model.fit(X)
+        with open(join(working_dir_path, "pca.p"), 'wb') as f:
+            pickle.dump(model, f)
     else:
-        # Normal training
+        print("Training a Neural Network model...")
+        model = get_model_architecture(args, input_dim, output_dim, gene_names)
+        plot_model(model, to_file=join(working_dir_path, 'architecture.png'), show_shapes=True)
+        print(model.summary())
+        if args['--pt']:
+            nn.set_pretrained_weights(model, args['--pt'])
         if args['--siamese']:
-            X, y = get_data_for_siamese(data_container, args, 2000)
-            validation_data = (X, y)
-        history = model.fit(X, y, epochs=int(args['--epochs']), verbose=1, validation_data=validation_data)
-    plot_training_history(history, join(working_dir_path, "loss.png"))
-    print("saving model to folder: " + working_dir_path)
-    with open(join(working_dir_path, "command_line_args.json"), 'w') as fp:
-        json.dump(args, fp)
-    architecture_path = join(working_dir_path, "model_architecture.json")
-    weights_path = join(working_dir_path, "model_weights.p")
-    if args['--siamese']:
-        # For siamese nets, we only care about saving the subnetwork, not the whole siamese net
-        model = model.layers[2] # For now, seems safe to assume index 2 corresponds to base net
-    nn.save_trained_nn(model, architecture_path, weights_path)
-    if args['--viz']:
-        print("Visualizing...")
-        X, _, _ = data_container.get_labeled_data()
-        labels = data_container.get_labeled_labels()
-        if args['--siamese']:
-            last_hidden_layer = model.layers[-1]
+            model = nn.get_siamese(model, input_dim)
+            plot_model(model, to_file='siamese_architecture.png', show_shapes=True)
+        sgd = get_optimizer(args)
+        compile_model(model, args, sgd)
+        print("model compiled and ready for training")
+        print("training model...")
+        validation_data = (X, y) # For now, same as training data
+        if args['--siamese'] and args['--online_train']:
+            # Special online training (only an option for siamese nets)
+            history = online_siamese_training(model, data_container, int(args['--epochs']), int(args['--online_train']), same_lim=2000, ratio_hard_negatives=2)
         else:
-            last_hidden_layer = model.layers[-2]
-        get_activations = theano.function([model.layers[0].input], last_hidden_layer.output)
-        X_embedded = get_activations(X)
-        visualize_embedding(X_embedded, labels, join(working_dir_path, "tsne.png"))
+            # Normal training
+            if args['--siamese']:
+                X, y = get_data_for_siamese(data_container, args, 2000)
+                validation_data = (X, y)
+            history = model.fit(X, y, epochs=int(args['--epochs']), verbose=1, validation_data=validation_data)
+        plot_training_history(history, join(working_dir_path, "loss.png"))
+        print("saving model to folder: " + working_dir_path)
+        with open(join(working_dir_path, "command_line_args.json"), 'w') as fp:
+            json.dump(args, fp)
+        architecture_path = join(working_dir_path, "model_architecture.json")
+        weights_path = join(working_dir_path, "model_weights.p")
+        if args['--siamese']:
+            # For siamese nets, we only care about saving the subnetwork, not the whole siamese net
+            model = model.layers[2] # For now, seems safe to assume index 2 corresponds to base net
+        nn.save_trained_nn(model, architecture_path, weights_path)
+        if args['--viz']:
+            print("Visualizing...")
+            X, _, _ = data_container.get_labeled_data()
+            labels = data_container.get_labeled_labels()
+            if args['--siamese']:
+                last_hidden_layer = model.layers[-1]
+            else:
+                last_hidden_layer = model.layers[-2]
+            get_activations = theano.function([model.layers[0].input], last_hidden_layer.output)
+            X_embedded = get_activations(X)
+            visualize_embedding(X_embedded, labels, join(working_dir_path, "tsne.png"))
 
 def save_reduced_data_to_csv(out_folder, X_reduced, data_container):
     # Remove old data from the data container (but keep the Sample, Lable, and
@@ -483,31 +495,37 @@ def save_reduced_data(out_folder, X, y, label_strings_lookup):
     np.save(join(out_folder, "label_strings_lookup"), label_strings_lookup)
 
 def reduce(args):
-    training_args_path = join(args['<trained_neural_net_folder>'], "command_line_args.json")
+    training_args_path = join(args['<trained_model_folder>'], "command_line_args.json")
     with open(training_args_path, 'r') as fp:
         training_args = json.load(fp)
     # Must ensure that we use the same normalizations/sandardization from when model was trained
     X, y, input_dim, output_dim, label_strings_lookup, gene_names, data_container = get_data(args['--data'], training_args)
     print("output_dim ", output_dim)
-    model_base_path = args['<trained_neural_net_folder>']
-    architecture_path = join(model_base_path, "model_architecture.json")
-    weights_path = join(model_base_path, "model_weights.p")
-    model = nn.load_trained_nn(architecture_path, weights_path)
-    #model = get_model_architecture(training_args, input_dim, output_dim, gene_names)
-    #model = model_from_json
-    #nn.load_model_weight_from_pickle(model, weights_path)
-    #model.compile(optimizer='sgd', loss='mse') # arbitrary
-    print(model.summary())
-    # use the last hidden layer of the model as a lower-dimensional representation:
-    if training_args['--siamese']:
-        print("Model was trained in a siamese architecture")
-        last_hidden_layer = model.layers[-1]
+    model_base_path = args['<trained_model_folder>']
+    if training_args['--nn']:
+        architecture_path = join(model_base_path, "model_architecture.json")
+        weights_path = join(model_base_path, "model_weights.p")
+        model = nn.load_trained_nn(architecture_path, weights_path)
+        #model = get_model_architecture(training_args, input_dim, output_dim, gene_names)
+        #model = model_from_json
+        #nn.load_model_weight_from_pickle(model, weights_path)
+        #model.compile(optimizer='sgd', loss='mse') # arbitrary
+        print(model.summary())
+        # use the last hidden layer of the model as a lower-dimensional representation:
+        if training_args['--siamese']:
+            print("Model was trained in a siamese architecture")
+            last_hidden_layer = model.layers[-1]
+        else:
+            last_hidden_layer = model.layers[-2]
+        get_activations = theano.function([model.layers[0].input], last_hidden_layer.output)
+        X_transformed = get_activations(X)
     else:
-        last_hidden_layer = model.layers[-2]
-    get_activations = theano.function([model.layers[0].input], last_hidden_layer.output)
-    X_transformed = get_activations(X)
+        # Use PCA
+        model = pickle.load(join(model_base_path, "pca.p"))
+        X_transformed = model.transform(X)
     print("reduced dimensions to: ", X_transformed.shape)
-    working_dir_path = create_working_directory(args['--out'], "reduced_data/", training_args['<neural_net_architecture>'])
+    model_type = training_args['--nn'] if training_args['--nn'] is not None else "pca"
+    working_dir_path = create_working_directory(args['--out'], "reduced_data/", model_type)
     save_reduced_data(working_dir_path, X_transformed, y, label_strings_lookup)
     save_reduced_data_to_csv(working_dir_path, X_transformed, data_container)
     with open(join(working_dir_path, "training_command_line_args.json"), 'w') as fp:
@@ -530,7 +548,8 @@ def retrieval_test(args):
     training_args_path = join(args['<reduced_data_folder>'], "training_command_line_args.json")
     with open(training_args_path, 'r') as fp:
         training_args = json.load(fp)
-    working_dir_path = create_working_directory(args['--out'], "retrieval_results/", training_args['<neural_net_architecture>'])
+    model_type = training_args['--nn'] if training_args['--nn'] is not None else "pca"
+    working_dir_path = create_working_directory(args['--out'], "retrieval_results/", model_type)
     # Load the reduced data
     data = DataContainer(join(args['<reduced_data_folder>'], "reduced.csv"))
     print("Cleaning up the data first...")
