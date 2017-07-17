@@ -1,7 +1,7 @@
 """Single-cell RNA-seq Analysis Pipeline.
 
 Usage:
-    scrna.py train (--nn=<nn_architecture> | --pca=<n_comp>) <neural_net_architecture> [<hidden_layer_sizes>...] [--out=<path> --data=<path>] [options]
+    scrna.py train (--nn=<nn_architecture> | --pca=<n_comp>) [<hidden_layer_sizes>...] [--out=<path> --data=<path>] [options]
     scrna.py reduce <trained_model_folder> [--out=<path> --data=<path>]
     scrna.py retrieval <reduced_data_folder> [--dist_metric=<metric> --out=<path>]
     scrna.py (-h | --help)
