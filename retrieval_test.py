@@ -23,13 +23,19 @@ def average_precision(target, retrieved_list):
     return avg_precision
 
 def retrieval_test(args):
-    training_args_path = join(args['<reduced_data_folder>'], "training_command_line_args.json")
-    with open(training_args_path, 'r') as fp:
-        training_args = json.load(fp)
-    model_type = training_args['--nn'] if training_args['--nn'] is not None else "pca"
+    if args['--unreduced']:
+        # Don't do anything to the data, use it raw
+        model_type = 'original'
+        data_file = args['<reduced_data_folder>']
+    else:
+        training_args_path = join(args['<reduced_data_folder>'], "training_command_line_args.json")
+        with open(training_args_path, 'r') as fp:
+            training_args = json.load(fp)
+        model_type = training_args['--nn'] if training_args['--nn'] is not None else "pca"
+        data_file = join(args['<reduced_data_folder>'], "reduced.csv")
     working_dir_path = create_working_directory(args['--out'], "retrieval_results/", model_type)
     # Load the reduced data
-    data = DataContainer(join(args['<reduced_data_folder>'], "reduced.csv"))
+    data = DataContainer(data_file)
     print("Cleaning up the data first...")
     common.preprocess_data(data)
     X, _, _ = data.get_labeled_data()

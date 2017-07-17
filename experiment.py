@@ -17,10 +17,12 @@ from docopt import docopt
 import numpy as np
 from tabulate import tabulate
 
+DATA_FILE='data/test_50.csv'
+
 DEFAULT_WORKING_DIR_ROOT='experiments'
 DEFAULT_MODELS_FILE='experiment_models.list'
 REDUCE_COMMAND_TEMPLATE="""python scrna.py reduce {trained_nn_folder} \
---data=data/test_50.csv --out={output_folder}"""
+--data={data_file} --out={output_folder}"""
 
 RETRIEVAL_COMMAND_TEMPLATE="""python scrna.py retrieval {reduced_data_folder} \
 --out={output_folder}"""
@@ -80,7 +82,7 @@ class Experiment(object):
             # path to output location, where the transformed data will be written to
             reduced_data_folder = join(self.working_dir_path, "data_transformed_by_" + model_name)
             transform_data_folders[model_name] = reduced_data_folder
-            transform_commands[model_name] = string.Formatter().vformat(REDUCE_COMMAND_TEMPLATE, (), SafeDict(trained_nn_folder=model_folder, output_folder=reduced_data_folder))
+            transform_commands[model_name] = string.Formatter().vformat(REDUCE_COMMAND_TEMPLATE, (), SafeDict(trained_nn_folder=model_folder, data_file=DATA_FILE, output_folder=reduced_data_folder))
         # write each of the command lines for transformation to a file, to be consumed by the slurm jobs
         write_out_command_dict(transform_commands, 'transform_commands.list')
         self.transform_commands = transform_commands
@@ -96,6 +98,11 @@ class Experiment(object):
             retrieval_result_folder = join(retrieval_dir, model_name)
             retrieval_commands[model_name] = string.Formatter().vformat(RETRIEVAL_COMMAND_TEMPLATE, (), SafeDict(reduced_data_folder=transformed_data_folder, output_folder=retrieval_result_folder))
             retrieval_result_folders[model_name] = retrieval_result_folder
+        # Also compare with using raw, undreduced data
+        orig_model_name = "original_data"
+        orig_retrieval_result_folder = join(retrieval_dir, orig_model_name)
+        retrieval_commands[orig_model_name] = "python scrna.py retrieval {reduced_data_folder} --out={output_folder} --unreduced".format(reduced_data_folder=DATA_FILE, output_folder=orig_retrieval_result_folder)
+        retrieval_result_folders[orig_model_name] = orig_retrieval_result_folder
         # write each of the command lines for retrieval testing to a file, to be consumed by the slurm jobs
         write_out_command_dict(retrieval_commands, 'retrieval_commands.list')
         self.retrieval_commands = retrieval_commands

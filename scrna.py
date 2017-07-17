@@ -3,7 +3,7 @@
 Usage:
     scrna.py train (--nn=<nn_architecture> | --pca=<n_comp>) [<hidden_layer_sizes>...] [--out=<path> --data=<path>] [options]
     scrna.py reduce <trained_model_folder> [--out=<path> --data=<path>]
-    scrna.py retrieval <reduced_data_folder> [--dist_metric=<metric> --out=<path>]
+    scrna.py retrieval <reduced_data_folder> [--dist_metric=<metric> --out=<path> --unreduced]
     scrna.py (-h | --help)
     scrna.py --version
 
@@ -90,6 +90,8 @@ Options:
     "retrieval" specific command options:
     --dist_metric=<metric>    Distance metric to use for nearest neighbors
                               retrieval [default: euclidean].
+    --unreduced               Use the original, unreduced data in the test. <reduced_data_folder> is now
+                              interpreted as the path to this data file.
 
 """
 # import pdb; pdb.set_trace()
