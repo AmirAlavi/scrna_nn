@@ -111,6 +111,26 @@ def filter_cell_to_ontology_terms(mappings, term_counts_d):
         mappings[cell] = [term for term in terms if term not in terms_to_ignore]
     return mappings
 
+def write_data_to_h5(name, df, labels, gene_symbols=None):
+    print(df.shape)
+    if not gene_symbols:
+        gene_symbols = convert_entrez_to_symbol(df.columns)
+    # Add these as Datasets in the hdf5 file
+    gene_symbols_series = pd.Series(data=gene_symbols, index=df.columns)
+    accessions = get_accessions_from_accessionSeries(df.index)
+    accessions_series = pd.Series(data=accessions, index=df.index)
+    labels_series = pd.Series(data=labels, index=df.index)
+
+    new_h5_store = pd.HDFStore(name)
+    new_h5_store['accessions'] = accessions_series
+    new_h5_store['gene_symbols'] = gene_symbols_series
+    new_h5_store['rpkm'] = df
+    new_h5_store['labels'] = labels_series
+    new_h5_store.close()    
+
+    return gene_symbols
+    
+
 if __name__ == '__main__':
     # Open the hdf5 file that needs to be prepped (supplied as argument to this script)
     h5_store = pd.HDFStore(sys.argv[1])
@@ -135,27 +155,78 @@ if __name__ == '__main__':
         if len(value) == 1:
             selected_cells.append(key)
             selected_labels.append(value[0])
-    cleaned_rpkm_df = rpkm_df.loc[selected_cells]
-    print("\nSelected cells expression matrix shape: ", cleaned_rpkm_df.shape)
+    selected_rpkm_df = rpkm_df.loc[selected_cells]
+    print("\nSelected cells expression matrix shape: ", selected_rpkm_df.shape)
     unique_labels, counts = np.unique(selected_labels, return_counts=True)
     print("\nThe selected labels and their counts (no overlap):")
     print(unique_labels)
     print(counts)
 
-    accessions = get_accessions_from_accessionSeries(cleaned_rpkm_df.index)
-    print("converted to experimentIDs")
-    entrezIDs = cleaned_rpkm_df.columns
-    geneSymbols = convert_entrez_to_symbol(entrezIDs)
-    print("converted EntrezIDs to MGI symbols")
-    # Add these as Datasets in the hdf5 file
-    geneSymbols_series = pd.Series(data=geneSymbols, index=cleaned_rpkm_df.columns)
-    accessions_series = pd.Series(data=accessions, index=cleaned_rpkm_df.index)
-    labels_series = pd.Series(data=selected_labels, index=cleaned_rpkm_df.index)
-    new_h5_store = pd.HDFStore('selected_expr_data.h5')
-    new_h5_store['accessions'] = accessions_series
-    new_h5_store['gene_symbols'] = geneSymbols_series
-    new_h5_store['rpkm'] = cleaned_rpkm_df
-    new_h5_store['labels'] = labels_series
-    new_h5_store.close()
+    accessions = get_accessions_from_accessionSeries(selected_rpkm_df.index)
+    print("converted to Accession #s")
+
+    # Find cell types that exist in more than one Accession
+
+    
+    label_to_accessions_d = defaultdict(lambda: defaultdict(int))
+    for accession, label  in zip(accessions, selected_labels):
+        label_to_accessions_d[label][accession] += 1
+
+    train_label_set = set()
+    test_label_set = set()
+    print("\nAccessions for each cell type:")
+    for label, accession_counts_d in label_to_accessions_d.items():
+        print(label)
+        if len(accession_counts_d.keys()) >= 2:
+            test_label_set.add(label)
+        else:
+            train_label_set.add(label)
+        print("\t<acsn>: <count>")
+        for accession, count in accession_counts_d.items():
+            print("\t", accession, ": ", count)
+    # Split the dataset
+    train_ids = []
+    train_labels = []
+    test_ids = []
+    test_labels = []
+    for cell_id, label in zip(selected_cells, selected_labels):
+        if label in train_label_set:
+            train_ids.append(cell_id)
+            train_labels.append(label)
+        elif label in test_label_set:
+            test_ids.append(cell_id)
+            test_labels.append(label)
+
+    gene_symbols = write_data_to_h5('selected_data.h5', selected_rpkm_df, selected_labels)
+    write_data_to_h5('train_data.h5', selected_rpkm_df.loc[train_ids], train_labels, gene_symbols)
+    write_data_to_h5('test_data.h5', selected_rpkm_df.loc[test_ids], test_labels, gene_symbols)
+            
+    # train_rpkm_df = selected_rpkm_df.loc[train_set_ids]
+    # retrieval_test_rpkm_df = selected_rpkm_df.loc[retrieval_test_set_ids]
+    
+    # entrezIDs = selected_rpkm_df.columns
+    # geneSymbols = convert_entrez_to_symbol(entrezIDs)
+    # print("converted EntrezIDs to MGI symbols")
+    # # Add these as Datasets in the hdf5 file
+    # geneSymbols_series = pd.Series(data=geneSymbols, index=selected_rpkm_df.columns)
+    # accessions_series = pd.Series(data=accessions, index=selected_rpkm_df.index)
+    # labels_series = pd.Series(data=selected_labels, index=selected_rpkm_df.index)
+
+    # new_h5_store = pd.HDFStore('selected_expr_data.h5')
+    # new_h5_store['accessions'] = accessions_series
+    # new_h5_store['gene_symbols'] = geneSymbols_series
+    # new_h5_store['rpkm'] = selected_rpkm_df
+    # new_h5_store['labels'] = labels_series
+    # new_h5_store.close()
+
+    # train_h5_store = pd.HDFStore('train_expr_data.h5')
+    # new_h5_store['accessions'] = 
+    # new_h5_store['gene_symbols'] = geneSymbols_series
+    # new_h5_store['rpkm'] = _rpkm_df
+    # new_h5_store['labels'] = labels_series
+    # new_h5_store.close()
     h5_store.close()
-    print("Saved selection to new h5 file")
+
+    # Finally, split up into train and test
+    
+    print("Saved new h5 files")
