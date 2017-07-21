@@ -1,4 +1,4 @@
-# import pdb; pdb.set_trace()
+#import pdb; pdb.set_trace()
 import pickle
 import sys
 import json
@@ -11,48 +11,10 @@ import mygene
 import ontology
 
 # Conversion Dictionaries
-#ENTREZ_TO_SYMBOL = 'entrez_to_mgi.pickle'
-ENTREZ_TO_SYMBOL = 'data/mouse_data_20170718-133439_3623_cells/MGI_EntrezGene_20170720.rpt'
 EXP_TO_TERM = 'data/mouse_data_20170718-133439_3623_cells/specific_experiment_term_mapping.json'
 
 # Ontology files
 ONTOLOGY = 'data/mouse_data_20170718-133439_3623_cells/ontology.pickle'
-
-def fix_bad_entrezIDs(entrezIDs):
-    to_fix = {
-        19715: 100043034,
-        113867: 100504631,
-        212684: 100503041,
-        215413: 70853,
-        216164: 100503659,
-        
-        
-        100042485: 105244994,
-        113867: 100504631,
-        19715: 100043034,
-        212684: 100503041,
-        215413: 70853,
-        216164: 100503659,
-        238944: 674895,
-        240945: 269152,
-        244425: 50768,
-        319721: 78787,
-        320169: 69398,
-        320835: 14407,
-        328644: 328643,
-        347709: 347710,
-        382643: 100041194,
-        385605: 74478,
-        406236: 232341,
-        434446: 100502861
-    }
-    # fixed = []
-    # for id in entrezIDs:
-    #     if id in to_fix.keys():
-    #         id = to_fix[id]
-    #     fixed.append[id]
-    # return fixed
-    return [to_fix[id] if id in to_fix.keys() else id for id in entrezIDs]
 
 def load_ontology(file):
     with open(file, 'rb') as f:
@@ -64,25 +26,6 @@ def get_terms_for_exp(exp_ids, mapping):
 
 def get_term_obj_from_str(str):
     return ontology.Term(str.split()[0])
-
-def load_entrez_to_mgi_mapping(filename):
-    mapping = {}
-    with open(filename, 'r') as f:
-        lines = f.readlines()
-    for line in lines:
-        stripped = line.rstrip('\n').lower().split('\t')
-        mgi_accession = stripped[0]
-        entrezID = stripped[8]
-        status = stripped[2]
-        symbol = stripped[1]
-        if status == 'w':
-            # withdrawn
-            continue
-        if entrezID == '':
-            print("Warning: no EntrezID for non-withdrawn MGI accession: ", mgi_accession, ", symbol: ", symbol)
-            continue
-        mapping[int(entrezID)] = symbol
-    return mapping
 
 def convert(to_convert, conversion_dict):
     converted = []
@@ -108,6 +51,9 @@ def get_accessions_from_accessionSeries(accessionSeries_list):
     return np.array(accessions)
 
 def convert_accessionSeries_to_experimentID(accessionSeries_list):
+    """Probably no use to this function, since accession numbers are already unique, and are
+    globally unique, no need to create our own unique ID numbers for experiments.
+    """
     accessions_seen = []
     experimentIDs = []
     for accessionSeries in accessionSeries_list:
@@ -125,43 +71,33 @@ def convert_entrez_to_symbol(entrezIDs):
     result = mg.getgenes(entrezIDs, fields='symbol', species='mouse')
     symbols = [d['symbol'].lower() for d in result]
     return symbols
-        
-    
-if __name__ == '__main__':
-    # Open the hdf5 file that needs to be prepped (supplied as argument to this script)
-    h5_store = pd.HDFStore(sys.argv[1])
-    print("loaded h5 file")
-    rpkm_df = h5_store['rpkm']
-    #experimentIDs = convert_accessionSeries_to_experimentID(rpkm_df.index)
-    accessions = get_accessions_from_accessionSeries(rpkm_df.index)
-    print("converted to experimentIDs")
-    #entrez_to_symb_dict = load_entrez_to_mgi_mapping(ENTREZ_TO_SYMBOL)
-    #entrezIDs = fix_bad_entrezIDs(rpkm_df.columns)
-    entrezIDs = rpkm_df.columns
-    #geneSymbols = convert(entrezIDs, entrez_to_symb_dict)
-    #geneSymbols = convert_entrez_to_symbol(entrezIDs)
-    print("converted EntrezIDs to MGI symbols")
-    # Add these as Datasets in the hdf5 file
 
-    # Analyze the mappings
-    with open(EXP_TO_TERM, 'r') as f:
-        cell_to_terms = json.load(f)
-    num_terms = []
-    mapping_counts = defaultdict(int)
+def load_cell_to_ontology_mapping(cells, ontology_mapping):
     mappings = {}
     for cell in rpkm_df.index:
         terms_for_cell = cell_to_terms[cell]
         mappings[cell] = terms_for_cell
-        num_terms.append(len(terms_for_cell))
+    return mappings
+
+def analyze_cell_to_ontology_mapping(mappings):
+    num_terms_mapped_to_l = []
+    term_counts_d = defaultdict(int)
+    for terms_for_cell in mappings.values():
+        num_terms_mapped_to_l.append(len(terms_for_cell))
         for term in terms_for_cell:
-            mapping_counts[term] += 1
-    print("Before filtering:")
-    print("Bincount of number of mapped terms for each cell:")
-    print(np.bincount(num_terms))
-            
+            term_counts_d[term] += 1
+    print("\nBincount of number of mapped terms for each cell:")
+    print(np.bincount(num_terms_mapped_to_l))
+    print("\nSorted list of terms by number of cells mapping to them (may overlap:")
+    sorted_terms = sorted(term_counts_d.items(), key=lambda item: item[1], reverse=True)
+    for term in sorted_terms:
+        print(term)
+    return term_counts_d
+
+def filter_cell_to_ontology_terms(mappings, term_counts_d):
     terms_to_ignore = set()
-    for term, count in mapping_counts.items():
-        if count < 75 or 'NCBITaxon' in term or 'PR:' in term or 'PATO:' in term:
+    for term, count in term_counts_d.items():
+        if count < 75 or 'NCBITaxon' in term or 'PR:' in term or 'PATO:' in term or 'GO:' in term:
             terms_to_ignore.add(term)
     # Terms that just don't seem that useful, or had too much overlap with another term
     terms_to_ignore.add('UBERON:0000006 islet of Langerhans')
@@ -173,32 +109,53 @@ if __name__ == '__main__':
     for cell in mappings.keys():
         terms = mappings[cell]
         mappings[cell] = [term for term in terms if term not in terms_to_ignore]
-    # Second pass
-    num_terms = []
-    mapping_counts = defaultdict(int)
-    for cell, terms in mappings.items():
-        num_terms.append(len(terms))
-        for term in terms:
-            mapping_counts[term] += 1
-        
-        
-    print("Bincount of number of mapped terms for each cell:")
-    print(np.bincount(num_terms))
-    print("Sorted list of terms by number of cells mapping to them:")
-    sorted_terms = sorted(mapping_counts.items(), key=lambda item: item[1], reverse=True)
-    for term in sorted_terms:
-        print(term)
+    return mappings
 
-    print()
-    
-    # print("cells with 2 mappings:")
-    # with open('2_mappings.txt', 'w') as f:
-    #     for cell, terms in mappings.items():
-    #         if len(terms) == 2:
-    #             f.write(cell + "\t" + str(terms) + "\n")
-    #             print(cell, "\t", terms)
+if __name__ == '__main__':
+    # Open the hdf5 file that needs to be prepped (supplied as argument to this script)
+    h5_store = pd.HDFStore(sys.argv[1])
+    print("loaded h5 file")
+    rpkm_df = h5_store['rpkm']
+    with open(EXP_TO_TERM, 'r') as f:
+        cell_to_terms = json.load(f)
+    mappings = load_cell_to_ontology_mapping(rpkm_df.index, cell_to_terms)
+    # Analyze the mappings
+    print("\n\nBEFORE FILTERING")
+    term_counts_d = analyze_cell_to_ontology_mapping(mappings)
+    # Filter the mappings
+    mappings = filter_cell_to_ontology_terms(mappings, term_counts_d)
+    print("\n\nAFTER FILTERING")
+    analyze_cell_to_ontology_mapping(mappings)
 
     # For now, let's keep only the cells that map to a single term
-    selected_cells = [key for key,value in mappings.items() if len(value) == 1]
-    cleaned_rpkm = rpkm_df.loc[selected_cells]
-    print(cleaned_rpkm.shape)
+    print("\n\nSelecting cells that map to a single term")
+    selected_cells = []
+    selected_labels = []
+    for key, value in mappings.items():
+        if len(value) == 1:
+            selected_cells.append(key)
+            selected_labels.append(value[0])
+    cleaned_rpkm_df = rpkm_df.loc[selected_cells]
+    print("\nSelected cells expression matrix shape: ", cleaned_rpkm_df.shape)
+    unique_labels, counts = np.unique(selected_labels, return_counts=True)
+    print("\nThe selected labels and their counts (no overlap):")
+    print(unique_labels)
+    print(counts)
+
+    accessions = get_accessions_from_accessionSeries(cleaned_rpkm_df.index)
+    print("converted to experimentIDs")
+    entrezIDs = cleaned_rpkm_df.columns
+    geneSymbols = convert_entrez_to_symbol(entrezIDs)
+    print("converted EntrezIDs to MGI symbols")
+    # Add these as Datasets in the hdf5 file
+    geneSymbols_series = pd.Series(data=geneSymbols, index=cleaned_rpkm_df.columns)
+    accessions_series = pd.Series(data=accessions, index=cleaned_rpkm_df.index)
+    labels_series = pd.Series(data=selected_labels, index=cleaned_rpkm_df.index)
+    new_h5_store = pd.HDFStore('selected_expr_data.h5')
+    new_h5_store['accessions'] = accessions_series
+    new_h5_store['gene_symbols'] = geneSymbols_series
+    new_h5_store['rpkm'] = cleaned_rpkm_df
+    new_h5_store['labels'] = labels_series
+    new_h5_store.close()
+    h5_store.close()
+    print("Saved selection to new h5 file")
