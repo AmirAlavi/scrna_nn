@@ -127,7 +127,7 @@ def get_hard_pairs(X, indices_lists, same_lim, ratio_hard_negatives, siamese_mod
     return pairs, labels
 
 def online_siamese_training(model, data_container, epochs, n, same_lim, ratio_hard_negatives):
-    X_orig, y_orig, label_strings_lookup = data_container.get_labeled_data()
+    X_orig, y_orig, label_strings_lookup = data_container.get_data()
     indices_lists = build_indices_master_list(X_orig, y_orig)
     pairs = []
     labels = []
@@ -218,7 +218,7 @@ def create_data_pairs_diff_datasets(X, y, dataset_IDs, indices_lists, same_lim):
     return np.array(pairs), np.array(labels)
 
 def get_data_for_siamese(data_container, args, same_lim):
-    X, y, label_strings_lookup = data_container.get_labeled_data()
+    X, y, label_strings_lookup = data_container.get_data()
     print("bincount")
     print(np.bincount(y))
     indices_lists = build_indices_master_list(X, y)
@@ -227,7 +227,7 @@ def get_data_for_siamese(data_container, args, same_lim):
     # print("y shape: ", y_siamese.shape)
 
     # Try with dataset-aware pair creation
-    dataset_IDs = data_container.get_labeled_dataset_IDs()
+    dataset_IDs = data_container.get_dataset_IDs()
     print("num samples: ", len(y))
     print("len(dataset_IDs): ", len(dataset_IDs))
     assert(len(dataset_IDs) == len(y))
@@ -319,8 +319,8 @@ def train(args):
         nn.save_trained_nn(model, architecture_path, weights_path)
         if args['--viz']:
             print("Visualizing...")
-            X, _, _ = data_container.get_labeled_data()
-            labels = data_container.get_labeled_labels()
+            X, _, _ = data_container.get_data()
+            labels = data_container.get_labels()
             if args['--siamese']:
                 last_hidden_layer = model.layers[-1]
             else:

@@ -26,7 +26,7 @@ def get_data(data_path, args):
     if args['--ae']:
         # Autencoder training is unsupervised, so we don't have to limit
         # ourselves to labeled samples
-        X_clean, _, label_strings_lookup = data.get_all_data()
+        X_clean, _, label_strings_lookup = data.get_data()
         # Add noise to the data:
         noise_level = 0.1
         X = X_clean + noise_level * np.random.normal(loc=0, scale=1, size=X_clean.shape)
@@ -39,7 +39,7 @@ def get_data(data_path, args):
     else:
         # Supervised training:
         print("Supervised training")
-        X, y, label_strings_lookup = data.get_labeled_data()
+        X, y, label_strings_lookup = data.get_data()
         output_dim = max(y) + 1
         y = np_utils.to_categorical(y, output_dim)
     input_dim = X.shape[1]

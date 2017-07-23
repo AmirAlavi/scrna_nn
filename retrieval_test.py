@@ -38,10 +38,10 @@ def retrieval_test(args):
     data = DataContainer(data_file)
     print("Cleaning up the data first...")
     common.preprocess_data(data)
-    X, _, _ = data.get_labeled_data()
+    X, _, _ = data.get_data()
 
-    datasetIDs = data.get_labeled_dataset_IDs()
-    labels = data.get_labeled_labels()
+    datasetIDs = data.get_dataset_IDs()
+    labels = data.get_labels()
 
     summary_csv_file = open(join(working_dir_path, "retrieval_summary.csv"), 'w')
     # Write out the file headers
