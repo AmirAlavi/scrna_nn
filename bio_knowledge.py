@@ -22,11 +22,11 @@ def get_adj_mat_from_groupings(groups_filepath, dataset_gene_names):
             matrix representation of "groups_as_indices".
     '''
     dataset_gene_names = dataset_gene_names.tolist()
-    print("num gene names: ", len(dataset_gene_names))
+    num_genes = len(dataset_gene_names)
+    print("num gene names: ", num_genes)
     lines = open(groups_filepath).readlines()
     groups_as_indices = []
     group_names = []
-    largest_index = -1
     for line in lines:
         # Get tab separated tokens in the line
         tokens = line.replace('\n', '').replace('\r', '').split('\t')
@@ -39,12 +39,9 @@ def get_adj_mat_from_groupings(groups_filepath, dataset_gene_names):
             if gene in dataset_gene_names:# Decoupling the set of genes in dataset from set of genes in the groupings file
                 #groups_as_indices[group_name].append(dataset_gene_names.index(gene))
                 idx = dataset_gene_names.index(gene)
-                if idx > largest_index:
-                    largest_index = idx
                 indices_list.append(idx)
         groups_as_indices.append(indices_list)
-    #largest_index = max(map(max, groups_as_indices.values()))
-    binary_group_membership_mat = np.zeros((largest_index+1, len(group_names)), dtype='float32')
+    binary_group_membership_mat = np.zeros((num_genes, len(group_names)), dtype='float32')
     for group_idx in range(len(group_names)):
         for gene_idx in groups_as_indices[group_idx]:
             binary_group_membership_mat[gene_idx, group_idx] = 1

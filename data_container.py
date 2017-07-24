@@ -16,9 +16,9 @@ class DataContainer(object):
         print('Reading in data from ', filepath)
         h5_store = pd.HDFStore(filepath)
         self.rpkm_df = h5_store['rpkm']
-        self.labels_series = h5_store['labels']
-        self.gene_symbols_series = h5_store['gene_symbols']
-        self.accessions_series = h5_store['accessions']
+        self.labels_series = h5_store['labels'] if 'labels' in h5_store else None
+        self.gene_symbols_series = h5_store['gene_symbols'] if 'gene_symbols' in h5_store else None
+        self.accessions_series = h5_store['accessions'] if 'accessions' in h5_store else None
         h5_store.close()
         # Convert numeric to float32 for deep learning libraries
         self.rpkm_df = self.rpkm_df.apply(pd.to_numeric, errors='ignore', downcast='float')

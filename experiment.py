@@ -36,9 +36,9 @@ SLURM_RETRIEVAL_COMMAND="""sbatch --array=0-{num_jobs} --mail-user {email} \
 --error {err_folder}/scrna_retrieval_array_%A_%a.err -d afterok:{depends} slurm_retrieval_array.sh"""
 
 # The cell types that were used for retrieval testing in the Lin et al. paper
-PAPER_CELL_TYPES = ['HSC', '4cell', 'ICM', 'spleen', '8cell', 'neuron', 'zygote', '2cell', 'ESC']
+#PAPER_CELL_TYPES = ['HSC', '4cell', 'ICM', 'spleen', '8cell', 'neuron', 'zygote', '2cell', 'ESC']
 # A smaller subset that have above a threshold of samples present:
-from scrna import TESTING_LABEL_SUBSET
+#from scrna import TESTING_LABEL_SUBSET
 
 class SafeDict(dict):
     """Allows for string formatting with unused keyword arguments
@@ -136,7 +136,7 @@ class Experiment(object):
 
     def get_avg_score_for_each_cell_type(self, path_to_csv):
         with open(path_to_csv) as csv_file:
-            reader = csv.DictReader(csv_file)
+            reader = csv.DictReader(csv_file, delimiter='\t')
             # Dict of <cell_type: scores[]>
             cell_type_scores_dict = defaultdict(list)
             for row in reader:
@@ -188,10 +188,10 @@ class Experiment(object):
             for cell_type, score in cell_types_and_scores.items():
                 # Iterate through cell types
                 # if cell_type in PAPER_CELL_TYPES:
-                if cell_type in TESTING_LABEL_SUBSET:
-                    unique_cell_types_set.update([cell_type])
-                    current_model[cell_type] = score
-                    scores_list.append(score)
+                # if cell_type in TESTING_LABEL_SUBSET:
+                unique_cell_types_set.update([cell_type])
+                current_model[cell_type] = score
+                scores_list.append(score)
             avg_across_paper_cell_types = np.mean(scores_list)
             current_model['average'] = avg_across_paper_cell_types
             compiled_results[model_name] = current_model

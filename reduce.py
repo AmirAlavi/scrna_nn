@@ -10,6 +10,14 @@ from util import create_working_directory
 from common import get_data
 import neural_nets as nn
 
+def save_reduced_data_to_h5(out_folder, X_reduced, data_container):
+    h5_store = pd.HDFStore(join(out_folder, "reduced.h5"))
+    h5_store['rpkm'] = pd.DataFrame(data=X_reduced, index=data_container.rpkm_df.index)
+    h5_store['labels'] = data_container.labels_series
+    h5_store['accessions'] = data_container.acessions_series
+    h5_store.close()
+    #pass
+
 def save_reduced_data_to_csv(out_folder, X_reduced, data_container):
     # Remove old data from the data container (but keep the Sample, Lable, and
     # Dataset columns)

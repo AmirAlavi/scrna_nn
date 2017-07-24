@@ -32,7 +32,8 @@ def retrieval_test(args):
         with open(training_args_path, 'r') as fp:
             training_args = json.load(fp)
         model_type = training_args['--nn'] if training_args['--nn'] is not None else "pca"
-        data_file = join(args['<reduced_data_folder>'], "reduced.csv")
+        #data_file = join(args['<reduced_data_folder>'], "reduced.csv")
+        data_file = join(args['<reduced_data_folder>'], "reduced.h5")
     working_dir_path = create_working_directory(args['--out'], "retrieval_results/", model_type)
     # Load the reduced data
     data = DataContainer(data_file)
@@ -45,7 +46,7 @@ def retrieval_test(args):
 
     summary_csv_file = open(join(working_dir_path, "retrieval_summary.csv"), 'w')
     # Write out the file headers
-    summary_csv_file.write('dataset,celltype,#cell,mean average precision\n')
+    summary_csv_file.write('dataset\tcelltype\t#cell\tmean average precision\n')
 
     sorted_unique_datasetIDS = np.unique(datasetIDs)
     for dataset in sorted_unique_datasetIDS:
@@ -80,6 +81,6 @@ def retrieval_test(args):
 
         for label, average_precisions in average_precisions_for_label.items():
             num_samples = len(average_precisions)
-            summary_csv_file.write(str(dataset) + ',' + label + ',' + str(num_samples) + ',' + str(np.mean(average_precisions)) + '\n')
+            summary_csv_file.write(str(dataset) + '\t' + label + '\t' + str(num_samples) + '\t' + str(np.mean(average_precisions)) + '\n')
 
     summary_csv_file.close()

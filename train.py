@@ -8,6 +8,7 @@ import time
 from itertools import combinations
 import random
 
+import numpy as np
 import matplotlib; matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from sklearn.decomposition import PCA
@@ -171,7 +172,7 @@ def create_data_pairs(X, y, indices_lists, same_lim):
                 break
         # create the same number of different pairs
         diff_count = 0
-        while diff_count < same_count:
+        while diff_count < (2 * same_count):
             a = X[random.choice(indices_lists[label])]
             diff_idx = random.randint(0, X.shape[0]-1)
             while(y[diff_idx] == label):
@@ -233,7 +234,8 @@ def get_data_for_siamese(data_container, args, same_lim):
     print("num samples: ", len(y))
     print("len(dataset_IDs): ", len(dataset_IDs))
     assert(len(dataset_IDs) == len(y))
-    X_siamese, y_siamese = create_data_pairs_diff_datasets(X, y, dataset_IDs, indices_lists, same_lim)
+    #X_siamese, y_siamese = create_data_pairs_diff_datasets(X, y, dataset_IDs, indices_lists, same_lim)
+    X_siamese, y_siamese = create_data_pairs(X, y, indices_lists, same_lim)
     print("X shape: ", X_siamese.shape)
     print("y shape: ", y_siamese.shape)
     X_siamese = [ X_siamese[:, 0], X_siamese[:, 1] ]
@@ -307,7 +309,7 @@ def train(args):
         else:
             # Normal training
             if args['--siamese']:
-                X, y = get_data_for_siamese(data_container, args, 2000)
+                X, y = get_data_for_siamese(data_container, args, 1000)
                 validation_data = (X, y)
             history = model.fit(X, y, epochs=int(args['--epochs']), verbose=1, validation_data=validation_data)
         plot_training_history(history, join(working_dir_path, "loss.png"))
