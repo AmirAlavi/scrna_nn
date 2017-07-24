@@ -136,6 +136,7 @@ if __name__ == '__main__':
     h5_store = pd.HDFStore(sys.argv[1])
     print("loaded h5 file")
     rpkm_df = h5_store['rpkm']
+    rpkm_df.fillna(0, inplace=True)
     with open(EXP_TO_TERM, 'r') as f:
         cell_to_terms = json.load(f)
     mappings = load_cell_to_ontology_mapping(rpkm_df.index, cell_to_terms)

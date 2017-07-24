@@ -36,8 +36,8 @@ def retrieval_test(args):
     working_dir_path = create_working_directory(args['--out'], "retrieval_results/", model_type)
     # Load the reduced data
     data = DataContainer(data_file)
-    print("Cleaning up the data first...")
-    common.preprocess_data(data)
+    #print("Cleaning up the data first...")
+    #common.preprocess_data(data)
     X, _, _ = data.get_data()
 
     datasetIDs = data.get_dataset_IDs()

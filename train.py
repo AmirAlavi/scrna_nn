@@ -1,3 +1,4 @@
+# import pdb; pdb.set_trace()
 import cProfile
 import pickle
 import json
@@ -21,6 +22,7 @@ import neural_nets as nn
 from bio_knowledge import get_adj_mat_from_groupings
 from sparse_optimizers import SparseSGD
 
+from sparse_layer import Sparse
 import keras
 keras.layers.Sparse = Sparse
 
@@ -249,6 +251,7 @@ def plot_training_history(history, path):
 def visualize_embedding(X, labels, path):
     print(X.shape)
     label_subset = {'HSC':'blue', '2cell':'green', 'spleen':'red', 'neuron':'cyan', 'ESC':'black'}
+    
     # Only plot the subset of data
     subset_idx = []
     colors = []

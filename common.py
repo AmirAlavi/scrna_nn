@@ -18,9 +18,9 @@ def preprocess_data(datacontainer):
     modify_data_for_retrieval_test(datacontainer, CLEAN_LABEL_SUBSET)
 
 def get_data(data_path, args):
-    data = DataContainer(data_path, args['--sn'], args['--gs'])
-    print("Cleaning up the data first...")
-    preprocess_data(data)
+    data = DataContainer(data_path, args['--sn'])
+    #print("Cleaning up the data first...")
+    #preprocess_data(data)
     gene_names = data.get_gene_names()
     output_dim = None
     if args['--ae']:
@@ -43,4 +43,6 @@ def get_data(data_path, args):
         output_dim = max(y) + 1
         y = np_utils.to_categorical(y, output_dim)
     input_dim = X.shape[1]
+    print("Input dim: ", input_dim)
+    print("Output dim: ", output_dim)
     return X, y, input_dim, output_dim, label_strings_lookup, gene_names, data
