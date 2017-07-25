@@ -17,7 +17,8 @@ from docopt import docopt
 import numpy as np
 from tabulate import tabulate
 
-DATA_FILE='data/test_50.csv'
+#DATA_FILE='data/test_50.csv'
+DATA_FILE='data/mouse_data_20170718-133439_3623_cells/test_data.h5'
 
 DEFAULT_WORKING_DIR_ROOT='experiments'
 DEFAULT_MODELS_FILE='experiment_models.list'

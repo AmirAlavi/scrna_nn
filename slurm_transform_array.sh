@@ -2,9 +2,9 @@
 
 #SBATCH --job-name=scrna_transform_array
 #SBATCH --partition=gpu
-#SBATCH --gres=gpu:4
+#SBATCH --gres=gpu:1
 #SBATCH --ntasks=1
-#SBATCH --mem-per-cpu=64Gb
+#SBATCH --mem-per-cpu=60Gb
 #SBATCH --mail-type FAIL
 
 module load cuda-8.0

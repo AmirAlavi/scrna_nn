@@ -14,7 +14,7 @@ def save_reduced_data_to_h5(out_folder, X_reduced, data_container):
     h5_store = pd.HDFStore(join(out_folder, "reduced.h5"))
     h5_store['rpkm'] = pd.DataFrame(data=X_reduced, index=data_container.rpkm_df.index)
     h5_store['labels'] = data_container.labels_series
-    h5_store['accessions'] = data_container.acessions_series
+    h5_store['accessions'] = data_container.accessions_series
     h5_store.close()
     #pass
 
@@ -58,12 +58,14 @@ def reduce(args):
         X_transformed = get_activations(X)
     else:
         # Use PCA
-        model = pickle.load(join(model_base_path, "pca.p"))
+        with open(join(model_base_path, "pca.p"), 'rb') as f:
+            model = pickle.load(f)
         X_transformed = model.transform(X)
     print("reduced dimensions to: ", X_transformed.shape)
     model_type = training_args['--nn'] if training_args['--nn'] is not None else "pca"
     working_dir_path = create_working_directory(args['--out'], "reduced_data/", model_type)
-    save_reduced_data(working_dir_path, X_transformed, y, label_strings_lookup)
-    save_reduced_data_to_csv(working_dir_path, X_transformed, data_container)
+    #save_reduced_data(working_dir_path, X_transformed, y, label_strings_lookup)
+    #save_reduced_data_to_csv(working_dir_path, X_transformed, data_container)
+    save_reduced_data_to_h5(working_dir_path, X_transformed, data_container)
     with open(join(working_dir_path, "training_command_line_args.json"), 'w') as fp:
         json.dump(training_args, fp)

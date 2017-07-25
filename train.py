@@ -276,6 +276,8 @@ def train(args):
     model_type = args['--nn'] if args['--nn'] is not None else "pca"
     # create a unique working directory for this model
     working_dir_path = create_working_directory(args['--out'], "models/", model_type)
+    with open(join(working_dir_path, "command_line_args.json"), 'w') as fp:
+        json.dump(args, fp)
     print("loading data and setting up model...")
     # if args['--siamese']:
     #     get_data_for_siamese(args['--data'], args)
@@ -314,8 +316,6 @@ def train(args):
             history = model.fit(X, y, epochs=int(args['--epochs']), verbose=1, validation_data=validation_data)
         plot_training_history(history, join(working_dir_path, "loss.png"))
         print("saving model to folder: " + working_dir_path)
-        with open(join(working_dir_path, "command_line_args.json"), 'w') as fp:
-            json.dump(args, fp)
         architecture_path = join(working_dir_path, "model_architecture.json")
         weights_path = join(working_dir_path, "model_weights.p")
         if args['--siamese']:

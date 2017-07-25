@@ -5,6 +5,7 @@ from collections import defaultdict
 import numpy as np
 from scipy.spatial import distance
 
+from util import create_working_directory
 from data_container import DataContainer
 import common
 
@@ -43,18 +44,22 @@ def retrieval_test(args):
 
     datasetIDs = data.get_dataset_IDs()
     labels = data.get_labels()
+    print("num test points = ", len(labels))
 
     summary_csv_file = open(join(working_dir_path, "retrieval_summary.csv"), 'w')
     # Write out the file headers
     summary_csv_file.write('dataset\tcelltype\t#cell\tmean average precision\n')
 
-    sorted_unique_datasetIDS = np.unique(datasetIDs)
-    for dataset in sorted_unique_datasetIDS:
+    sorted_unique_datasetIDs = np.unique(datasetIDs)
+    print("number of unique datasets = ", len(sorted_unique_datasetIDs))
+    for dataset in sorted_unique_datasetIDs:
         # We will only compare samples from different datasets, so separate them
         current_ds_samples_indicies = np.where(datasetIDs == dataset)[0]
         current_ds_samples = X[current_ds_samples_indicies]
+        print('current_ds_samples.shape: ', current_ds_samples.shape)
         other_ds_samples_indicies = np.where(datasetIDs != dataset)[0]
         other_ds_samples = X[other_ds_samples_indicies]
+        print('other_ds_samples.shape', other_ds_samples.shape)
         distance_matrix = distance.cdist(current_ds_samples, other_ds_samples, metric=args['--dist_metric'])
 
         average_precisions_for_label = defaultdict(list)
@@ -62,8 +67,8 @@ def retrieval_test(args):
         for index, distances in enumerate(distance_matrix):
             current_sample_idx = current_ds_samples_indicies[index]
             current_sample_label = labels[current_sample_idx]
-            if current_sample_label not in common.CLEAN_LABEL_SUBSET:
-                continue
+            # if current_sample_label not in common.CLEAN_LABEL_SUBSET:
+            #     continue
             sorted_distances_indicies = np.argsort(distances)
 
             # Count the total number of same label samples in other datasets
