@@ -77,7 +77,7 @@ def retrieval_test(args):
                 label = labels[other_ds_samples_indicies[i]]
                 if label == current_sample_label:
                     total_same_label += 1
-
+            total_same_label = 100
             retrieved_labels = []
             for retrieved_idx in sorted_distances_indicies[:total_same_label]:
                 retrieved_labels.append(labels[other_ds_samples_indicies[retrieved_idx]])

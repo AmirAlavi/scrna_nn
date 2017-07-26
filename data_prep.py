@@ -74,8 +74,8 @@ def convert_entrez_to_symbol(entrezIDs):
 
 def load_cell_to_ontology_mapping(cells, ontology_mapping):
     mappings = {}
-    for cell in rpkm_df.index:
-        terms_for_cell = cell_to_terms[cell]
+    for cell in cells:
+        terms_for_cell = ontology_mapping[cell]
         mappings[cell] = terms_for_cell
     return mappings
 
@@ -136,6 +136,7 @@ if __name__ == '__main__':
     h5_store = pd.HDFStore(sys.argv[1])
     print("loaded h5 file")
     rpkm_df = h5_store['rpkm']
+    h5_store.close()
     rpkm_df.fillna(0, inplace=True)
     with open(EXP_TO_TERM, 'r') as f:
         cell_to_terms = json.load(f)
@@ -167,67 +168,44 @@ if __name__ == '__main__':
     print("converted to Accession #s")
 
     # Find cell types that exist in more than one Accession
-
+    # Of these, pick the accession with the median number of cells of that cell type,
+    # hold it out for the query set
+    query_accn_for_label = {}
     
     label_to_accessions_d = defaultdict(lambda: defaultdict(int))
     for accession, label  in zip(accessions, selected_labels):
         label_to_accessions_d[label][accession] += 1
-
-    train_label_set = set()
-    test_label_set = set()
+    
     print("\nAccessions for each cell type:")
     for label, accession_counts_d in label_to_accessions_d.items():
         print(label)
-        if len(accession_counts_d.keys()) >= 2:
-            test_label_set.add(label)
-        else:
-            train_label_set.add(label)
+        accns_for_label = []
+        accns_for_label_counts = []
         print("\t<acsn>: <count>")
         for accession, count in accession_counts_d.items():
             print("\t", accession, ": ", count)
+            accns_for_label.append(accession)
+            accns_for_label_counts.append(count)
+        if len(accession_counts_d.keys()) >= 2:
+            # Find accession with median number of cells of this type:
+            median_idx = np.argsort(accns_for_label_counts)[len(accns_for_label_counts)//2]
+            query_accn = accns_for_label[median_idx]
+            print("\tQuery accn: ", query_accn)
+            query_accn_for_label[label] = query_accn
     # Split the dataset
-    train_ids = []
-    train_labels = []
-    test_ids = []
-    test_labels = []
-    for cell_id, label in zip(selected_cells, selected_labels):
-        if label in train_label_set:
-            train_ids.append(cell_id)
-            train_labels.append(label)
-        elif label in test_label_set:
-            test_ids.append(cell_id)
-            test_labels.append(label)
+    traindb_ids = []
+    traindb_labels = []
+    query_ids = []
+    query_labels = []
+    for cell_id, label, accession in zip(selected_cells, selected_labels, accessions):
+        if label in query_accn_for_label and accession == query_accn_for_label[label]:
+            query_ids.append(cell_id)
+            query_labels.append(label)
+        else:
+            traindb_ids.append(cell_id)
+            traindb_labels.append(label)
 
     gene_symbols = write_data_to_h5('selected_data.h5', selected_rpkm_df, selected_labels)
-    write_data_to_h5('train_data.h5', selected_rpkm_df.loc[train_ids], train_labels, gene_symbols)
-    write_data_to_h5('test_data.h5', selected_rpkm_df.loc[test_ids], test_labels, gene_symbols)
-            
-    # train_rpkm_df = selected_rpkm_df.loc[train_set_ids]
-    # retrieval_test_rpkm_df = selected_rpkm_df.loc[retrieval_test_set_ids]
-    
-    # entrezIDs = selected_rpkm_df.columns
-    # geneSymbols = convert_entrez_to_symbol(entrezIDs)
-    # print("converted EntrezIDs to MGI symbols")
-    # # Add these as Datasets in the hdf5 file
-    # geneSymbols_series = pd.Series(data=geneSymbols, index=selected_rpkm_df.columns)
-    # accessions_series = pd.Series(data=accessions, index=selected_rpkm_df.index)
-    # labels_series = pd.Series(data=selected_labels, index=selected_rpkm_df.index)
-
-    # new_h5_store = pd.HDFStore('selected_expr_data.h5')
-    # new_h5_store['accessions'] = accessions_series
-    # new_h5_store['gene_symbols'] = geneSymbols_series
-    # new_h5_store['rpkm'] = selected_rpkm_df
-    # new_h5_store['labels'] = labels_series
-    # new_h5_store.close()
-
-    # train_h5_store = pd.HDFStore('train_expr_data.h5')
-    # new_h5_store['accessions'] = 
-    # new_h5_store['gene_symbols'] = geneSymbols_series
-    # new_h5_store['rpkm'] = _rpkm_df
-    # new_h5_store['labels'] = labels_series
-    # new_h5_store.close()
-    h5_store.close()
-
-    # Finally, split up into train and test
-    
+    write_data_to_h5('traindb_data.h5', selected_rpkm_df.loc[traindb_ids], traindb_labels, gene_symbols)
+    write_data_to_h5('query_data.h5', selected_rpkm_df.loc[query_ids], query_labels, gene_symbols)
     print("Saved new h5 files")
