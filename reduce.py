@@ -1,5 +1,6 @@
 import pickle
 from os.path import join
+from os import makedirs
 import json
 
 import theano
@@ -10,13 +11,13 @@ from util import create_working_directory
 from common import get_data
 import neural_nets as nn
 
-def save_reduced_data_to_h5(out_folder, X_reduced, data_container):
-    h5_store = pd.HDFStore(join(out_folder, "reduced.h5"))
+def save_reduced_data_to_h5(filename, X_reduced, data_container):
+    makedirs(filename, exist_ok=True)
+    h5_store = pd.HDFStore(filename)
     h5_store['rpkm'] = pd.DataFrame(data=X_reduced, index=data_container.rpkm_df.index)
     h5_store['labels'] = data_container.labels_series
     h5_store['accessions'] = data_container.accessions_series
     h5_store.close()
-    #pass
 
 def save_reduced_data_to_csv(out_folder, X_reduced, data_container):
     # Remove old data from the data container (but keep the Sample, Lable, and
@@ -63,9 +64,9 @@ def reduce(args):
         X_transformed = model.transform(X)
     print("reduced dimensions to: ", X_transformed.shape)
     model_type = training_args['--nn'] if training_args['--nn'] is not None else "pca"
-    working_dir_path = create_working_directory(args['--out'], "reduced_data/", model_type)
+    # working_dir_path = create_working_directory(args['--out'], "reduced_data/", model_type)
     #save_reduced_data(working_dir_path, X_transformed, y, label_strings_lookup)
     #save_reduced_data_to_csv(working_dir_path, X_transformed, data_container)
-    save_reduced_data_to_h5(working_dir_path, X_transformed, data_container)
-    with open(join(working_dir_path, "training_command_line_args.json"), 'w') as fp:
-        json.dump(training_args, fp)
+    save_reduced_data_to_h5(args['--out'], X_transformed, data_container)
+    # with open(join(working_dir_path, "training_command_line_args.json"), 'w') as fp:
+    #     json.dump(training_args, fp)

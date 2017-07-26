@@ -3,7 +3,7 @@
 Usage:
     scrna.py train (--nn=<nn_architecture> | --pca=<n_comp>) [<hidden_layer_sizes>...] [--out=<path> --data=<path>] [options]
     scrna.py reduce <trained_model_folder> [--out=<path> --data=<path>]
-    scrna.py retrieval <reduced_data_folder> [--dist_metric=<metric> --out=<path> --unreduced]
+    scrna.py retrieval <query_data_file> <database_data_file> [--dist_metric=<metric> --out=<path>]
     scrna.py (-h | --help)
     scrna.py --version
 
@@ -49,8 +49,9 @@ Options:
     --version                 Show version.
     --data=<path>             Path to input data file.
                               [default: data/lin_et_al_data/TPM_mouse_7_8_10_PPITF_gene_9437_T.txt]
-    --out=<path>              Path of folder to save output
-                              (trained models/reduced data/retrieval results) to.
+    --out=<path>              Path to save output to. For training and retrieval this is a folder path.
+                              For reduce this is a filepath (name of output file).
+                              (trained models/reduced data/retrieval results).
                               'None' means that a time-stamped folder will
                               automatically be created. [default: None]
 
@@ -90,9 +91,6 @@ Options:
     "retrieval" specific command options:
     --dist_metric=<metric>    Distance metric to use for nearest neighbors
                               retrieval [default: euclidean].
-    --unreduced               Use the original, unreduced data in the test. <reduced_data_folder> is now
-                              interpreted as the path to this data file.
-
 """
 # import pdb; pdb.set_trace()
 import sys

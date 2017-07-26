@@ -17,15 +17,15 @@ from docopt import docopt
 import numpy as np
 from tabulate import tabulate
 
-#DATA_FILE='data/test_50.csv'
-DATA_FILE='data/mouse_data_20170718-133439_3623_cells/test_data.h5'
+QUERY_FILE='data/mouse_data_20170718-133439_3623_cells/query_data.h5'
+DB_FILE='data/mouse_data_20170718-133439_3623_cells/traindb_data.h5'
 
 DEFAULT_WORKING_DIR_ROOT='experiments'
 DEFAULT_MODELS_FILE='experiment_models.list'
 REDUCE_COMMAND_TEMPLATE="""python scrna.py reduce {trained_nn_folder} \
---data={data_file} --out={output_folder}"""
+--data={data_file} --out={output_file}"""
 
-RETRIEVAL_COMMAND_TEMPLATE="""python scrna.py retrieval {reduced_data_folder} \
+RETRIEVAL_COMMAND_TEMPLATE="""python scrna.py retrieval {reduced_query_file} {reduced_db_file} \
 --out={output_folder}"""
 
 SLURM_TRANSFORM_COMMAND="""sbatch --array=0-{num_jobs} --mail-user {email} \
@@ -51,7 +51,12 @@ class SafeDict(dict):
 def write_out_command_dict(cmd_dict, path):
     with open(path, 'w') as f:
         for value in cmd_dict.values():
-            f.write(value + '\n')
+            # TODO: hack
+            if isinstance(value, tuple):
+                f.write(value[0] + '\n')
+                f.write(value[1] + '\n')
+            else:
+                f.write(value + '\n')
 
 class Experiment(object):
     def __init__(self, working_dir_path=None):
@@ -82,8 +87,12 @@ class Experiment(object):
             model_name = basename(normpath(model_folder))
             # path to output location, where the transformed data will be written to
             reduced_data_folder = join(self.working_dir_path, "data_transformed_by_" + model_name)
+            reduced_query_file = join(reduced_data_folder, "reduced_query.h5")
+            reduced_db_file = join(reduced_data_folder, "reduced_db.h5")
             transform_data_folders[model_name] = reduced_data_folder
-            transform_commands[model_name] = string.Formatter().vformat(REDUCE_COMMAND_TEMPLATE, (), SafeDict(trained_nn_folder=model_folder, data_file=DATA_FILE, output_folder=reduced_data_folder))
+            transform_query = string.Formatter().vformat(REDUCE_COMMAND_TEMPLATE, (), SafeDict(trained_nn_folder=model_folder, data_file=QUERY_FILE, output_file=reduced_query_file))
+            transform_db = string.Formatter().vformat(REDUCE_COMMAND_TEMPLATE, (), SafeDict(trained_nn_folder=model_folder, data_file=DB_FILE, output_file=reduced_db_file))
+            transform_commands[model_name] = (transform_query, transform_db)
         # write each of the command lines for transformation to a file, to be consumed by the slurm jobs
         write_out_command_dict(transform_commands, 'transform_commands.list')
         self.transform_commands = transform_commands
@@ -97,12 +106,14 @@ class Experiment(object):
         for model_name, transformed_data_folder in transform_data_folders.items():
             # path to output location, where the retrieval test results will be written to
             retrieval_result_folder = join(retrieval_dir, model_name)
-            retrieval_commands[model_name] = string.Formatter().vformat(RETRIEVAL_COMMAND_TEMPLATE, (), SafeDict(reduced_data_folder=transformed_data_folder, output_folder=retrieval_result_folder))
+            transformed_query = join(transformed_data_folder, "reduced_query.h5")
+            transformed_db = join(transformed_data_folder, "reduced_db.h5")
+            retrieval_commands[model_name] = string.Formatter().vformat(RETRIEVAL_COMMAND_TEMPLATE, (), SafeDict(reduced_query_file=transformed_query, reduced_db_file=transformed_db, output_folder=retrieval_result_folder))
             retrieval_result_folders[model_name] = retrieval_result_folder
         # Also compare with using raw, undreduced data
         orig_model_name = "original_data"
         orig_retrieval_result_folder = join(retrieval_dir, orig_model_name)
-        retrieval_commands[orig_model_name] = "python scrna.py retrieval {reduced_data_folder} --out={output_folder} --unreduced".format(reduced_data_folder=DATA_FILE, output_folder=orig_retrieval_result_folder)
+        retrieval_commands[orig_model_name] = string.Formatter().vformat(RETRIEVAL_COMMAND_TEMPLATE, (), SafeDict(reduced_query_file=QUERY_FILE, reduced_db_file=DB_FILE, output_folder=orig_retrieval_result_folder))
         retrieval_result_folders[orig_model_name] = orig_retrieval_result_folder
         # write each of the command lines for retrieval testing to a file, to be consumed by the slurm jobs
         write_out_command_dict(retrieval_commands, 'retrieval_commands.list')
@@ -115,8 +126,8 @@ class Experiment(object):
         # First transform the data
         slurm_transform_out_folder = join(self.working_dir_path, "slurm_transform_out")
         makedirs(slurm_transform_out_folder)
-        num_jobs = len(self.transform_commands)
-        transform_cmd = SLURM_TRANSFORM_COMMAND.format(num_jobs=str(num_jobs-1), email=email_addr, out_folder=slurm_transform_out_folder, err_folder=slurm_transform_out_folder)
+        number_jobs = len(self.transform_commands) * 2
+        transform_cmd = SLURM_TRANSFORM_COMMAND.format(num_jobs=str(number_jobs-1), email=email_addr, out_folder=slurm_transform_out_folder, err_folder=slurm_transform_out_folder)
         print("Running slurm array job to reduce dimensions using models...")
         result = subprocess.run(transform_cmd.split(), stdout=subprocess.PIPE)
         transform_job_id = int(result.stdout.decode("utf-8").strip().split()[-1])
@@ -124,8 +135,8 @@ class Experiment(object):
         # Then run retrieval (after transformation completes)
         slurm_retrieval_out_folder = join(self.working_dir_path, "slurm_retrieval_out")
         makedirs(slurm_retrieval_out_folder)
-        num_jobs = len(self.retrieval_commands)
-        retrieval_cmd = SLURM_RETRIEVAL_COMMAND.format(num_jobs=str(num_jobs-1), email=email_addr, out_folder=slurm_retrieval_out_folder, err_folder=slurm_retrieval_out_folder, depends=transform_job_id)
+        number_jobs = len(self.retrieval_commands)
+        retrieval_cmd = SLURM_RETRIEVAL_COMMAND.format(num_jobs=str(number_jobs-1), email=email_addr, out_folder=slurm_retrieval_out_folder, err_folder=slurm_retrieval_out_folder, depends=transform_job_id)
         print("Running slurm array job to conduct retrieval test using each model...")
         result = subprocess.run(retrieval_cmd.split(), stdout=subprocess.PIPE)
         retrieval_job_id = int(result.stdout.decode("utf-8").strip().split()[-1])
@@ -136,19 +147,15 @@ class Experiment(object):
         subprocess.run(wait_cmd.format(depends=retrieval_job_id, email=email_addr).split())
 
     def get_avg_score_for_each_cell_type(self, path_to_csv):
+        # Dict of <cell_type: MAP score>
+        cell_type_map_score_dict = {}
         with open(path_to_csv) as csv_file:
             reader = csv.DictReader(csv_file, delimiter='\t')
-            # Dict of <cell_type: scores[]>
-            cell_type_scores_dict = defaultdict(list)
             for row in reader:
                 cur_cell_type = row['celltype']
                 cur_score = float(row['mean average precision'])
-                cell_type_scores_dict[cur_cell_type].append(cur_score)
-        # Calculate average retrieval performance for each cell type accross the datasets
-        cell_type_avg_score_dict = dict()
-        for cell_type, scores_list in cell_type_scores_dict.items():
-            cell_type_avg_score_dict[cell_type] = np.mean(scores_list)
-        return cell_type_avg_score_dict
+                cell_type_map_score_dict[cur_cell_type] = cur_score
+        return cell_type_map_score_dict
 
     def write_out_table(self, unique_cell_types_set, compiled_results):
         header = ['Model'] + list(unique_cell_types_set) + ['Average']

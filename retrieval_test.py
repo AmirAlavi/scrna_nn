@@ -24,68 +24,31 @@ def average_precision(target, retrieved_list):
     return avg_precision
 
 def retrieval_test(args):
-    if args['--unreduced']:
-        # Don't do anything to the data, use it raw
-        model_type = 'original'
-        data_file = args['<reduced_data_folder>']
-    else:
-        training_args_path = join(args['<reduced_data_folder>'], "training_command_line_args.json")
-        with open(training_args_path, 'r') as fp:
-            training_args = json.load(fp)
-        model_type = training_args['--nn'] if training_args['--nn'] is not None else "pca"
-        #data_file = join(args['<reduced_data_folder>'], "reduced.csv")
-        data_file = join(args['<reduced_data_folder>'], "reduced.h5")
-    working_dir_path = create_working_directory(args['--out'], "retrieval_results/", model_type)
+    working_dir_path = create_working_directory(args['--out'], "retrieval_results/")
     # Load the reduced data
-    data = DataContainer(data_file)
-    #print("Cleaning up the data first...")
-    #common.preprocess_data(data)
-    X, _, _ = data.get_data()
+    query_data = DataContainer(args['<query_data_file'])
+    database_data = DataContainer(args['<database_data_file>'])
+    queries, _, _ = query_data.get_data()
+    db, _, _ = database_data.get_data()
+    queries_labels = query_data.get_labels()
+    db_labels = database_data.get_labels()
+    print("num query points = ", len(queries_labels))
+    print("num database points = ", len(db_labels))
 
-    datasetIDs = data.get_dataset_IDs()
-    labels = data.get_labels()
-    print("num test points = ", len(labels))
+    average_precisions_for_label = defaultdict(list)
+    distance_matrix = distance.cdist(queries, db, metric=args['--dist_metric'])
+    for index, distances_to_query in enumerate(distance_matrix):
+        query_label = queries_labels[index]
+        sorted_distances_indices = np.argsort(distances_to_query)
+        retrieved_labels_sorted_by_distance = db_labels[sorted_distances_indices]
+        retrieved_labels = retrieved_labels_sorted_by_distance[:100]
+        avg_precision = average_precision(query_label, retrieved_labels)
+        average_precisions_for_label[query_label].append(avg_precision)
 
     summary_csv_file = open(join(working_dir_path, "retrieval_summary.csv"), 'w')
-    # Write out the file headers
-    summary_csv_file.write('dataset\tcelltype\t#cell\tmean average precision\n')
-
-    sorted_unique_datasetIDs = np.unique(datasetIDs)
-    print("number of unique datasets = ", len(sorted_unique_datasetIDs))
-    for dataset in sorted_unique_datasetIDs:
-        # We will only compare samples from different datasets, so separate them
-        current_ds_samples_indicies = np.where(datasetIDs == dataset)[0]
-        current_ds_samples = X[current_ds_samples_indicies]
-        print('current_ds_samples.shape: ', current_ds_samples.shape)
-        other_ds_samples_indicies = np.where(datasetIDs != dataset)[0]
-        other_ds_samples = X[other_ds_samples_indicies]
-        print('other_ds_samples.shape', other_ds_samples.shape)
-        distance_matrix = distance.cdist(current_ds_samples, other_ds_samples, metric=args['--dist_metric'])
-
-        average_precisions_for_label = defaultdict(list)
-
-        for index, distances in enumerate(distance_matrix):
-            current_sample_idx = current_ds_samples_indicies[index]
-            current_sample_label = labels[current_sample_idx]
-            # if current_sample_label not in common.CLEAN_LABEL_SUBSET:
-            #     continue
-            sorted_distances_indicies = np.argsort(distances)
-
-            # Count the total number of same label samples in other datasets
-            total_same_label = 0
-            for i in range(len(distances)):
-                label = labels[other_ds_samples_indicies[i]]
-                if label == current_sample_label:
-                    total_same_label += 1
-            total_same_label = 100
-            retrieved_labels = []
-            for retrieved_idx in sorted_distances_indicies[:total_same_label]:
-                retrieved_labels.append(labels[other_ds_samples_indicies[retrieved_idx]])
-            avg_precision = average_precision(current_sample_label, retrieved_labels)
-            average_precisions_for_label[current_sample_label].append(avg_precision)
-
+    with open(join(working_dir_path, "retrieval_summary.csv"), 'w') as summary_csv_file:
+        # Write out the file headers
+        summary_csv_file.write('celltype\t#query cells\tmean average precision\n')
         for label, average_precisions in average_precisions_for_label.items():
             num_samples = len(average_precisions)
-            summary_csv_file.write(str(dataset) + '\t' + label + '\t' + str(num_samples) + '\t' + str(np.mean(average_precisions)) + '\n')
-
-    summary_csv_file.close()
+            summary_csv_file.write(label + '\t' + str(num_samples) + '\t' + str(np.mean(average_precisions)) + '\n')
