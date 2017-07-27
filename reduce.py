@@ -1,5 +1,5 @@
 import pickle
-from os.path import join
+from os.path import join, dirname
 from os import makedirs
 import json
 
@@ -12,7 +12,7 @@ from common import get_data
 import neural_nets as nn
 
 def save_reduced_data_to_h5(filename, X_reduced, data_container):
-    makedirs(filename, exist_ok=True)
+    makedirs(dirname(filename), exist_ok=True)
     h5_store = pd.HDFStore(filename)
     h5_store['rpkm'] = pd.DataFrame(data=X_reduced, index=data_container.rpkm_df.index)
     h5_store['labels'] = data_container.labels_series

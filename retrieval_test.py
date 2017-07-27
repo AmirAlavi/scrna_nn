@@ -26,7 +26,7 @@ def average_precision(target, retrieved_list):
 def retrieval_test(args):
     working_dir_path = create_working_directory(args['--out'], "retrieval_results/")
     # Load the reduced data
-    query_data = DataContainer(args['<query_data_file'])
+    query_data = DataContainer(args['<query_data_file>'])
     database_data = DataContainer(args['<database_data_file>'])
     queries, _, _ = query_data.get_data()
     db, _, _ = database_data.get_data()
