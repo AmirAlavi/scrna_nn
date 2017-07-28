@@ -5,6 +5,11 @@ retrieval_results/
 # All pickle files
 *.p
 *.png
+*.pickle
+*.h5
+*.hdf5
+*.err
+*.out
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
