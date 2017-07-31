@@ -32,8 +32,23 @@ def retrieval_test(args):
     db, _, _ = database_data.get_data()
     queries_labels = query_data.get_labels()
     db_labels = database_data.get_labels()
-    print("num query points = ", len(queries_labels))
-    print("num database points = ", len(db_labels))
+
+    # Find out the number of results to return.
+    db_uniq, db_counts = np.unique(db_labels, return_counts=True)
+    query_uniq, query_counts = np.unique(queries_labels, return_counts=True)
+    db_label_count_d = {label: count for (label, count) in zip(db_uniq, db_counts)}
+    min_db_label_count = np.amin(db_counts)
+    num_results = min(100, min_db_label_count)
+
+    with open(join(working_dir_path, "data_summary.txt"), 'w') as data_summary_f:
+        data_summary_f.write("num query points: " + str(len(queries_labels)) + '\n')
+        data_summary_f.write("num database points: " + str(len(db_labels)) + '\n')
+        data_summary_f.write("num query types: " + str(len(query_counts)) + '\n')
+        data_summary_f.write("num database types: " + str(len(db_counts)) + '\n')
+        data_summary_f.write("\nmin number of cells of any single type in DB: " + str(min_db_label_count) + '\n')
+        data_summary_f.write("\nLabel\t#Query\t#DB\n")
+        for query_label, query_count in zip(query_uniq, query_counts):
+            data_summary_f.write(query_label + '\t' + str(query_count) + '\t' + str(db_label_count_d[query_label]) + '\n')
 
     average_precisions_for_label = defaultdict(list)
     distance_matrix = distance.cdist(queries, db, metric=args['--dist_metric'])
@@ -41,7 +56,7 @@ def retrieval_test(args):
         query_label = queries_labels[index]
         sorted_distances_indices = np.argsort(distances_to_query)
         retrieved_labels_sorted_by_distance = db_labels[sorted_distances_indices]
-        retrieved_labels = retrieved_labels_sorted_by_distance[:100]
+        retrieved_labels = retrieved_labels_sorted_by_distance[:num_results]
         avg_precision = average_precision(query_label, retrieved_labels)
         average_precisions_for_label[query_label].append(avg_precision)
 

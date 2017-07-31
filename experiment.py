@@ -17,8 +17,8 @@ from docopt import docopt
 import numpy as np
 from tabulate import tabulate
 
-QUERY_FILE='data/mouse_data_20170718-133439_3623_cells/query_data.h5'
-DB_FILE='data/mouse_data_20170718-133439_3623_cells/traindb_data.h5'
+QUERY_FILE='data/mouse_data_20170728-102617_5349_cells/query_data.h5'
+DB_FILE='data/mouse_data_20170728-102617_5349_cells/traindb_data.h5'
 
 DEFAULT_WORKING_DIR_ROOT='experiments'
 DEFAULT_MODELS_FILE='experiment_models.list'

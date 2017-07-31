@@ -11,7 +11,7 @@ import mygene
 import ontology
 
 # Conversion Dictionaries
-EXP_TO_TERM = 'data/mouse_data_20170718-133439_3623_cells/specific_experiment_term_mapping.json'
+#EXP_TO_TERM = 'data/mouse_data_20170718-133439_3623_cells/specific_experiment_term_mapping.json'
 
 # Ontology files
 ONTOLOGY = 'data/mouse_data_20170718-133439_3623_cells/ontology.pickle'
@@ -137,8 +137,9 @@ if __name__ == '__main__':
     print("loaded h5 file")
     rpkm_df = h5_store['rpkm']
     h5_store.close()
+    print(rpkm_df.shape)
     rpkm_df.fillna(0, inplace=True)
-    with open(EXP_TO_TERM, 'r') as f:
+    with open(sys.argv[2], 'r') as f:
         cell_to_terms = json.load(f)
     mappings = load_cell_to_ontology_mapping(rpkm_df.index, cell_to_terms)
     # Analyze the mappings
@@ -188,7 +189,11 @@ if __name__ == '__main__':
             accns_for_label_counts.append(count)
         if len(accession_counts_d.keys()) >= 2:
             # Find accession with median number of cells of this type:
-            median_idx = np.argsort(accns_for_label_counts)[len(accns_for_label_counts)//2]
+            sorted_indices = np.argsort(accns_for_label_counts)
+            if len(sorted_indices == 2):
+                median_idx = sorted_indices[0]
+            else:
+                median_idx = sorted_indices[len(accns_for_label_counts)//2]
             query_accn = accns_for_label[median_idx]
             print("\tQuery accn: ", query_accn)
             query_accn_for_label[label] = query_accn
