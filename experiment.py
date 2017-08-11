@@ -159,7 +159,7 @@ class Experiment(object):
 
     def write_out_table(self, compiled_results):
         # get list of cell types in the results
-        any_model_results = compiled_results.itervalues().next()
+        any_model_results = next(iter(compiled_results.values()))
         cell_types = sorted(any_model_results["cell_types"].keys())
         with open(join(self.working_dir_path, 'results_table.csv'), 'w', newline='') as csv_file:
             csv_file.write("# in Query")
@@ -172,7 +172,7 @@ class Experiment(object):
             for label in cell_types:
                 csv_file.write("," + label)
             csv_file.write(",Average,Weighted Average\n")
-            for model_name, results in compiled_results:
+            for model_name, results in compiled_results.items():
                 csv_file.write(model_name + ",")
                 for label in cell_types:
                     csv_file.write(str(results["cell_types"][label]["Mean_Average_Precision"]) + ",")
