@@ -2,7 +2,7 @@
 
 Usage:
     scrna.py train (--nn=<nn_architecture> | --pca=<n_comp>) [<hidden_layer_sizes>...] [--out=<path> --data=<path>] [options]
-    scrna.py reduce <trained_model_folder> [--out=<path> --data=<path>]
+    scrna.py reduce <trained_model_folder> [--out=<path> --data=<path> --save_meta]
     scrna.py retrieval <query_data_file> <database_data_file> [--dist_metric=<metric> --out=<path>]
     scrna.py (-h | --help)
     scrna.py --version
@@ -87,6 +87,10 @@ Options:
     --online_train=<n>        Dynamically generate hard pairs after n epochs for
                               siamese neural network training.
     --viz                     Visualize the data in the embedding space.
+
+    "reduce" specific command options:
+    --save_meta               Also save the metadata that was associated with the input data with the
+                              reduced data (labels for the samples, accession numbers for the samples)
 
     "retrieval" specific command options:
     --dist_metric=<metric>    Distance metric to use for nearest neighbors

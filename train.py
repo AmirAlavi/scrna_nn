@@ -1,24 +1,26 @@
 # import pdb; pdb.set_trace()
-import cProfile
-import pickle
 import json
-from os.path import join
-from collections import defaultdict, namedtuple
-import time
-from itertools import combinations
+import pickle
 import random
+import time
+from collections import defaultdict, namedtuple
+from itertools import combinations
+from os.path import join
 
+import matplotlib
 import numpy as np
-import matplotlib; matplotlib.use('Agg')
+
+from data_container import DataContainer
+
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from sklearn.decomposition import PCA
 from sklearn.manifold import TSNE
 from sklearn.metrics.pairwise import euclidean_distances
-from keras.utils import plot_model
+from keras.utils import plot_model, np_utils
 import theano
 
 from util import create_working_directory
-from common import get_data
 import neural_nets as nn
 from bio_knowledge import get_adj_mat_from_groupings
 from sparse_optimizers import SparseSGD
@@ -275,6 +277,36 @@ def visualize_embedding(X, labels, path):
     plt.scatter(embedding[:,0], embedding[:,1], c=colors)
     plt.savefig(path)
 
+def get_data_for_training(data_path, args):
+    data = DataContainer(data_path, args['--sn'])
+    #print("Cleaning up the data first...")
+    #preprocess_data(data)
+    gene_names = data.get_gene_names()
+    output_dim = None
+    if args['--ae']:
+        # Autoencoder training is unsupervised, so we don't have to limit
+        # ourselves to labeled samples
+        X_clean, _, label_strings_lookup = data.get_data()
+        # Add noise to the data:
+        noise_level = 0.1
+        X = X_clean + noise_level * np.random.normal(loc=0, scale=1, size=X_clean.shape)
+        X = np.clip(X, -1., 1.)
+        # For autoencoders, the input is a noisy sample, and the networks goal
+        # is to reconstruct the original sample, and so the output is the same
+        # shape as the input, and our label vector "y" is no longer labels, but
+        # is the uncorrupted samples
+        y = X_clean
+    else:
+        # Supervised training:
+        print("Supervised training")
+        X, y, label_strings_lookup = data.get_data()
+        output_dim = max(y) + 1
+        y = np_utils.to_categorical(y, output_dim)
+    input_dim = X.shape[1]
+    print("Input dim: ", input_dim)
+    print("Output dim: ", output_dim)
+    return X, y, input_dim, output_dim, label_strings_lookup, gene_names, data
+
 def train(args):
     model_type = args['--nn'] if args['--nn'] is not None else "pca"
     # create a unique working directory for this model
@@ -284,7 +316,7 @@ def train(args):
     print("loading data and setting up model...")
     # if args['--siamese']:
     #     get_data_for_siamese(args['--data'], args)
-    X, y, input_dim, output_dim, label_strings_lookup, gene_names, data_container = get_data(args['--data'], args) # TODO: train/test/valid split
+    X, y, input_dim, output_dim, label_strings_lookup, gene_names, data_container = get_data_for_training(args['--data'], args)
     print(X[0].shape)
     print(X[1].shape)
     if args['--pca']:

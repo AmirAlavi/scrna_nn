@@ -1,14 +1,12 @@
-from os.path import join
-import json
-from collections import defaultdict
 import pickle
+from collections import defaultdict
+from os.path import join
 
 import numpy as np
 from scipy.spatial import distance
 
-from util import create_working_directory
 from data_container import DataContainer
-import common
+from util import create_working_directory
 
 
 def average_precision(target, retrieved_list):
@@ -29,8 +27,8 @@ def retrieval_test(args):
     # Load the reduced data
     query_data = DataContainer(args['<query_data_file>'])
     database_data = DataContainer(args['<database_data_file>'])
-    queries, _, _ = query_data.get_data()
-    db, _, _ = database_data.get_data()
+    queries = query_data.get_expression_mat()
+    db = database_data.get_expression_mat()
     queries_labels = query_data.get_labels()
     db_labels = database_data.get_labels()
 
