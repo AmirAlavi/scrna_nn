@@ -39,6 +39,7 @@ def get_adj_mat_from_groupings(groups_filepath, dataset_gene_names):
             if gene in dataset_gene_names:# Decoupling the set of genes in dataset from set of genes in the groupings file
                 #groups_as_indices[group_name].append(dataset_gene_names.index(gene))
                 idx = dataset_gene_names.index(gene)
+                #idx = np.min(np.nonzero(dataset_gene_names == gene)[0])
                 indices_list.append(idx)
         groups_as_indices.append(indices_list)
     binary_group_membership_mat = np.zeros((num_genes, len(group_names)), dtype='float32')

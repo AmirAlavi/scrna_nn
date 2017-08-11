@@ -8,8 +8,10 @@ retrieval_results/
 *.pickle
 *.h5
 *.hdf5
+*.gzip
 *.err
 *.out
+*~
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

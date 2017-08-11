@@ -2,7 +2,7 @@
 
 #SBATCH -p gpu
 #SBATCH --gres=gpu:1
-#SBATCH -c 4
+#SBATCH -c 2
 #SBATCH --mem 50Gb
 #SBATCH --mail-type END,FAIL
 #SBATCH --mail-user=aalavi@cs.cmu.edu
@@ -27,6 +27,8 @@ python scrna.py train --pca=100 --sn --out=${MODEL_PREFIX}pca_100 --data=$TRAIN_
 echo ${MODEL_PREFIX}pca_100 >> experiment_models.list
 python scrna.py train --pca=500 --sn --out=${MODEL_PREFIX}pca_500 --data=$TRAIN_DATA
 echo ${MODEL_PREFIX}pca_500 >> experiment_models.list
+python scrna.py train --pca=200 --sn --out=${MODEL_PREFIX}pca_200 --data=$TRAIN_DATA
+echo ${MODEL_PREFIX}pca_200 >> experiment_models.list
 
 # NON-SIAMESE MODELS
 ####################
@@ -66,6 +68,17 @@ echo ${MODEL_PREFIX}flatGO_300.100_100 >> experiment_models.list
 python scrna.py train --nn=sparse 200 --sparse_groupings=data/flat_GO300_groups.txt --with_dense=100 --sn --out=${MODEL_PREFIX}flatGO_300.100_200 --data=$TRAIN_DATA
 echo ${MODEL_PREFIX}flatGO_300.100_200 >> experiment_models.list
 
+# GO Levels 4-2
+python scrna.py train --nn=GO --go_arch=data/GO_lvls_arch_2_to_4 --with_dense=31 --sn --out=${MODEL_PREFIX}GO_lvls_4_3_2.31 --data=$TRAIN_DATA
+echo ${MODEL_PREFIX}GO_lvls_4_3_2.31 >> experiment_models.list
+
+# Combined FlatGO + PPITF
+python scrna.py train --nn=flatGO_ppitf --fGO_ppitf_grps=data/flat_GO300_groups.txt,data/mouse_ppitf_groups.txt --with_dense=0 --sn --out=${MODEL_PREFIX}comb_flatGO_ppitf --data=$TRAIN_DATA
+echo ${MODEL_PREFIX}comb_flatGO_ppitf >> experiment_models.list
+# Combined FlatGO + PPITF + Dense
+python scrna.py train --nn=flatGO_ppitf --fGO_ppitf_grps=data/flat_GO300_groups.txt,data/mouse_ppitf_groups.txt --with_dense=100 --sn --out=${MODEL_PREFIX}comb_flatGO_ppitf_dense --data=$TRAIN_DATA
+echo ${MODEL_PREFIX}comb_flatGO_ppitf_dense >> experiment_models.list
+
 # SIAMESE MODELS
 ################
 # Dense 1136
@@ -103,3 +116,14 @@ echo ${MODEL_PREFIX}siam_flatGO_300.100_100 >> experiment_models.list
 # FlatGO 300+100 200
 python scrna.py train --nn=sparse 200 --sparse_groupings=data/flat_GO300_groups.txt --with_dense=100 --sn --siamese --out=${MODEL_PREFIX}siam_flatGO_300.100_200 --data=$TRAIN_DATA
 echo ${MODEL_PREFIX}siam_flatGO_300.100_200 >> experiment_models.list
+
+# GO Levels 4-2
+python scrna.py train --nn=GO --go_arch=data/GO_lvls_arch_2_to_4 --with_dense=31 --sn --siamese --out=${MODEL_PREFIX}siam_GO_lvls_4_3_2.31 --data=$TRAIN_DATA
+echo ${MODEL_PREFIX}siam_GO_lvls_4_3_2.31 >> experiment_models.list
+
+# Combined FlatGO + PPITF
+python scrna.py train --nn=flatGO_ppitf --fGO_ppitf_grps=data/flat_GO300_groups.txt,data/mouse_ppitf_groups.txt --with_dense=0 --sn --siamese --out=${MODEL_PREFIX}siam_comb_flatGO_ppitf --data=$TRAIN_DATA
+echo ${MODEL_PREFIX}siam_comb_flatGO_ppitf >> experiment_models.list
+# Combined FlatGO + PPITF + Dense
+python scrna.py train --nn=flatGO_ppitf --fGO_ppitf_grps=data/flat_GO300_groups.txt,data/mouse_ppitf_groups.txt --with_dense=100 --sn --siamese --out=${MODEL_PREFIX}siam_comb_flatGO_ppitf_dense --data=$TRAIN_DATA
+echo ${MODEL_PREFIX}siam_comb_flatGO_ppitf_dense >> experiment_models.list

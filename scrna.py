@@ -76,7 +76,7 @@ Options:
                               grouped to nodes for sparse layers for a combined flatGO and ppitf architecture.
                               [default: data/flat_GO300_groups.txt,data/mouse_ppitf_groups.txt]
     --go_arch=<path>          Path to folder containing files that define a GO-based architecture.
-                              [default: data/GO_4lvl_arch]]
+                              [default: data/GO_lvls_arch_2_to_4]
     --with_dense=<num_units>  (For 'sparse' architecture) Number of Dense units to add in the same
                               layer as the Sparse layer. [default: 100]
     --pt=<weights_file>       Use initial weights from a pretrained model weights file.

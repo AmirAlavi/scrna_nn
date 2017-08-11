@@ -1,6 +1,7 @@
 # import pdb; pdb.set_trace()
 import pickle
 import math
+import time
 
 import keras
 from keras.models import Sequential, Model, model_from_json
@@ -118,9 +119,13 @@ def get_GO(hidden_layer_sizes, input_dim, go_first_level_adj_mat, go_other_level
     # Hidden layers
     # first hidden layer
     # (Condsider entire GO tree (multi-level) as being in the 1st hidden layer)
+    t0 = time.time()
     go_out = Sparse(activation=activation_fcn, adjacency_mat=go_first_level_adj_mat)(inputs)
+    print("time to add GO lvl 1: ", time.time() - t0)
     for other_adj_mat in go_other_levels_adj_mats:
+        t0 = time.time()
         go_out = Sparse(activation=activation_fcn, adjacency_mat=other_adj_mat)(go_out)
+        print("time to add GO lvl: ", time.time() - t0)
     # Finished constructing GO tree
     if extra_dense_units > 0:
         dense_out = Dense(extra_dense_units, activation=activation_fcn)(inputs)

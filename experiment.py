@@ -11,11 +11,10 @@ from collections import defaultdict
 import string
 import sys
 import subprocess
-import csv
+import pickle
 
 from docopt import docopt
 import numpy as np
-from tabulate import tabulate
 
 QUERY_FILE='data/mouse_data_20170728-102617_5349_cells/query_data.h5'
 DB_FILE='data/mouse_data_20170728-102617_5349_cells/traindb_data.h5'
@@ -146,35 +145,26 @@ class Experiment(object):
         wait_cmd = "srun -J completion -d afterok:{depends} --mail-type END,FAIL --mail-user {email} -p zbj1 echo '(done waiting)'"
         subprocess.run(wait_cmd.format(depends=retrieval_job_id, email=email_addr).split())
 
-    def get_avg_score_for_each_cell_type(self, path_to_csv):
-        # Dict of <cell_type: MAP score>
-        cell_type_map_score_dict = {}
-        with open(path_to_csv) as csv_file:
-            reader = csv.DictReader(csv_file, delimiter='\t')
-            for row in reader:
-                cur_cell_type = row['celltype']
-                cur_score = float(row['mean average precision'])
-                cell_type_map_score_dict[cur_cell_type] = cur_score
-        return cell_type_map_score_dict
-
-    def write_out_table(self, unique_cell_types_set, compiled_results):
-        header = ['Model'] + list(unique_cell_types_set) + ['Average']
-        table = []
-        for model_name, scores_dict in compiled_results.items():
-            current_row = [model_name]
-            for cell_type in unique_cell_types_set:
-                current_row.append(scores_dict[cell_type])
-            current_row.append(scores_dict['average'])
-            table.append(current_row)
-        # write out
-        with open(join(self.working_dir_path, 'results_table.txt'), 'w') as txt_file:
-            txt_file.write(tabulate(table, headers=header))
+    def write_out_table(self, compiled_results):
+        # get list of cell types in the results
+        any_model_results = compiled_results.itervalues().next()
+        cell_types = sorted(any_model_results["cell_types"].keys())
         with open(join(self.working_dir_path, 'results_table.csv'), 'w', newline='') as csv_file:
-            table_writer = csv.writer(csv_file, delimiter=',')
-            table_writer.writerow(header)
-            for row in table:
-                table_writer.writerow(row)
-            
+            csv_file.write("# in Query")
+            for label in cell_types:
+                csv_file.write("," + str(any_model_results["cell_types"][label]["#_in_query"]))
+            csv_file.write("\n# in Database")
+            for label in cell_types:
+                csv_file.write("," + str(any_model_results["cell_types"][label]["#_in_DB"]))
+            csv_file.write("\nModel")
+            for label in cell_types:
+                csv_file.write("," + label)
+            csv_file.write(",Average,Weighted Average\n")
+            for model_name, results in compiled_results:
+                csv_file.write(model_name + ",")
+                for label in cell_types:
+                    csv_file.write(str(results["cell_types"][label]["Mean_Average_Precision"]) + ",")
+                csv_file.write(str(results["average"]) + "," + str(results["weighted_average"]) + "\n")
     
     def create_overall_results_table(self):
         '''Compiles results into various tables:
@@ -184,26 +174,14 @@ class Experiment(object):
         Returns: overall results table
         '''
         compiled_results = {} # <model_name:dict>
-        unique_cell_types_set = set()
-        
         for model_name, results_folder in self.retrieval_result_folders.items():
             # Iterate through models
             current_model = {} # <cell_type:score>
             print(model_name)
-            results_file = join(results_folder, 'retrieval_summary.csv')
-            cell_types_and_scores = self.get_avg_score_for_each_cell_type(results_file)
-            scores_list = []
-            for cell_type, score in cell_types_and_scores.items():
-                # Iterate through cell types
-                # if cell_type in PAPER_CELL_TYPES:
-                # if cell_type in TESTING_LABEL_SUBSET:
-                unique_cell_types_set.update([cell_type])
-                current_model[cell_type] = score
-                scores_list.append(score)
-            avg_across_paper_cell_types = np.mean(scores_list)
-            current_model['average'] = avg_across_paper_cell_types
-            compiled_results[model_name] = current_model
-        self.write_out_table(unique_cell_types_set, compiled_results)
+            results_file = join(results_folder, 'retrieval_results_d.pickle')
+            with open(results_file, 'rb') as f:
+                compiled_results[model_name] = pickle.load(f)
+        self.write_out_table(compiled_results)
 
     def compile_results(self):
         """Create a summary of the retrieval experiment results
