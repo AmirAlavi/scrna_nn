@@ -73,10 +73,14 @@ def convert_entrez_to_symbol(entrezIDs):
     return symbols
 
 def load_cell_to_ontology_mapping(cells, ontology_mapping):
+    empty_count = 0
     mappings = {}
     for cell in cells:
         terms_for_cell = ontology_mapping[cell]
+        if len(terms_for_cell) == 0:
+            empty_count += 1
         mappings[cell] = terms_for_cell
+    print("Num cells with empty mappings: ", empty_count)
     return mappings
 
 def analyze_cell_to_ontology_mapping(mappings):
@@ -97,7 +101,7 @@ def analyze_cell_to_ontology_mapping(mappings):
 def filter_cell_to_ontology_terms(mappings, term_counts_d):
     terms_to_ignore = set()
     for term, count in term_counts_d.items():
-        if count < 75 or 'NCBITaxon' in term or 'PR:' in term or 'PATO:' in term or 'GO:' in term:
+        if count < 75 or 'NCBITaxon' in term or 'PR:' in term or 'PATO:' in term or 'GO:' in term or 'CLO:' in term:
             terms_to_ignore.add(term)
     # Terms that just don't seem that useful, or had too much overlap with another term
     terms_to_ignore.add('UBERON:0000006 islet of Langerhans')
