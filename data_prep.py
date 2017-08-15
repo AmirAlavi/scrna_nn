@@ -20,7 +20,7 @@ Options:
 """
 
 import json
-# import pdb; pdb.set_trace()
+#import pdb; pdb.set_trace()
 from collections import defaultdict
 from typing import List, Tuple, NamedTuple
 
@@ -75,27 +75,34 @@ def assign_terms(rpkm_df: pd.DataFrame, mapping_mat: np.ndarray, terms, min_dist
     pod = DataFrameConstructionPOD([], [], [], [])
     # Lists of indices into the 'terms' list which indicate which terms have been deleted, or have already
     # been assigned (added to the new rpkm DataFrame)
-    deleted_terms = []
-    assigned_terms = []
+    # deleted_terms = []
+    # assigned_terms = []
     num_terms = mapping_mat.shape[1]
+    jaccard_distances = []
     for i in range(num_terms):
         for j in range(i + 1, num_terms):
-            if i in deleted_terms or j in deleted_terms:
-                continue
+            # if i in deleted_terms or j in deleted_terms:
+            #     continue
 
             dist = jaccard(mapping_mat[:, i], mapping_mat[:, j])
-            if dist >= min_distance:
-                assign_terms_helper(pod, terms, assigned_terms, rpkm_df, mapping_mat, i)
-                assign_terms_helper(pod, terms, assigned_terms, rpkm_df, mapping_mat, j)
-            else:
-                assign_terms_helper(pod, terms, assigned_terms, rpkm_df, mapping_mat, i)
-                deleted_terms.append(j)  # Choosing to delete the second term if they overlap too much
-    assigned_df = pd.DataFrame(data=np.asarray(pod.expression_vectors), columns=rpkm_df.columns, index=pod.index)
-    return assigned_df, pod.true_id_index, pod.labels
+            jaccard_distances.append(((terms[i], terms[j]), dist))
+            # if dist >= min_distance:
+            #     assign_terms_helper(pod, terms, assigned_terms, rpkm_df, mapping_mat, i)
+            #     assign_terms_helper(pod, terms, assigned_terms, rpkm_df, mapping_mat, j)
+            # else:
+            #     assign_terms_helper(pod, terms, assigned_terms, rpkm_df, mapping_mat, i)
+            #     deleted_terms.append(j)  # Choosing to delete the second term if they overlap too much
+    # assigned_df = pd.DataFrame(data=np.asarray(pod.expression_vectors), columns=rpkm_df.columns, index=pod.index)
+    # return assigned_df, pod.true_id_index, pod.labels
+    sorted_distances = sorted(jaccard_distances, key=lambda x: x[1])
+    print("Sorted Distances (increasing Jaccard distances) (first 50")
+    for i in range(50):
+        print(sorted_distances[i])    
 
 
 def build_mapping_mat(cells, concise_mappings: dict) -> Tuple[np.ndarray, List[str]]:
-    terms = set().intersection(concise_mappings.values())  # All possible ontology terms
+    from itertools import chain
+    terms = list(set(chain.from_iterable(concise_mappings.values()))) # All possible ontology terms
     terms = sorted(terms)
     num_cells = len(cells)
     num_terms = len(terms)
@@ -146,6 +153,13 @@ def filter_cell_to_ontology_terms(mappings, term_counts_d):
     terms_to_ignore.add('CL:0000557 granulocyte monocyte progenitor cell')
     terms_to_ignore.add('UBERON:0001068 skin of back')
     terms_to_ignore.add('CL:0000034 stem cell')
+    terms_to_ignore.add('CL:0000048 multi fate stem cell')
+    terms_to_ignore.add('UBERON:0000178 blood')
+    terms_to_ignore.add('UBERON:0001135 smooth muscle tissue')
+    terms_to_ignore.add('UBERON:0001630 muscle organ')
+    terms_to_ignore.add('CL:0000000 cell')
+    terms_to_ignore.add('CL:0000080 circulating cell')
+
     # Clean the mappings
     for cell in mappings.keys():
         terms = mappings[cell]
@@ -198,7 +212,10 @@ if __name__ == '__main__':
     analyze_cell_to_ontology_mapping(mappings)
 
     mapping_mat, terms = build_mapping_mat(rpkm_df.index, mappings)
-    assigned_rpkm_df, true_id_index, labels = assign_terms(rpkm_df, mapping_mat, terms, args['--uniq_lvl'])
+    #assigned_rpkm_df, true_id_index, labels = assign_terms(rpkm_df, mapping_mat, terms, args['--uniq_lvl'])
+    assign_terms(rpkm_df, mapping_mat, terms, args['--uniq_lvl'])
+    import sys
+    sys.exit()
 
     # # For now, let's keep only the cells that map to a single term
     # print("\n\nSelecting cells that map to a single term")
