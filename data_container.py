@@ -18,6 +18,7 @@ class DataContainer(object):
         self.labels_series = h5_store['labels'] if 'labels' in h5_store else None
         self.gene_symbols_series = h5_store['gene_symbols'] if 'gene_symbols' in h5_store else None
         self.accessions_series = h5_store['accessions'] if 'accessions' in h5_store else None
+        self.true_ids_series = h5_store['true_ids'] if 'true_ids' in h5_store else None
         h5_store.close()
         # Convert numeric to float32 for deep learning libraries
         self.rpkm_df = self.rpkm_df.apply(pd.to_numeric, errors='ignore', downcast='float')
@@ -37,6 +38,9 @@ class DataContainer(object):
 
     def get_labels(self):
         return self.labels_series.values
+
+    def get_true_ids(self):
+        return self.true_ids_series.values
 
     def get_data(self):
         expression_mat = self.rpkm_df.values

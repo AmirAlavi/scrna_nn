@@ -15,7 +15,7 @@ Options:
 """
 
 import json
-#import pdb; pdb.set_trace()
+# import pdb; pdb.set_trace()
 from collections import defaultdict
 from typing import List, Tuple, NamedTuple
 
@@ -58,7 +58,7 @@ def assign_terms(all_terms: List[str],
         cell_selection_vector = mapping_mat[:, term_idx]
         num_to_add = np.sum(cell_selection_vector)
         old_index_values = rpkm_df.index[cell_selection_vector]
-        pod.expression_vectors.extend(rpkm_df.loc[old_index_values])
+        pod.expression_vectors.extend(rpkm_df.loc[old_index_values].values)
         new_index_values = [cell_id + '_' + term_str for cell_id in old_index_values]
         pod.index.extend(new_index_values)
         pod.true_id_index.extend(old_index_values)
@@ -74,7 +74,7 @@ def calculate_term_distances(mapping_mat: np.ndarray, terms):
             dist = jaccard(mapping_mat[:, i], mapping_mat[:, j])
             jaccard_distances.append(((terms[i], terms[j]), dist))
     sorted_distances = sorted(jaccard_distances, key=lambda x: x[1])
-    print("Sorted Distances (increasing Jaccard distances) (first 50")
+    print("\nSorted Distances (increasing Jaccard distances) (first 50)")
     for i in range(50):
         print(sorted_distances[i])    
 
@@ -85,7 +85,7 @@ def build_mapping_mat(cells, concise_mappings: dict) -> Tuple[np.ndarray, List[s
     terms = sorted(terms)
     num_cells = len(cells)
     num_terms = len(terms)
-    mapping_mat = np.zeros((num_cells, num_terms))
+    mapping_mat = np.zeros((num_cells, num_terms), dtype=np.bool_)
     for i in range(num_cells):
         for j in range(num_terms):
             if terms[j] in concise_mappings[cells[i]]:
@@ -223,7 +223,7 @@ if __name__ == '__main__':
                 if len(accession_counts_d.keys()) >= 2:
                     # Find accession with median number of cells of this type:
                     sorted_indices = np.argsort(accns_for_label_counts)
-                    if len(sorted_indices == 2):
+                    if len(sorted_indices) == 2:
                         median_idx = sorted_indices[0]
                     else:
                         median_idx = sorted_indices[len(accns_for_label_counts) // 2]
