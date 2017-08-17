@@ -13,13 +13,13 @@ from os.path import join, basename, normpath
 
 from docopt import docopt
 
-QUERY_FILE = 'data/mouse_data_20170728-102617_5349_cells/query_data.h5'
-DB_FILE = 'data/mouse_data_20170728-102617_5349_cells/traindb_data.h5'
+QUERY_FILE = 'data/mouse_data_20170811-125915_13593_cells/query_data.h5'
+DB_FILE = 'data/mouse_data_20170811-125915_13593_cells/traindb_data.h5'
 
 DEFAULT_WORKING_DIR_ROOT = 'experiments'
 DEFAULT_MODELS_FILE = 'experiment_models.list'
 REDUCE_COMMAND_TEMPLATE = """python scrna.py reduce {trained_nn_folder} \
---data={data_file} --out={output_file}"""
+--data={data_file} --out={output_file} --save_meta"""
 
 RETRIEVAL_COMMAND_TEMPLATE = """python scrna.py retrieval {reduced_query_file} {reduced_db_file} \
 --out={output_folder}"""
@@ -154,7 +154,7 @@ class Experiment(object):
         print("Slurm array job submitted, id: ", retrieval_job_id)
         # Must wait for retrieval jobs to finish in order to use their results
         print("Waiting for retrieval jobs to finish...")
-        wait_cmd = "srun -J completion -d afterok:{depends} --mail-type END,FAIL --mail-user {email} -p zbj1 echo '(done waiting)'"
+        wait_cmd = "srun -J completion -d afterok:{depends} --mail-type END,FAIL --mail-user {email} -p pool1 echo '(done waiting)'"
         subprocess.run(wait_cmd.format(depends=retrieval_job_id, email=email_addr).split())
 
     def write_out_table(self, compiled_results):
