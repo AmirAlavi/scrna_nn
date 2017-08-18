@@ -1,7 +1,7 @@
 """Data Analysis & Preparation Script (for scRNA Pipeline)
 
 Usage:
-    data_prep.py <expression_h5> <ontology_mappings_json> [--filter --term_distances --assign]
+    data_prep.py <expression_h5> <ontology_mappings_json> [--filter --term_distances --assign=<assn>]
     data_prep.py (-h | --help)
     data_prep.py --version
 
@@ -11,7 +11,12 @@ Options:
                         specific nodes (see the code for this list).
     --term_distances    Print the Jaccard distances between pairs of terms. The Jaccard distance is calculated between
                         the two sets of cells that map to the two terms.
-    --assign            Assign labels for the cells and split into a query set and a train/database set
+    --assign=<assn>     Assign labels for the cells and split into a query set and a train/database set. The type of
+                        assignment is dictated by the value of <assn>, which can be either:
+                        - 'all'     Use all ontology terms that a cell maps to. For every term it maps to, create a
+                                    copy of the cell's expression, with that term as the label.
+                        - 'unique'  Use only cells that map to a single ontology term. Throw out cells that map to
+                                    multiple terms.
 """
 
 import json
@@ -50,8 +55,8 @@ class DataFrameConstructionPOD(NamedTuple):
     labels: List[str]
 
 
-def assign_terms(all_terms: List[str],
-                 rpkm_df: pd.DataFrame, mapping_mat: np.ndarray) -> DataFrameConstructionPOD:
+def assign_all_terms(all_terms: List[str],
+                     rpkm_df: pd.DataFrame, mapping_mat: np.ndarray) -> DataFrameConstructionPOD:
     pod = DataFrameConstructionPOD([], [], [], [])
     for term_idx in range(mapping_mat.shape[1]):
         term_str = all_terms[term_idx].split()[0]
@@ -63,8 +68,28 @@ def assign_terms(all_terms: List[str],
         pod.index.extend(new_index_values)
         pod.true_id_index.extend(old_index_values)
         pod.labels.extend([all_terms[term_idx]] * num_to_add)
+    pod.expression_vectors = np.asarray(pod.expression_vectors)
     return pod
 
+
+def assign_unique_terms(mappings, rpkm_df):
+    pod = DataFrameConstructionPOD([], [], [], [])
+    selected_cells = []
+    selected_labels = []
+    for key, value in mappings.items():
+        if len(value) == 1:
+            selected_cells.append(key)
+            selected_labels.append(value[0])
+    pod.expression_vectors = rpkm_df.loc[selected_cells].values
+    pod.index = rpkm_df.index[selected_cells]
+    pod.true_id_index = pod.index
+    pod.labels = selected_labels
+    print("\nThe selected labels and their counts (no overlap):")
+    unique_labels, counts = np.unique(selected_labels, return_counts=True)
+    print(unique_labels)
+    print(counts)
+    print()
+    return pod
 
 def calculate_term_distances(mapping_mat: np.ndarray, terms):
     num_terms = mapping_mat.shape[1]
@@ -191,68 +216,72 @@ if __name__ == '__main__':
         mappings = filter_cell_to_ontology_terms(mappings, term_counts_d)
         print("\n\nAFTER FILTERING")
         analyze_cell_to_ontology_mapping(mappings)
-
-    if args['--assign'] or args['--term_distances']:
+    mapping_mat = None
+    if args['--assign'] == 'all' or args['--term_distances']:
+        # These options require a mapping matrix
         mapping_mat, terms = build_mapping_mat(rpkm_df.index, mappings)
         #assigned_rpkm_df, true_id_index, labels = assign_terms(rpkm_df, mapping_mat, terms, args['--uniq_lvl'])
-        if args['--term_distances']:
-            calculate_term_distances(mapping_mat, terms)
-        if args['--assign']:
-            pod = assign_terms(terms, rpkm_df, mapping_mat)
-            assigned_rpkm_df = pd.DataFrame(data=np.asarray(pod.expression_vectors), columns=rpkm_df.columns, index=pod.index)
-            accessions = get_accessions_from_accessionSeries(assigned_rpkm_df.index)
-            # Find cell types that exist in more than one Accession
-            # Of these, pick the accession with the median number of cells of that cell type,
-            # hold it out for the query set
-            query_accn_for_label = {}
+    if args['--term_distances']:
+        calculate_term_distances(mapping_mat, terms)
+    if args['--assign']:
+        if args['--assign'] == 'all':
+            pod = assign_all_terms(terms, rpkm_df, mapping_mat)
+        elif args['--assign'] == 'unique':
+            pod = assign_unique_terms(mappings, rpkm_df)
+        assigned_rpkm_df = pd.DataFrame(data=pod.expression_vectors, columns=rpkm_df.columns, index=pod.index)
+        accessions = get_accessions_from_accessionSeries(assigned_rpkm_df.index)
+        # Find cell types that exist in more than one Accession
+        # Of these, pick the accession with the median number of cells of that cell type,
+        # hold it out for the query set
+        query_accn_for_label = {}
 
-            label_to_accessions_d = defaultdict(lambda: defaultdict(int))
-            for accession, label in zip(accessions, pod.labels):
-                label_to_accessions_d[label][accession] += 1
+        label_to_accessions_d = defaultdict(lambda: defaultdict(int))
+        for accession, label in zip(accessions, pod.labels):
+            label_to_accessions_d[label][accession] += 1
 
-            print("\nAccessions for each cell type:")
-            for label, accession_counts_d in label_to_accessions_d.items():
-                print(label)
-                accns_for_label = []
-                accns_for_label_counts = []
-                print("\t<acsn>: <count>")
-                for accession, count in accession_counts_d.items():
-                    print("\t", accession, ": ", count)
-                    accns_for_label.append(accession)
-                    accns_for_label_counts.append(count)
-                if len(accession_counts_d.keys()) >= 2:
-                    # Find accession with median number of cells of this type:
-                    sorted_indices = np.argsort(accns_for_label_counts)
-                    if len(sorted_indices) == 2:
-                        median_idx = sorted_indices[0]
-                    else:
-                        median_idx = sorted_indices[len(accns_for_label_counts) // 2]
-                    query_accn = accns_for_label[median_idx]
-                    print("\tQuery accn: ", query_accn)
-                    query_accn_for_label[label] = query_accn
-            # Split the dataset
-            traindb_ids = []
-            traindb_true_ids = []
-            traindb_labels = []
-
-            query_ids = []
-            query_true_ids = []
-            query_labels = []
-            for cell_id, true_id, label, accession in zip(assigned_rpkm_df.index, pod.true_id_index, pod.labels, accessions):
-                if label in query_accn_for_label and accession == query_accn_for_label[label]:
-                    query_ids.append(cell_id)
-                    query_true_ids.append(true_id)
-                    query_labels.append(label)
+        print("\nAccessions for each cell type:")
+        for label, accession_counts_d in label_to_accessions_d.items():
+            print(label)
+            accns_for_label = []
+            accns_for_label_counts = []
+            print("\t<acsn>: <count>")
+            for accession, count in accession_counts_d.items():
+                print("\t", accession, ": ", count)
+                accns_for_label.append(accession)
+                accns_for_label_counts.append(count)
+            if len(accession_counts_d.keys()) >= 2:
+                # Find accession with median number of cells of this type:
+                sorted_indices = np.argsort(accns_for_label_counts)
+                if len(sorted_indices) == 2:
+                    median_idx = sorted_indices[0]
                 else:
-                    traindb_ids.append(cell_id)
-                    traindb_true_ids.append(true_id)
-                    traindb_labels.append(label)
+                    median_idx = sorted_indices[len(accns_for_label_counts) // 2]
+                query_accn = accns_for_label[median_idx]
+                print("\tQuery accn: ", query_accn)
+                query_accn_for_label[label] = query_accn
+        # Split the dataset
+        traindb_ids = []
+        traindb_true_ids = []
+        traindb_labels = []
 
-            gene_symbols = write_data_to_h5('selected_data.h5', assigned_rpkm_df, pod.labels, pod.true_id_index)
-            write_data_to_h5('traindb_data.h5', assigned_rpkm_df.loc[traindb_ids], traindb_labels, traindb_true_ids,
-                             gene_symbols)
-            write_data_to_h5('query_data.h5', assigned_rpkm_df.loc[query_ids], query_labels, query_true_ids,
-                             gene_symbols)
-            print("Saved new h5 files")
+        query_ids = []
+        query_true_ids = []
+        query_labels = []
+        for cell_id, true_id, label, accession in zip(assigned_rpkm_df.index, pod.true_id_index, pod.labels, accessions):
+            if label in query_accn_for_label and accession == query_accn_for_label[label]:
+                query_ids.append(cell_id)
+                query_true_ids.append(true_id)
+                query_labels.append(label)
+            else:
+                traindb_ids.append(cell_id)
+                traindb_true_ids.append(true_id)
+                traindb_labels.append(label)
+
+        gene_symbols = write_data_to_h5('selected_data.h5', assigned_rpkm_df, pod.labels, pod.true_id_index)
+        write_data_to_h5('traindb_data.h5', assigned_rpkm_df.loc[traindb_ids], traindb_labels, traindb_true_ids,
+                         gene_symbols)
+        write_data_to_h5('query_data.h5', assigned_rpkm_df.loc[query_ids], query_labels, query_true_ids,
+                         gene_symbols)
+        print("Saved new h5 files")
     print("done")
 
