@@ -1,6 +1,6 @@
 library(scde)
 
-n.cores <- 32
+n.cores <- 16
 cat("Using ", n.cores, " cores", "\n")
 
 # Load R objects containing data into workspace
@@ -65,6 +65,7 @@ for(type in levels(type_factor_vector)){
 	 for(exp in uniq_cur_type_experiments){
 	 	 name_for_results_file <- strsplit(type, split=" ")[[1]][1]
 	 	 name_for_results_file <- paste(name_for_results_file, exp_count, sep="_")
+                 exp_count <- exp_count + 1
 
 	 	 cur_exp_selection_vector <- accessions_factor_vector == exp
 
@@ -72,15 +73,17 @@ for(type in levels(type_factor_vector)){
 		 other_types_counts = counts_mat[, other_types_selection_vector]
 		 cur_type_counts = counts_mat[, cur_type_selection_vector]
 
-		 # Sample at most 20 from each group
-		 if (ncol(other_types_counts) > 20) {
-		    cat("\t", "Many OTHER, so sampling 20", "\n")
-		    other_types_counts <- other_types_counts[, sample(ncol(other_types_counts), 20)]
+                 ## Sample at most 100 from each group
+                 num_sample <- 100
+                 if (ncol(cur_type_counts) > num_sample) {
+		    cat("\t", "Many of current type, so sampling ", num_sample, "\n")
+		    cur_type_counts <- cur_type_counts[, sample(ncol(cur_type_counts), num_sample)]
 		 }
-		 if (ncol(cur_type_counts) > 20) {
-		    cat("\t", "Many of current type, so sampling 20", "\n")
-		    cur_type_counts <- cur_type_counts[, sample(ncol(cur_type_counts), 20)]
+		 if (ncol(other_types_counts) > ncol(cur_type_counts)) {
+		    cat("\t", "Many OTHER, so sampling ", ncol(cur_type_counts), "\n")
+		    other_types_counts <- other_types_counts[, sample(ncol(other_types_counts), ncol(cur_type_counts))]
 		 }
+
 		 
  		 combined_counts <- cbind(other_types_counts, cur_type_counts)
                  print(str(combined_counts))

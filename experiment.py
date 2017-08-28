@@ -13,8 +13,8 @@ from os.path import join, basename, normpath
 
 from docopt import docopt
 
-QUERY_FILE = 'data/mouse_data_20170811-125915_13593_cells/query_data.h5'
-DB_FILE = 'data/mouse_data_20170811-125915_13593_cells/traindb_data.h5'
+QUERY_FILE = 'data/mouse_data_20170816-162014_25209_cells/query_data.h5'
+DB_FILE = 'data/mouse_data_20170816-162014_25209_cells/traindb_data.h5'
 
 DEFAULT_WORKING_DIR_ROOT = 'experiments'
 DEFAULT_MODELS_FILE = 'experiment_models.list'

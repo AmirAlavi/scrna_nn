@@ -21,8 +21,8 @@ Options:
 
 import json
 # import pdb; pdb.set_trace()
-from collections import defaultdict
-from typing import List, Tuple, NamedTuple
+from collections import defaultdict, namedtuple
+from typing import List, Tuple
 
 import mygene
 import numpy as np
@@ -48,27 +48,26 @@ def convert_entrez_to_symbol(entrezIDs):
     return symbols
 
 
-class DataFrameConstructionPOD(NamedTuple):
-    true_id_index: List[str]
-    index: List[str]
-    expression_vectors: List[np.ndarray]
-    labels: List[str]
-
+DataFrameConstructionPOD = namedtuple('DataFrameConstructionPOD', ['true_id_index', 'index', 'expression_vectors', 'labels'])
 
 def assign_all_terms(all_terms: List[str],
                      rpkm_df: pd.DataFrame, mapping_mat: np.ndarray) -> DataFrameConstructionPOD:
-    pod = DataFrameConstructionPOD([], [], [], [])
+    true_id_index = []
+    index = []
+    expression_vectors = []
+    labels = []
     for term_idx in range(mapping_mat.shape[1]):
         term_str = all_terms[term_idx].split()[0]
         cell_selection_vector = mapping_mat[:, term_idx]
         num_to_add = np.sum(cell_selection_vector)
         old_index_values = rpkm_df.index[cell_selection_vector]
-        pod.expression_vectors.extend(rpkm_df.loc[old_index_values].values)
+        expression_vectors.extend(rpkm_df.loc[old_index_values].values)
         new_index_values = [cell_id + '_' + term_str for cell_id in old_index_values]
-        pod.index.extend(new_index_values)
-        pod.true_id_index.extend(old_index_values)
-        pod.labels.extend([all_terms[term_idx]] * num_to_add)
-    pod.expression_vectors = np.asarray(pod.expression_vectors)
+        index.extend(new_index_values)
+        true_id_index.extend(old_index_values)
+        labels.extend([all_terms[term_idx]] * num_to_add)
+    expression_vectors = np.asarray(expression_vectors)
+    pod = DataFrameConstructionPOD(true_id_index, index, expression_vectors, labels)
     return pod
 
 
@@ -80,10 +79,11 @@ def assign_unique_terms(mappings, rpkm_df):
         if len(value) == 1:
             selected_cells.append(key)
             selected_labels.append(value[0])
-    pod.expression_vectors = rpkm_df.loc[selected_cells].values
-    pod.index = rpkm_df.index[selected_cells]
-    pod.true_id_index = pod.index
-    pod.labels = selected_labels
+    expression_vectors = rpkm_df.loc[selected_cells].values
+    index = rpkm_df.loc[selected_cells].index
+    true_id_index = index
+    labels = selected_labels
+    pod = DataFrameConstructionPOD(true_id_index, index, expression_vectors, labels)
     print("\nThe selected labels and their counts (no overlap):")
     unique_labels, counts = np.unique(selected_labels, return_counts=True)
     print(unique_labels)
@@ -187,7 +187,7 @@ def write_data_to_h5(name, df, labels, true_cell_ids=None, gene_symbols=None):
     new_h5_store['rpkm'] = df
     new_h5_store['labels'] = labels_series
 
-    if true_cell_ids:
+    if true_cell_ids is not None:
         new_h5_store['true_ids'] = pd.Series(data=true_cell_ids, index=df.index)
     new_h5_store.close()
 
