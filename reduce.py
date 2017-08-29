@@ -1,7 +1,7 @@
 import json
 import pickle
-from os import makedirs
-from os.path import join, dirname
+from os import makedirs, remove
+from os.path import join, dirname, exists
 
 import pandas as pd
 import theano
@@ -11,11 +11,16 @@ from data_container import DataContainer
 
 
 def save_reduced_data_to_h5(filename, X_reduced, data_container, save_metadata):
+    if exists(filename):
+        # delete file if it already exists because we want to overwrite it
+        # (not easy to reclaim space in an existing hdf5 file)
+        remove(filename)
     if dirname(filename) != '':
         makedirs(dirname(filename), exist_ok=True)
     h5_store = pd.HDFStore(filename)
     h5_store['rpkm'] = pd.DataFrame(data=X_reduced, index=data_container.rpkm_df.index)
     if save_metadata:
+        print("saving metadata as well...")
         # Note: Does not make sense to save gene_symbols because our columns are no longer
         # genes, they are some reduced dimension.
         h5_store['labels'] = data_container.labels_series
