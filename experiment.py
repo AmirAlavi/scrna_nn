@@ -1,7 +1,10 @@
 """Retrieval Experiment Runner
 
 Usage:
-    experiment.py <email_address>
+    experiment.py <model_list_file> <email_address>
+
+Options:
+    -h --help  Show this screen.
 """
 import pickle
 import string
@@ -17,7 +20,6 @@ QUERY_FILE = 'data/mouse_data_20170816-162014_25209_cells/query_data.h5'
 DB_FILE = 'data/mouse_data_20170816-162014_25209_cells/traindb_data.h5'
 
 DEFAULT_WORKING_DIR_ROOT = 'experiments'
-DEFAULT_MODELS_FILE = 'experiment_models.list'
 REDUCE_COMMAND_TEMPLATE = """python scrna.py reduce {trained_nn_folder} \
 --data={data_file} --out={output_file} --save_meta"""
 
@@ -66,7 +68,7 @@ class Experiment(object):
         makedirs(working_dir_path)
         self.working_dir_path = working_dir_path
 
-    def prepare(self, models_file=DEFAULT_MODELS_FILE):
+    def prepare(self, models_file):
         """
         Args:
             models_file: path to a file which contains, on each line, the path
@@ -154,7 +156,7 @@ class Experiment(object):
         print("Slurm array job submitted, id: ", retrieval_job_id)
         # Must wait for retrieval jobs to finish in order to use their results
         print("Waiting for retrieval jobs to finish...")
-        wait_cmd = "srun -J completion -d afterok:{depends} --mail-type END,FAIL --mail-user {email} -p pool1 echo '(done waiting)'"
+        wait_cmd = "srun -J completion -d afterok:{depends} --mail-type END,FAIL --mail-user {email} -p short1 echo '(done waiting)'"
         subprocess.run(wait_cmd.format(depends=retrieval_job_id, email=email_addr).split())
 
     def write_out_table(self, compiled_results):
@@ -198,6 +200,6 @@ class Experiment(object):
 if __name__ == '__main__':
     args = docopt(__doc__, version='experiment 0.1')
     exp = Experiment()
-    exp.prepare()
+    exp.prepare(args['<model_list_file>'])
     exp.run(args['<email_address>'])
     exp.compile_results()
