@@ -37,8 +37,6 @@ def retrieval_test(args):
     query_uniq, query_counts = np.unique(queries_labels, return_counts=True)
     query_label_count_d = {label: count for (label, count) in zip(query_uniq, query_counts)}
     db_label_count_d = {label: count for (label, count) in zip(db_uniq, db_counts)}
-    min_db_label_count = np.amin(db_counts)
-    num_results = min(100, min_db_label_count)
 
     with open(join(working_dir_path, "data_summary.txt"), 'w') as data_summary_f:
         data_summary_f.write("Query data file: " + args['<query_data_file>'])
@@ -47,13 +45,16 @@ def retrieval_test(args):
         data_summary_f.write("num database points: " + str(len(db_labels)) + '\n')
         data_summary_f.write("num query types: " + str(len(query_counts)) + '\n')
         data_summary_f.write("num database types: " + str(len(db_counts)) + '\n')
-        data_summary_f.write("\nmin number of cells of any single type in DB: " + str(min_db_label_count) + '\n')
         data_summary_f.write("\nLabel\t#Query\t#DB\n")
+        counts_in_db_for_query_labels = []
         for query_label, query_count in zip(query_uniq, query_counts):
-            data_summary_f.write(query_label + '\t' + str(query_count) + '\t' + str(db_label_count_d[query_label]) + '\n')
+            count_in_db = db_label_count_d[query_label]
+            counts_in_db_for_query_labels.append(count_in_db)
+            data_summary_f.write(query_label + '\t' + str(query_count) + '\t' + str(count_in_db) + '\n')
+        min_db_label_count = min(counts_in_db_for_query_labels)
+        data_summary_f.write("\nmin number of cells of any single type in DB: " + str(min_db_label_count) + '\n')
+        num_results = min(100, min_db_label_count)
 
-
-    
     average_precisions_for_label = defaultdict(list)
     distance_matrix = distance.cdist(queries, db, metric=args['--dist_metric'])
     for index, distances_to_query in enumerate(distance_matrix): # Loop is over the set of query cells
@@ -62,6 +63,12 @@ def retrieval_test(args):
         retrieved_labels_sorted_by_distance = db_labels[sorted_distances_indices]
         retrieved_labels = retrieved_labels_sorted_by_distance[:num_results]
         avg_precision = average_precision(query_label, retrieved_labels)
+        if avg_precision <= 0.1:
+            print("\tLOW SCORE")
+            print("\tQuery label: ", query_label)
+            print("\tRetrieved: ")
+            for l in retrieved_labels:
+                print("\t\t" + l)
         average_precisions_for_label[query_label].append(avg_precision)
 
     retrieval_results_d = {"cell_types":{}}
