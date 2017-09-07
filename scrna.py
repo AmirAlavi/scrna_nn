@@ -63,6 +63,9 @@ Options:
                               [default: tanh]
     --sn                      Divide each sample by the total number of reads for
                               that sample.
+    --valid=<valid_portion>   The portion of the training data to set aside for validation. Model is not
+                              trained on this data. (only used if training a neural network model).
+                              [default: 0.15]
     --gs                      Subtract the mean and divide by standard deviation
                               within each gene.
     --sgd_lr=<lr>             Learning rate for SGD. [default: 0.1]

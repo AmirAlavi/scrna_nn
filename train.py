@@ -17,6 +17,7 @@ import matplotlib.pyplot as plt
 from sklearn.decomposition import PCA
 from sklearn.manifold import TSNE
 from sklearn.metrics.pairwise import euclidean_distances
+from sklearn.utils import shuffle
 from keras.utils import plot_model, np_utils
 import theano
 
@@ -151,6 +152,7 @@ def online_siamese_training(model, data_container, epochs, n, same_lim, ratio_ha
     val_loss_list = []
     for epoch in range(0, epochs):
         print("Epoch ", epoch+1)
+        # TODO: allow user to set aside some for validation
         epoch_hist = model.fit(X, y, epochs=1, verbose=1, validation_data=(X, y))
         loss_list.append(epoch_hist.history['loss'])
         val_loss_list.append(epoch_hist.history['val_loss'])
@@ -342,7 +344,6 @@ def train(args):
         compile_model(model, args, sgd)
         print("model compiled and ready for training")
         print("training model...")
-        validation_data = (X, y) # For now, same as training data
         if args['--siamese'] and args['--online_train']:
             # Special online training (only an option for siamese nets)
             history = online_siamese_training(model, data_container, int(args['--epochs']), int(args['--online_train']), same_lim=2000, ratio_hard_negatives=2)
@@ -350,8 +351,8 @@ def train(args):
             # Normal training
             if args['--siamese']:
                 X, y = get_data_for_siamese(data_container, args, 300)
-                validation_data = (X, y)
-            history = model.fit(X, y, epochs=int(args['--epochs']), verbose=1, validation_data=validation_data)
+            X, y = shuffle(X, y) # Shuffle so that Keras's naive selection of validation data doesn't get all same class
+            history = model.fit(X, y, epochs=int(args['--epochs']), verbose=1, validation_split=float(args['--valid']))
         plot_training_history(history, join(working_dir_path, "loss.png"))
         print("saving model to folder: " + working_dir_path)
         architecture_path = join(working_dir_path, "model_architecture.json")
