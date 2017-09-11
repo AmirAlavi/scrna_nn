@@ -86,8 +86,8 @@ def assign_unique_terms(mappings, rpkm_df):
     pod = DataFrameConstructionPOD(true_id_index, index, expression_vectors, labels)
     print("\nThe selected labels and their counts (no overlap):")
     unique_labels, counts = np.unique(selected_labels, return_counts=True)
-    print(unique_labels)
-    print(counts)
+    for l, c in zip(unique_labels, counts):
+        print("\t", l, "\t", c)
     print()
     return pod
 
@@ -139,7 +139,7 @@ def analyze_cell_to_ontology_mapping(mappings):
             term_counts_d[term] += 1
     print("\nBincount of number of mapped terms for each cell:")
     print(np.bincount(num_terms_mapped_to_l))
-    print("\nSorted list of terms by number of cells mapping to them (may overlap:")
+    print("\nSorted list of terms by number of cells mapping to them (may overlap):")
     sorted_terms = sorted(term_counts_d.items(), key=lambda item: item[1], reverse=True)
     for term in sorted_terms:
         print(term)
@@ -259,6 +259,12 @@ if __name__ == '__main__':
                 query_accn = accns_for_label[median_idx]
                 print("\tQuery accn: ", query_accn)
                 query_accn_for_label[label] = query_accn
+
+        # Print out the query cell types
+        print("Num query cell types: ", len(query_accn_for_label))
+        for cell_type in query_accn_for_label.keys():
+            print("\t", cell_type)
+
         # Split the dataset
         traindb_ids = []
         traindb_true_ids = []
