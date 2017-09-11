@@ -246,6 +246,7 @@ def get_data_for_siamese(data_container, args, same_lim):
     assert(len(dataset_IDs) == len(y))
     #X_siamese, y_siamese = create_data_pairs_diff_datasets(X, y, dataset_IDs, indices_lists, same_lim)
     X_siamese, y_siamese = create_data_pairs(X, y, true_ids, indices_lists, same_lim)
+    X_siamese, y_siamese = shuffle(X_siamese, y_siamese) # Shuffle so that Keras's naive selection of validation data doesn't get all same class
     print("X shape: ", X_siamese.shape)
     print("y shape: ", y_siamese.shape)
     X_siamese = [ X_siamese[:, 0], X_siamese[:, 1] ]
@@ -322,6 +323,7 @@ def train(args):
     # if args['--siamese']:
     #     get_data_for_siamese(args['--data'], args)
     X, y, input_dim, output_dim, label_strings_lookup, gene_names, data_container = get_data_for_training(args['--data'], args)
+    X, y = shuffle(X, y) # Shuffle so that Keras's naive selection of validation data doesn't get all same class
     print(X[0].shape)
     print(X[1].shape)
     if args['--pca']:
@@ -351,7 +353,6 @@ def train(args):
             # Normal training
             if args['--siamese']:
                 X, y = get_data_for_siamese(data_container, args, 300)
-            X, y = shuffle(X, y) # Shuffle so that Keras's naive selection of validation data doesn't get all same class
             history = model.fit(X, y, epochs=int(args['--epochs']), verbose=1, validation_split=float(args['--valid']))
         plot_training_history(history, join(working_dir_path, "loss.png"))
         print("saving model to folder: " + working_dir_path)
