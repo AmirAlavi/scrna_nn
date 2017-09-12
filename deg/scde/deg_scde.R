@@ -91,7 +91,7 @@ for(type in levels(type_factor_vector)){
         cat("\t", "\t", "Num samples: ", num_samples, "\n")
         if (num_samples< min_sample_size) {
             cat("\t", "\t", "Too few samples, skipping experiment", "\n")
-            break
+            next
         }
 
         ## Create two counts matrices
@@ -157,8 +157,8 @@ for(type in levels(type_factor_vector)){
         max_adj_pvals = integer(dim(counts_mat)[1])
         avg_fold_change = integer(dim(counts_mat)[1])
         for (results in deg_results) {
-            max_adj_pvals <- pmax(max_adj_pvals, results$Adj_p_value)
-            avg_fold_change <- avg_fold_change + results$Log2_fold_change
+            max_adj_pvals <- pmax(max_adj_pvals, results[, "Adj_p_value"])
+            avg_fold_change <- avg_fold_change + results[, "Log2_fold_change"]
         }
         avg_fold_change <- avg_fold_change / length(deg_results)
 
@@ -172,7 +172,7 @@ for(type in levels(type_factor_vector)){
         ## Check consistency of Log2FoldChange sign accross experiments
         fold_change_signs = integer(dim(counts_mat)[1])
         for (results in deg_results) {
-            fold_changes_sign <- fold_changes_sign + sign(results$Log2_fold_change)
+            fold_changes_sign <- fold_changes_sign + sign(results[, "Log2_fold_change"])
         }
         fold_change_consistent_sv <- abs(fold_change_signs) == length(deg_results)
         sig_and_consistent_sv <- sig_genes_sv & fold_change_consistent_sv
