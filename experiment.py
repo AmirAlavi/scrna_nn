@@ -1,7 +1,7 @@
 """Retrieval Experiment Runner
 
 Usage:
-    experiment.py <model_list_file> <email_address>
+    experiment.py <model_list_file> <query_file> <db_file> <email_address>
 
 Options:
     -h --help  Show this screen.
@@ -15,9 +15,6 @@ from os import makedirs
 from os.path import join, basename, normpath
 
 from docopt import docopt
-
-QUERY_FILE = 'data/mouse_data_20170816-162014_25209_cells/query_data.h5'
-DB_FILE = 'data/mouse_data_20170816-162014_25209_cells/traindb_data.h5'
 
 DEFAULT_WORKING_DIR_ROOT = 'experiments'
 REDUCE_COMMAND_TEMPLATE = """python scrna.py reduce {trained_nn_folder} \
@@ -68,7 +65,7 @@ class Experiment(object):
         makedirs(working_dir_path)
         self.working_dir_path = working_dir_path
 
-    def prepare(self, models_file):
+    def prepare(self, models_file, query_file, db_file):
         """
         Args:
             models_file: path to a file which contains, on each line, the path
@@ -90,10 +87,10 @@ class Experiment(object):
             reduced_db_file = join(reduced_data_folder, "reduced_db.h5")
             transform_data_folders[model_name] = reduced_data_folder
             transform_query = string.Formatter().vformat(REDUCE_COMMAND_TEMPLATE, (),
-                                                         SafeDict(trained_nn_folder=model_folder, data_file=QUERY_FILE,
+                                                         SafeDict(trained_nn_folder=model_folder, data_file=query_file,
                                                                   output_file=reduced_query_file))
             transform_db = string.Formatter().vformat(REDUCE_COMMAND_TEMPLATE, (),
-                                                      SafeDict(trained_nn_folder=model_folder, data_file=DB_FILE,
+                                                      SafeDict(trained_nn_folder=model_folder, data_file=db_file,
                                                                output_file=reduced_db_file))
             transform_commands[model_name] = (transform_query, transform_db)
         # write each of the command lines for transformation to a file, to be consumed by the slurm jobs
@@ -120,8 +117,8 @@ class Experiment(object):
         orig_model_name = "original_data"
         orig_retrieval_result_folder = join(retrieval_dir, orig_model_name)
         retrieval_commands[orig_model_name] = string.Formatter().vformat(RETRIEVAL_COMMAND_TEMPLATE, (),
-                                                                         SafeDict(reduced_query_file=QUERY_FILE,
-                                                                                  reduced_db_file=DB_FILE,
+                                                                         SafeDict(reduced_query_file=query_file,
+                                                                                  reduced_db_file=db_file,
                                                                                   output_folder=orig_retrieval_result_folder))
         retrieval_result_folders[orig_model_name] = orig_retrieval_result_folder
         # write each of the command lines for retrieval testing to a file, to be consumed by the slurm jobs
@@ -200,6 +197,6 @@ class Experiment(object):
 if __name__ == '__main__':
     args = docopt(__doc__, version='experiment 0.1')
     exp = Experiment()
-    exp.prepare(args['<model_list_file>'])
+    exp.prepare(args['<model_list_file>'], args['<query_file>'], args['<db_file>'])
     exp.run(args['<email_address>'])
     exp.compile_results()
