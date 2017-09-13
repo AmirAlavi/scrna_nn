@@ -75,6 +75,7 @@ for(type in levels(type_factor_vector)){
 
     ## Collect the results of SCDE differential expression for each study, into a list for this cell type
     deg_results <- list()
+    result_insert_idx <- 1
     for(exp in uniq_cur_type_experiments){
         cat("\t","\t", "Current experiment: ", exp, "\n")
         filename <- strsplit(type, split=" ")[[1]][1]
@@ -142,7 +143,8 @@ for(type in levels(type_factor_vector)){
         de <- cbind(names(gene_symbols_r),gene_symbols_r,ediff[,1:3],p.values, p.values.adj)
         colnames(de) <- c("EntrezID", "Symbol", "Lower_bound", "Log2_fold_change", "Upper_bound", "Raw_p_value", "Adj_p_value")
         
-        deg_results <- c(deg_results, de) # Add the results of this study to the collection for this cell type
+        deg_results[[result_insert_idx]] <- de # Add the results of this study to the collection for this cell type
+        result_insert_idx <- result_insert_idx + 1
         ## Also save the results of this experiment in its own file, to have on record
 
         filename <- paste(filename, ".csv", sep="")
@@ -172,7 +174,7 @@ for(type in levels(type_factor_vector)){
         ## Check consistency of Log2FoldChange sign accross experiments
         fold_change_signs = integer(dim(counts_mat)[1])
         for (results in deg_results) {
-            fold_changes_sign <- fold_changes_sign + sign(results[, "Log2_fold_change"])
+            fold_change_signs <- fold_change_signs + sign(results[, "Log2_fold_change"])
         }
         fold_change_consistent_sv <- abs(fold_change_signs) == length(deg_results)
         sig_and_consistent_sv <- sig_genes_sv & fold_change_consistent_sv
