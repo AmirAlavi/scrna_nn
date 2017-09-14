@@ -1,3 +1,7 @@
+"""From Chieh Lin's code for "(Pub title)"
+<citation>
+"""
+
 import numpy as np
 
 from scipy.sparse import csr_matrix

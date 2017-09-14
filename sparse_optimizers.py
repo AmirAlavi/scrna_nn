@@ -1,5 +1,6 @@
-from keras.optimizers import SGD
+from keras.optimizers import SGD, RMSprop
 from keras import backend as K
+#from keras.legacy import interfaces
 #from keras.utils.generic_utils import get_from_module
 import numpy as np
 from scipy.sparse import csr_matrix
@@ -12,6 +13,9 @@ class SparseSGD(SGD):
     '''Stochastic Gradient Descent optimizer that works with sparse data
     '''
     def get_updates(self, params, constraints, loss):
+        """From Chieh Lin's code for "(Pub title)"
+        <citation>
+        """
         grads = self.get_gradients(loss, params)
         lr = self.lr * (1. / (1. + self.decay * self.iterations))
         self.updates = [(self.iterations, self.iterations + 1.)]
@@ -40,6 +44,73 @@ class SparseSGD(SGD):
                 new_p = c(new_p)
             self.updates.append((p, new_p))
         return self.updates
+
+class SparseRMSprop(RMSprop):
+
+    def get_updates(self, params, constraints, loss):
+        print("RMS loss: ", loss)
+        grads = self.get_gradients(loss, params)
+        # accumulators = []
+        # for p in params:
+        #     if type(p.get_value()) is csr_matrix:
+        #         m = csr_matrix(K.get_value(p).shape, dtype='float32')
+        #         m = theano.shared(value=m, strict=False)
+        #         accumulators.append(m)
+        #     else:
+        #         accumulators.append(K.zeros(K.int_shape(p), dtype=K.dtype(p)))
+        shapes = [K.get_variable_shape(p) for p in params]
+        accumulators = [K.zeros(shape) for shape in shapes]
+        self.weights = accumulators
+        self.updates = []
+
+        lr = self.lr
+        if self.initial_decay > 0:
+            lr *= (1. / (1. + self.decay * self.iterations))
+            self.updates.append(K.update_add(self.iterations, 1))
+
+        for p, g, a in zip(params, grads, accumulators):
+            # update accumulator
+            new_a = self.rho * a + (1. - self.rho) * K.square(g)
+            self.updates.append(K.update(a, new_a))
+            new_p = p - lr * g / (K.sqrt(new_a) + self.epsilon)
+
+            # apply constraints
+            if p in constraints:
+                c = constraints[p]
+                new_p = c(new_p)
+            self.updates.append(K.update(p, new_p))
+        return self.updates
+
+    
+    # def get_updates(self, params, constraints, params):
+    #     grads = self.get_gradients(loss, params)
+    #     accumulators = []
+    #     for p in params:
+    #         if type(p.get_value()) is csr_matrix:
+    #             m = csr_matrix(K.get_value(p).shape, dtype='float32')
+    #             m = theano.shared(value=m, strict=False)
+    #             accumulators.append(m)
+    #         else:
+    #             accumulators.append(K.zeros(K.int_shape(p), dtype=K.dtype(p)))
+    #     self.weights = accumulators
+    #     self.updates = [K.update_add(self.iterations, 1)]
+    #     lr = self.lr
+    #     if self.initial_decay > 0:
+    #         lr *= (1. / (1. + self.decay * K.cast(self.iterations,
+    #                                               K.dtype(self.decay))))
+
+    #     for p, g, a in zip(params, grads, accumulators):
+    #         # update accumulator
+    #         new_a = self.rho * a + (1. - self.rho) * K.square(g)
+    #         self.updates.append(K.update(a, new_a))
+    #         new_p = p - lr * g / (K.sqrt(new_a) + self.epsilon)
+
+    #         # Apply constraints.
+    #         if getattr(p, 'constraint', None) is not None:
+    #             new_p = p.constraint(new_p)
+
+    #         self.updates.append(K.update(p, new_p))
+    #     return self.updates
 
 ## aliases
 #sparse_sgd = SparseSGD

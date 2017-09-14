@@ -68,10 +68,17 @@ Options:
                               [default: 0.15]
     --gs                      Subtract the mean and divide by standard deviation
                               within each gene.
+    --opt=<optimizer>         Optimizer to use. [default: 'sgd']
+                              Available: 'sgd', 'rmsp'
+                              TODO: Maybe make rmsp the default if it performs well?
     --sgd_lr=<lr>             Learning rate for SGD. [default: 0.1]
     --sgd_d=<decay>           Decay rate for SGD. [default: 1e-6]
     --sgd_m=<momentum>        Momentum for SGD. [default: 0.9]
     --sgd_nesterov            Use Nesterov momentum for SGD.
+    --rmsp_lr                 Learning rate for RMSprop. [default: 0.001]
+    --rmsp_rho                Rho param for RMSprop. [default: 0.9]
+    --rmsp_eps                Fuzz factor for RMSprop. [default: 1e-08]
+    --rmsp_decay              Learning rate decay over each update for RMSprop. [default: 0.0]
     --sparse_groupings=<path> (For 'sparse' architecture) Path to file containing the genes
                               grouped to nodes for a sparse layer.
                               [default: data/mouse_ppitf_groups.txt]

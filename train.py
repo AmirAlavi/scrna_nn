@@ -21,14 +21,31 @@ from sklearn.utils import shuffle
 from keras.utils import plot_model, np_utils
 import theano
 
-from util import create_working_directory
+from util import create_working_directory, ScrnaException
 import neural_nets as nn
 from bio_knowledge import get_adj_mat_from_groupings
-from sparse_optimizers import SparseSGD
+from sparse_optimizers import SparseSGD, SparseRMSprop
 
 from sparse_layer import Sparse
 import keras
 keras.layers.Sparse = Sparse
+
+# class TrainStats(keras.callbacks.Callback):
+#     """Adapted from Suki Lau's blog post:
+#            "Learning Rate Schedules and Adaptive Learning Rate Methods for Deep Learning"
+#            https://medium.com/towards-data-science/learning-rate-schedules-and-adaptive-learning-rate-methods-for-deep-learning-2c8f433990d1
+#     """
+#     def on_train_begin(self, logs={}):
+#         self.losses = []
+#         self.lr = []
+
+#     def on_epoch_end(self, batch, logs={}):
+#         self.losses.append(logs.get('loss'))
+#         optimizer = self.model.optimizer
+#         # switch on type to figure out how LR is being calculated:
+#         if isinstance(optimizer, SGD):
+#             lr = optimizer.lr * (1. / (1. + self.decay * self.iterations))
+#         self.lr.append(lr)
 
 def get_model_architecture(args, input_dim, output_dim, gene_names):
     adj_mat = None
@@ -60,10 +77,21 @@ def get_model_architecture(args, input_dim, output_dim, gene_names):
     return nn.get_nn_model(args['--nn'], hidden_layer_sizes, input_dim, args['--ae'], args['--act'], output_dim, adj_mat, go_first_level_adj_mat, go_other_levels_adj_mats, flatGO_ppitf_adj_mats, int(args['--with_dense']))
 
 def get_optimizer(args):
-    lr = float(args['--sgd_lr'])
-    decay = float(args['--sgd_d'])
-    momentum = float(args['--sgd_m'])
-    return SparseSGD(lr=lr, decay=decay, momentum=momentum, nesterov=args['--sgd_nesterov'])
+    if args['--opt'] == 'sgd':
+        print("Using SGD optimizer")
+        lr = float(args['--sgd_lr'])
+        decay = float(args['--sgd_d'])
+        momentum = float(args['--sgd_m'])
+        return SparseSGD(lr=lr, decay=decay, momentum=momentum, nesterov=args['--sgd_nesterov'])
+    elif args['--opt'] == 'rmsp':
+        print("Using RMSprop optimizer")
+        lr = float(args['--rmsp_lr'])
+        rho = float(args['--rmsp_rho'])
+        fuzz = float(args['--rmsp_eps'])
+        decay = float(args['--rmsp_decay'])
+        return SparseRMSprop(lr=lr, rho=rho, epsilon=fuzz, decay=decay)
+    else:
+        raise ScrnaException("Not a valid optimizer!")
 
 def compile_model(model, args, optimizer):
     loss = None
@@ -342,8 +370,8 @@ def train(args):
         if args['--siamese']:
             model = nn.get_siamese(model, input_dim)
             plot_model(model, to_file='siamese_architecture.png', show_shapes=True)
-        sgd = get_optimizer(args)
-        compile_model(model, args, sgd)
+        opt = get_optimizer(args)
+        compile_model(model, args, opt)
         print("model compiled and ready for training")
         print("training model...")
         if args['--siamese'] and args['--online_train']:
