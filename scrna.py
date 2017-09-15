@@ -3,6 +3,7 @@
 Usage:
     scrna.py train (--nn=<nn_architecture> | --pca=<n_comp>) [<hidden_layer_sizes>...] [--out=<path> --data=<path>] [options]
     scrna.py reduce <trained_model_folder> [--out=<path> --data=<path> --save_meta]
+    scrna.py visualize <reduced_data_file> [--out=<path> --ntypes=<ntypes> --nsamples=<nsamples> --title=<title>]
     scrna.py retrieval <query_data_file> <database_data_file> [--dist_metric=<metric> --out=<path>]
     scrna.py (-h | --help)
     scrna.py --version
@@ -102,6 +103,13 @@ Options:
     --save_meta               Also save the metadata that was associated with the input data with the
                               reduced data (labels for the samples, accession numbers for the samples)
 
+    "visualize" specific command options:
+    --ntypes=<ntypes>         Number of different cell types to plot. Zero is interpreted as "all".
+                              [default: 10]
+    --nsamples=<nsamples>     Maximum number of samples of each selected cell type to plot.
+                              [default: 100]
+    --title=<title>           Title to use for plot. [default: "No title provided"]
+
     "retrieval" specific command options:
     --dist_metric=<metric>    Distance metric to use for nearest neighbors
                               retrieval [default: euclidean].
@@ -113,6 +121,7 @@ from docopt import docopt
 
 from train import train
 from reduce import reduce
+from visualize import visualize
 from retrieval_test import retrieval_test
 from util import ScrnaException
 
@@ -126,6 +135,8 @@ if __name__ == '__main__':
             train(args)
         elif args['reduce']:
             reduce(args)
+        elif args['visualize']:
+            visualize(args)
         elif args['retrieval']:
             retrieval_test(args)
     except ScrnaException as e:
