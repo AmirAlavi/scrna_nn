@@ -75,10 +75,10 @@ Options:
     --sgd_d=<decay>           Decay rate for SGD. [default: 1e-6]
     --sgd_m=<momentum>        Momentum for SGD. [default: 0.9]
     --sgd_nesterov            Use Nesterov momentum for SGD.
-    --rmsp_lr                 Learning rate for RMSprop. [default: 0.001]
-    --rmsp_rho                Rho param for RMSprop. [default: 0.9]
-    --rmsp_eps                Fuzz factor for RMSprop. [default: 1e-08]
-    --rmsp_decay              Learning rate decay over each update for RMSprop. [default: 0.0]
+    --rmsp_lr=<lr>            Learning rate for RMSprop. [default: 0.001]
+    --rmsp_rho=<rho>          Rho param for RMSprop. [default: 0.9]
+    --rmsp_eps=<eps>          Fuzz factor for RMSprop. [default: 1e-08]
+    --rmsp_decay=<decay>      Learning rate decay over each update for RMSprop. [default: 0.0]
     --sparse_groupings=<path> (For 'sparse' architecture) Path to file containing the genes
                               grouped to nodes for a sparse layer.
                               [default: data/mouse_ppitf_groups.txt]

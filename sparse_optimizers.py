@@ -5,6 +5,7 @@ from keras import backend as K
 import numpy as np
 from scipy.sparse import csr_matrix
 import theano
+from theano import sparse
 
 # Sparse versions of Keras's built-in optimizers
 # Based on Keras ver 1.0.6
@@ -46,20 +47,19 @@ class SparseSGD(SGD):
         return self.updates
 
 class SparseRMSprop(RMSprop):
-
     def get_updates(self, params, constraints, loss):
         print("RMS loss: ", loss)
         grads = self.get_gradients(loss, params)
-        # accumulators = []
-        # for p in params:
-        #     if type(p.get_value()) is csr_matrix:
-        #         m = csr_matrix(K.get_value(p).shape, dtype='float32')
-        #         m = theano.shared(value=m, strict=False)
-        #         accumulators.append(m)
-        #     else:
-        #         accumulators.append(K.zeros(K.int_shape(p), dtype=K.dtype(p)))
-        shapes = [K.get_variable_shape(p) for p in params]
-        accumulators = [K.zeros(shape) for shape in shapes]
+        accumulators = []
+        for p in params:
+            if type(p.get_value()) is csr_matrix:
+                m = csr_matrix(K.get_value(p).shape, dtype='float32')
+                m = theano.shared(value=m, strict=False)
+                accumulators.append(m)
+            else:
+                accumulators.append(K.zeros(K.int_shape(p), dtype=K.dtype(p)))
+        # shapes = [K.get_variable_shape(p) for p in params]
+        # accumulators = [K.zeros(shape) for shape in shapes]
         self.weights = accumulators
         self.updates = []
 
@@ -70,9 +70,19 @@ class SparseRMSprop(RMSprop):
 
         for p, g, a in zip(params, grads, accumulators):
             # update accumulator
-            new_a = self.rho * a + (1. - self.rho) * K.square(g)
+            print("g.type: ", g.type)
+            if "Sparse" in str(g.type): # HACK
+                new_a = self.rho * a + (1. - self.rho) * sparse.sqr(g)
+            else:
+                new_a = self.rho * a + (1. - self.rho) * K.square(g)
             self.updates.append(K.update(a, new_a))
-            new_p = p - lr * g / (K.sqrt(new_a) + self.epsilon)
+
+            if "Sparse" in str(new_a.type):
+                #new_p = p - lr * g / (sparse.sqrt(new_a) + (self.epsilon * sparse.sp_ones_like(new_a)))
+                #new_p = p - lr * g * sparse.structured_pow(K.sqrt(sparse.dense_from_sparse(new_a)) + self.epsilon, -1)
+                new_p = p - lr * g / (sparse.sqrt(new_a) + self.epsilon)
+            else:
+                new_p = p - lr * g / (K.sqrt(new_a) + self.epsilon)
 
             # apply constraints
             if p in constraints:
