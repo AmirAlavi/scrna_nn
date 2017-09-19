@@ -9,6 +9,7 @@ retrieval_results/
 *.h5
 *.hdf5
 *.gzip
+*.zip
 *.tar.gz
 *.csv
 *.RData

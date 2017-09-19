@@ -69,7 +69,7 @@ Options:
                               [default: 0.15]
     --gs                      Subtract the mean and divide by standard deviation
                               within each gene.
-    --opt=<optimizer>         Optimizer to use. [default: 'sgd']
+    --opt=<optimizer>         Optimizer to use. [default: sgd]
                               Available: 'sgd', 'rmsp'
                               TODO: Maybe make rmsp the default if it performs well?
     --sgd_lr=<lr>             Learning rate for SGD. [default: 0.1]
@@ -95,6 +95,8 @@ Options:
     --siamese                 Uses a siamese neural network architecture, using
                               <nn_architecture> as the base network.
                               Using this flag has many implications, see code.
+    --flexibleLoss=<ontology> Use a flexible Contrastive Loss for the Siamese training which takes into account
+                              distances on the ontology, determined by the <ontology> file.
     --online_train=<n>        Dynamically generate hard pairs after n epochs for
                               siamese neural network training.
     --viz                     Visualize the data in the embedding space.

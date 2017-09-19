@@ -99,8 +99,12 @@ def compile_model(model, args, optimizer):
     if args['--ae']:
         loss = 'mean_squared_error'
     elif args['--siamese']:
-        print("Using contrastive loss")
-        loss = nn.contrastive_loss
+        if args['--flexibleLoss']:
+            print("Using flexible contrastive loss")
+            loss = nn.flexible_contrastive_loss
+        else:
+            print("Using contrastive loss")
+            loss = nn.contrastive_loss
     else:
         loss = 'categorical_crossentropy'
         metrics = ['accuracy']

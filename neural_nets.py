@@ -62,6 +62,16 @@ def eucl_dist_output_shape(shapes):
     shape1, shape2 = shapes
     return (shape1[0], 1)
 
+def flexible_contrastive_loss(y_true, y_pred):
+    """y_true is a float between 0 and 1.0, instead of binary.
+    """
+    margin = 1
+    if y_true == 1:
+        # Means that the distance in the ontology for this point was 0, exact same
+        return 0.5*K.square(y_pred)
+    else:
+        return 0.5*K.square(K.maximum((1-y_true)*margin - y_pred, 0))
+
 def contrastive_loss(y_true, y_pred):
     '''Contrastive loss from Hadsell-et-al.'06
     http://yann.lecun.com/exdb/publis/pdf/hadsell-chopra-lecun-06.pdf
