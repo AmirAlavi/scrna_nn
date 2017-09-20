@@ -21,7 +21,7 @@ REDUCE_COMMAND_TEMPLATE = """python scrna.py reduce {trained_nn_folder} \
 --data={data_file} --out={output_file} --save_meta"""
 
 RETRIEVAL_COMMAND_TEMPLATE = """python scrna.py retrieval {reduced_query_file} {reduced_db_file} \
---out={output_folder}"""
+--out={output_folder} --dist_mat_file=dist_mat_by_strings.p"""
 
 SLURM_TRANSFORM_COMMAND = """sbatch --array=0-{num_jobs} --mail-user {email} \
 --output {out_folder}/scrna_transform_array_%A_%a.out
@@ -156,11 +156,11 @@ class Experiment(object):
         wait_cmd = "srun -J completion -d afterok:{depends} --mail-type END,FAIL --mail-user {email} -p short1 echo '(done waiting)'"
         subprocess.run(wait_cmd.format(depends=retrieval_job_id, email=email_addr).split())
 
-    def write_out_table(self, compiled_results):
+    def write_out_table(self, compiled_results, file_prefix, metric_header, metric_key, mean_metric_key):
         # get list of cell types in the results
         any_model_results = next(iter(compiled_results.values()))
         cell_types = sorted(any_model_results["cell_types"].keys())
-        with open(join(self.working_dir_path, 'results_table.csv'), 'w', newline='') as csv_file:
+        with open(join(self.working_dir_path, file_prefix + '_results_table.csv'), 'w', newline='') as csv_file:
             csv_file.write("# in Query")
             for label in cell_types:
                 csv_file.write("," + str(any_model_results["cell_types"][label]["#_in_query"]))
@@ -170,12 +170,13 @@ class Experiment(object):
             csv_file.write("\nModel")
             for label in cell_types:
                 csv_file.write("," + label)
-            csv_file.write(",Average,Weighted Average\n")
+
+            csv_file.write("," + metric_header + ",Weighted " + metric_header + "\n")
             for model_name, results in compiled_results.items():
                 csv_file.write(model_name + ",")
                 for label in cell_types:
-                    csv_file.write(str(results["cell_types"][label]["Mean_Average_Precision"]) + ",")
-                csv_file.write(str(results["average"]) + "," + str(results["weighted_average"]) + "\n")
+                    csv_file.write(str(results["cell_types"][label][metric_key]) + ",")
+                csv_file.write(str(results[mean_metric_key]) + "," + str(results["weighted_"+mean_metric_key]) + "\n")
 
     def compile_results(self):
         """Compiles results into various tables:
@@ -192,7 +193,9 @@ class Experiment(object):
             results_file = join(results_folder, 'retrieval_results_d.pickle')
             with open(results_file, 'rb') as f:
                 compiled_results[model_name] = pickle.load(f)
-        self.write_out_table(compiled_results)
+        self.write_out_table(compiled_results, "map", "Average MAP", "Mean_Average_Precision", "average_map")
+        self.write_out_table(compiled_results, "mac", "Average MAC", "Mean_Average_Accuracy", "average_mac")
+        self.write_out_table(compiled_results, "macq", "Average MACQ", "Mean_Average_Accuracy_of_top_quarter", "average_macq")
 
 if __name__ == '__main__':
     args = docopt(__doc__, version='experiment 0.1')

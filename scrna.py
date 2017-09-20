@@ -4,7 +4,7 @@ Usage:
     scrna.py train (--nn=<nn_architecture> | --pca=<n_comp>) [<hidden_layer_sizes>...] [--out=<path> --data=<path>] [options]
     scrna.py reduce <trained_model_folder> [--out=<path> --data=<path> --save_meta]
     scrna.py visualize <reduced_data_file> [--out=<path> --ntypes=<ntypes> --nsamples=<nsamples> --title=<title>]
-    scrna.py retrieval <query_data_file> <database_data_file> [--dist_metric=<metric> --out=<path>]
+    scrna.py retrieval <query_data_file> <database_data_file> [--dist_metric=<metric> --out=<path> --max_dist=<d>] --dist_mat_file=<path>
     scrna.py (-h | --help)
     scrna.py --version
 
@@ -117,6 +117,10 @@ Options:
     "retrieval" specific command options:
     --dist_metric=<metric>    Distance metric to use for nearest neighbors
                               retrieval [default: euclidean].
+    --dist_mat_file=<path>    Use this distance matrix to calculate distances between retrieved points and
+                              the target in the ontology graph, and use this distance to calculate an accuracy.
+    --max_dist=<d>            See --max_ont_dist from the 'train' command. This is the same thing.
+                              [default: 4]
 """
 # import pdb; pdb.set_trace()
 import sys
