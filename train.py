@@ -226,6 +226,45 @@ def create_data_pairs(X, y, true_ids, indices_lists, same_lim):
     print("Distribution of different and same pairs: ", np.bincount(labels))
     return np.array(pairs), np.array(labels)
 
+def create_flexible_data_pairs(X, y, true_ids, indices_lists, same_lim, dist_mat_file, label_strings_lookup, max_dist):
+    print("Generating 'Flexible' pairs for siamese")
+    with open(dist_mat_file, 'rb') as f:
+        dist_mat_by_strings = pickle.load(f)
+    pairs = []
+    labels = []
+    for label in range(len(indices_lists)):
+        same_count = 0
+        combs = combinations(indices_lists[label], 2)
+        for comb in combs:
+            pairs += [[ X[comb[0]], X[comb[1]] ]]
+            labels += [1]
+            same_count += 1
+            if same_count == same_lim:
+                break
+        # create the same number of different pairs
+        diff_count = 0
+        while diff_count < (2 * same_count):
+            # pair of points (a, b) where a and b have diff labels
+            a_idx = random.choice(indices_lists[label])
+            a = X[a_idx]
+            b_idx = random.randint(0, X.shape[0]-1)
+            while y[b_idx] == label or true_ids[a_idx] == true_ids[b_idx]:
+                b_idx = random.randint(0, X.shape[0]-1)
+            b = X[b_idx]
+            a_str = label_strings_lookup[label]
+            b_str = label_strings_lookup[y[b_idx]]
+            dist = dist_mat_by_strings[a_str][b_str]
+            thresholded_dist = max(0, 1 - (dist/max_dist))
+            pairs += [[ a, b ]]
+            labels += [thresholded_dist]
+            diff_count += 1
+    print("Generated ", len(pairs), " pairs")
+    unique_labels, label_counts = np.unique(labels, return_counts=True)
+    print("Distribution of pairs labels: ")
+    print(unique_labels)
+    print(label_counts)
+    return np.array(pairs), np.array(labels)
+
 def create_data_pairs_diff_datasets(X, y, dataset_IDs, indices_lists, same_lim):
     pairs = []
     labels = []
@@ -277,7 +316,10 @@ def get_data_for_siamese(data_container, args, same_lim):
     print("len(dataset_IDs): ", len(dataset_IDs))
     assert(len(dataset_IDs) == len(y))
     #X_siamese, y_siamese = create_data_pairs_diff_datasets(X, y, dataset_IDs, indices_lists, same_lim)
-    X_siamese, y_siamese = create_data_pairs(X, y, true_ids, indices_lists, same_lim)
+    if args['--flexibleLoss']:
+        X_siamese, y_siamese = create_flexible_data_pairs(X, y, true_ids, indices_lists, same_lim, args['--flexibleLoss'], label_strings_lookup, int(args['--max_ont_dist']))
+    else:
+        X_siamese, y_siamese = create_data_pairs(X, y, true_ids, indices_lists, same_lim)
     X_siamese, y_siamese = shuffle(X_siamese, y_siamese) # Shuffle so that Keras's naive selection of validation data doesn't get all same class
     print("X shape: ", X_siamese.shape)
     print("y shape: ", y_siamese.shape)

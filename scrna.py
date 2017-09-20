@@ -95,8 +95,10 @@ Options:
     --siamese                 Uses a siamese neural network architecture, using
                               <nn_architecture> as the base network.
                               Using this flag has many implications, see code.
-    --flexibleLoss=<ontology> Use a flexible Contrastive Loss for the Siamese training which takes into account
+    --flexibleLoss=<distmat>  Use a flexible Contrastive Loss for the Siamese training which takes into account
                               distances on the ontology, determined by the <ontology> file.
+    --max_ont_dist=<d>        The maximum distance allowed between nodes in the ontology before their similarity is
+                              considered to be 0. [default: 4]
     --online_train=<n>        Dynamically generate hard pairs after n epochs for
                               siamese neural network training.
     --viz                     Visualize the data in the embedding space.
