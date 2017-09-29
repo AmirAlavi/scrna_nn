@@ -3,9 +3,11 @@ import json
 import pickle
 import random
 import time
+import math
 from collections import defaultdict, namedtuple
 from itertools import combinations
-from os.path import join
+from os import makedirs
+from os.path import join, exists
 
 import matplotlib
 import numpy as np
@@ -29,6 +31,9 @@ from sparse_optimizers import SparseSGD, SparseRMSprop
 from sparse_layer import Sparse
 import keras
 keras.layers.Sparse = Sparse
+
+CACHE_ROOT = "_cache"
+SIAM_CACHE = "siam_data"
 
 # class TrainStats(keras.callbacks.Callback):
 #     """Adapted from Suki Lau's blog post:
@@ -203,6 +208,7 @@ def create_data_pairs(X, y, true_ids, indices_lists, same_lim):
     for label in range(len(indices_lists)):
         same_count = 0
         combs = combinations(indices_lists[label], 2)
+        # TODO: should I shuffle the combs?
         for comb in combs:
             pairs += [[ X[comb[0]], X[comb[1]] ]]
             labels += [1]
@@ -226,44 +232,70 @@ def create_data_pairs(X, y, true_ids, indices_lists, same_lim):
     print("Distribution of different and same pairs: ", np.bincount(labels))
     return np.array(pairs), np.array(labels)
 
+def get_distance(dist_mat, label_strings_lookup, max_dist, a_label, b_label):
+    a_str = label_strings_lookup[a_label]
+    b_str = label_strings_lookup[b_label]
+    dist = dist_mat[a_str][b_str]
+    thresholded_dist = max(0, 1 - (dist/max_dist))
+    return thresholded_dist
+
 def create_flexible_data_pairs(X, y, true_ids, indices_lists, same_lim, dist_mat_file, label_strings_lookup, max_dist):
+    cache_path = join(CACHE_ROOT, SIAM_CACHE)
+    if exists(cache_path):
+        print("Loading siamese data from cache...")
+        pairs = np.load(join(cache_path, "siam_X.npy"))
+        labels = np.load(join(cache_path, "siam_y.npy"))
+        return pairs, labels
     print("Generating 'Flexible' pairs for siamese")
     with open(dist_mat_file, 'rb') as f:
         dist_mat_by_strings = pickle.load(f)
     pairs = []
     labels = []
-    for label in range(len(indices_lists)):
+
+    for anchor_label, anchor_samples in indices_lists.items():
         same_count = 0
-        combs = combinations(indices_lists[label], 2)
+        combs = combinations(anchor_samples, 2)
+        # TODO: should I shuffle the combs?
         for comb in combs:
             pairs += [[ X[comb[0]], X[comb[1]] ]]
             labels += [1]
             same_count += 1
             if same_count == same_lim:
                 break
-        # create the same number of different pairs
+        # create the different pairs
         diff_count = 0
-        while diff_count < (2 * same_count):
-            # pair of points (a, b) where a and b have diff labels
-            a_idx = random.choice(indices_lists[label])
-            a = X[a_idx]
-            b_idx = random.randint(0, X.shape[0]-1)
-            while y[b_idx] == label or true_ids[a_idx] == true_ids[b_idx]:
-                b_idx = random.randint(0, X.shape[0]-1)
-            b = X[b_idx]
-            a_str = label_strings_lookup[label]
-            b_str = label_strings_lookup[y[b_idx]]
-            dist = dist_mat_by_strings[a_str][b_str]
-            thresholded_dist = max(0, 1 - (dist/max_dist))
-            pairs += [[ a, b ]]
-            labels += [thresholded_dist]
-            diff_count += 1
+        distance_lists = defaultdict(list)
+        for diff_label, diff_samples in indices_lists.items():
+            if diff_label == anchor_label:
+                continue
+            dist = get_distance(dist_mat_by_strings, label_strings_lookup, max_dist, anchor_label, diff_label)
+            for s in diff_samples:
+                distance_lists[dist].append(s)
+        for distance, samples in distance_lists.items():
+            np.random.shuffle(samples)
+            num_pairs = min(len(samples), int((2*same_count)/max_dist))
+            for i in range(num_pairs):
+                # select a random anchor sample
+                anchor_idx = random.choice(anchor_samples)
+                diff_idx = samples[i]
+                while(true_ids[anchor_idx] == true_ids[diff_idx]):
+                    # for the current different sample, be sure they aren't the same underlying sample
+                    anchor_idx = random.choice(anchor_samples)
+                anchor_vec = X[anchor_idx]
+                diff_vec = X[diff_idx]
+                pairs += [[ anchor_vec, diff_vec ]]
+                labels += [distance]
     print("Generated ", len(pairs), " pairs")
     unique_labels, label_counts = np.unique(labels, return_counts=True)
     print("Distribution of pairs labels: ")
     print(unique_labels)
     print(label_counts)
-    return np.array(pairs), np.array(labels)
+    pairs_np = np.array(pairs)
+    labels_np = np.array(labels)
+    makedirs(cache_path)
+    np.save(join(cache_path, "siam_X"), pairs_np)
+    np.save(join(cache_path, "siam_y"), labels_np)
+    return pairs_np, labels_np
 
 def create_data_pairs_diff_datasets(X, y, dataset_IDs, indices_lists, same_lim):
     pairs = []
