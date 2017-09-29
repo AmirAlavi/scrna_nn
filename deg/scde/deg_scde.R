@@ -6,6 +6,94 @@ if (length(args) < 2) {
     n.cores <- strtoi(args[2])
 }
 
+analyze_gene_counts <- function(counts_mat, labels_r) {
+    print("In analyze_gene_counts...")
+    type_factor_vector <- factor(labels_r)
+    ## for each gene
+    ##   for each cell type, calculate it's average red in that type. Cache it
+    ## return a data structure which stores this average of averages for each gene.
+    means_for_types <- list() # each element will be a dataframe that contains the means for a particular cell type
+    insert_idx <- 1
+    for(type in levels(type_factor_vector)){
+        cat("Current type: ", type, "\n")
+
+        cur_type_selection_vector <- type_factor_vector == type
+        #print(str(cur_type_selection_vector))
+        cur_type_counts_mat<- counts_mat[, cur_type_selection_vector]
+        #print(str(cur_type_counts_mat))
+        means <- rowMeans(cur_type_counts_mat)
+        means_for_types[[insert_idx]] <- means
+        insert_idx <- insert_idx + 1
+        #other_types_selection_vector <- !cur_type_selection_vector
+        #cat("\t", "Number of ", type, " cells: ", sum(cur_type_selection_vector), "\n")
+        #cat("\t", "Number of remaining cells: ", sum(other_types_selection_vector), "\n" )
+    }
+    #print(str(means_for_types))
+    combined_mat <- do.call(cbind, means_for_types)
+    #print(str(combined_mat))
+    final_means <- rowMeans(combined_mat)
+
+    #print(str(final_means))
+    png("average_of_avg_count_in_type.png")
+    results <- hist(final_means, breaks=100, col="grey", main="Gene averages of (average count for type) for all types", xlab="Average of Averages")
+    dev.off()
+    print(results)
+    ## png("average_of_avg_count_in_type_Sturges.png")
+    ## hist(final_means, col="grey", main="Gene averages of (average count for type) for all types", xlab="Average of Averages")
+    ## dev.off()
+
+    ## find genes that have exactly 0. How many.
+    thresh <- final_means == 0.0
+    cat("Count of genes == 0.0: ", sum(thresh), "\n")
+    ## find genes that have above 50, how many?
+    thresh <- final_means > 50
+    cat("Count of genes > 50: ", sum(thresh), "\n")
+    ## find genes that have above 100, how many?
+    thresh <- final_means > 100
+    cat("Count of genes > 100: ", sum(thresh), "\n")
+    ## find genes that have above 1,000, how many?
+    thresh <- final_means > 1000
+    cat("Count of genes > 1000: ", sum(thresh), "\n")
+    ## find genes that have above 10,000, how many?
+    thresh <- final_means > 10000
+    cat("Count of genes > 10,000: ", sum(thresh), "\n")
+    ## find genes that have above 20,000, how many?
+    thresh <- final_means > 20000
+    cat("Count of genes > 20,000: ", sum(thresh), "\n")
+    ## find genes that have above 30,000, how many?
+    thresh <- final_means > 30000
+    cat("Count of genes > 30,000: ", sum(thresh), "\n")
+
+    thresh <- final_means <= 100
+    cat("Count of genes <= 100: ", sum(thresh), "\n")
+    thresh_means <- final_means[thresh]
+    cat("Histogram of genes <= 100:\n")
+    png("average_of_avg_count_in_type_thresh_00100.png")
+    results <- hist(thresh_means, breaks=100, col="grey", main="Gene averages of (average count/type) all types, capped @ 100", xlab="Average of Averages")
+    dev.off()
+    print(results)
+    ## Try with a median of the averages
+    cat("With medians of averages (instead of averages of averages):\n")
+    final_medians <- apply(combined_mat, 1, median)
+    png("median_of_avg_count_in_type.png")
+    results <- hist(final_medians, breaks=100, col="grey", main="Gene medians of (average count for type) for all types", xlab="Median of Averages")
+    dev.off()
+    print(results)
+
+    thresh <- final_medians <= 100
+    cat("Count of genes (medians) <= 100: ", sum(thresh), "\n")
+    thresh_medians <- final_medians[thresh]
+    cat("Histogram of genes (medians)<= 100:\n")
+    png("median_of_avg_count_in_type_thresh_00100.png")
+    results <- hist(thresh_medians, breaks=100, col="grey", main="Gene medians of (average count/type) all types, capped @ 100", xlab="Median of Averages")
+    dev.off()
+    print(results)
+
+    ## Take a cutoff on genes:
+    thresh <- final_means > 50
+    return(thresh)
+}
+
 plot_pval_hist <- function(pvals, filename) {
     png(filename)
     hist(pvals, breaks=100, col="grey", main=paste(filename, "DE raw p-vals", sep=" "), xlab="Raw p-values")
@@ -30,6 +118,11 @@ print(str(counts_mat))
 print(dim(counts_mat))
 
 print("Filtering...")
+gene_thresh_selection_vector <- analyze_gene_counts(counts_mat, labels_r)
+cat("Number of filtered out genes, have less than 50 of avg_avg_count_in_type reads: ", sum(!gene_thresh_selection_vector), "\n")
+counts_mat <- counts_mat[gene_thresh_selection_vector,]
+gene_symbols_r <- gene_symbols_r[gene_thresh_selection_vector]
+
 ## Remove cells with fewer than 1.8e3 lib size
 csums <- colSums(counts_mat > 0)
 filter <- csums >= 1.8e3
@@ -37,18 +130,19 @@ cat("Number of filtered out cells, detected less than 1.8e3 genes: ", sum(!filte
 counts_mat <- counts_mat[,filter]
 labels_r <- labels_r[filter]
 accessions_r <- accessions_r[filter]
-## Remove genes which have less than 10 reads accross all samples
-rsums <- rowSums(counts_mat)
-filter <- rsums >= 10
-cat("Number of filtered out genes, have less than 10 reads across all samples: ", sum(!filter), "\n")
-counts_mat <- counts_mat[filter,]
-gene_symbols_r <- gene_symbols_r[filter]
-## Remove genes that aren't detected in at least 5 cells
-rsums <- rowSums(counts_mat > 0)
-filter <- rsums >= 5
-cat("Number of filtered out genes, not detected in at least 5 cells: ", sum(!filter), "\n")
-counts_mat <- counts_mat[filter,]
-gene_symbols_r <- gene_symbols_r[filter]
+
+## ## Remove genes which have less than 10 reads accross all samples
+## rsums <- rowSums(counts_mat)
+## filter <- rsums >= 10
+## cat("Number of filtered out genes, have less than 10 reads across all samples: ", sum(!filter), "\n")
+## counts_mat <- counts_mat[filter,]
+## gene_symbols_r <- gene_symbols_r[filter]
+## ## Remove genes that aren't detected in at least 5 cells
+## rsums <- rowSums(counts_mat > 0)
+## filter <- rsums >= 5
+## cat("Number of filtered out genes, not detected in at least 5 cells: ", sum(!filter), "\n")
+## counts_mat <- counts_mat[filter,]
+## gene_symbols_r <- gene_symbols_r[filter]
 
 type_factor_vector <- factor(labels_r)
 print(table(type_factor_vector))
