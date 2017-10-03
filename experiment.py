@@ -195,6 +195,7 @@ class Experiment(object):
                 compiled_results[model_name] = pickle.load(f)
         self.write_out_table(compiled_results, "map", "Average MAP", "Mean_Average_Precision", "average_map")
         self.write_out_table(compiled_results, "mafp", "Average MAFP", "Mean_Average_Flex_Precision", "average_mafp")
+        self.write_out_table(compiled_results, "mafp2", "Average MAFP2", "Mean_Average_Flex_Precision2", "average_mafp2")
         self.write_out_table(compiled_results, "mac", "Average MAC", "Mean_Average_Accuracy", "average_mac")
         self.write_out_table(compiled_results, "macq", "Average MACQ", "Mean_Average_Accuracy_of_top_quarter", "average_macq")
 
