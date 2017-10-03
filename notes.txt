@@ -6,3 +6,6 @@
     process evenly distributes the "different" pairs among the different distances. (expected to do better).
   - Need to also try a new metric in the retrieval that is not restricted to calculating scores only at recall positions where
     there is a perfect match.
+- experiments/2017_10_03-15:39:07
+  Same as the experiment above, but with a new retrieval metric which computes the score at every recall position, instead of only
+  at exact matches.
