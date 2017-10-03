@@ -1,0 +1,8 @@
+- experiments/2017_10_03-10:30:45
+  Comparing: regular siamese vs "flexible" siamese vs "even flexible" siamese
+  Models trained on 2017-09-20 and 2017-09-29
+  - "flexible" siamese: models trained with the new, flexible Contrastive Loss function
+  - "even flexible" siamese: models trained with the same loss function as "flexible" siamese, but the data pair generation
+    process evenly distributes the "different" pairs among the different distances. (expected to do better).
+  - Need to also try a new metric in the retrieval that is not restricted to calculating scores only at recall positions where
+    there is a perfect match.
