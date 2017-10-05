@@ -67,6 +67,12 @@ def get_model_architecture(working_dir_path, args, input_dim, output_dim, gene_n
 
         
 def get_base_model_architecture(args, input_dim, output_dim, gene_names):
+    """Possible options for neural network architectures are outlined in the '--help' command
+
+    This function parses the user's options to determine what kind of architecture to construct.
+    This could be a typical dense (MLP) architecture, a sparse architecture, or some combination.
+    Users must provide an adjacency matrix for sparsely connected layers.
+    """
     adj_mat = None
     go_first_level_adj_mat = None
     go_other_levels_adj_mats = None
@@ -103,6 +109,7 @@ def get_optimizer(args):
         momentum = float(args['--sgd_m'])
         return SparseSGD(lr=lr, decay=decay, momentum=momentum, nesterov=args['--sgd_nesterov'])
     elif args['--opt'] == 'rmsp':
+        # Note: not currently functional
         print("Using RMSprop optimizer")
         lr = float(args['--rmsp_lr'])
         rho = float(args['--rmsp_rho'])
