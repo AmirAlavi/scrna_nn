@@ -21,10 +21,12 @@ from sklearn.manifold import TSNE
 from sklearn.metrics.pairwise import euclidean_distances
 from sklearn.utils import shuffle
 from keras.utils import plot_model, np_utils
+from keras.callbacks import LearningRateScheduler
 import theano
 
 from util import create_working_directory, ScrnaException
 import neural_nets as nn
+import distances
 from bio_knowledge import get_adj_mat_from_groupings
 from sparse_optimizers import SparseSGD, SparseRMSprop
 
@@ -35,22 +37,35 @@ keras.layers.Sparse = Sparse
 CACHE_ROOT = "_cache"
 SIAM_CACHE = "siam_data"
 
-# class TrainStats(keras.callbacks.Callback):
-#     """Adapted from Suki Lau's blog post:
-#            "Learning Rate Schedules and Adaptive Learning Rate Methods for Deep Learning"
-#            https://medium.com/towards-data-science/learning-rate-schedules-and-adaptive-learning-rate-methods-for-deep-learning-2c8f433990d1
-#     """
-#     def on_train_begin(self, logs={}):
-#         self.losses = []
-#         self.lr = []
 
-#     def on_epoch_end(self, batch, logs={}):
-#         self.losses.append(logs.get('loss'))
-#         optimizer = self.model.optimizer
-#         # switch on type to figure out how LR is being calculated:
-#         if isinstance(optimizer, SGD):
-#             lr = optimizer.lr * (1. / (1. + self.decay * self.iterations))
-#         self.lr.append(lr)
+class StepLRHistory(keras.callbacks.Callback):
+    """Adapted from Suki Lau's blog post:
+           'Learning Rate Schedules and Adaptive Learning Rate Methods for Deep Learning'
+           https://medium.com/towards-data-science/learning-rate-schedules-and-adaptive-learning-rate-methods-for-deep-learning-2c8f433990d1
+    """
+    def __init__(self, initial_lr, epochs_drop):
+        self.initial_lr = initial_lr
+        self.epochs_drop = epochs_drop
+        self.step_decay_fcn = self.get_step_decay_fcn()
+
+    def get_step_decay_fcn(self):
+        def step_decay(epoch):
+            drop = 0.5
+            lr = self.initial_lr * math.pow(drop, math.floor((epoch)/float(self.epochs_drop)))
+            return lr
+        return step_decay
+
+    def on_train_begin(self, logs={}):
+        self.losses = []
+        self.val_losses = []
+        self.lr = []
+
+    def on_epoch_end(self, batch, logs={}):
+        zero_indexed_epoch_num = len(self.losses)
+        self.losses.append(logs.get('loss'))
+        self.val_losses.append(logs.get('val_loss'))
+        self.lr.append(self.step_decay_fcn(zero_indexed_epoch_num))
+
 def get_model_architecture(working_dir_path, args, input_dim, output_dim, gene_names):
     base_model = get_base_model_architecture(args, input_dim, output_dim, gene_names)
     plot_model(base_model, to_file=join(working_dir_path, 'base_architecture.png'), show_shapes=True)
@@ -253,15 +268,24 @@ def create_data_pairs(X, y, true_ids, indices_lists, same_lim):
     print("Distribution of different and same pairs: ", np.bincount(labels))
     return np.array(pairs), np.array(labels)
 
-def get_distance(dist_mat, label_strings_lookup, max_dist, a_label, b_label):
+def get_distance(dist_mat, label_strings_lookup, max_dist, a_label, b_label, dist_fcn):
     a_str = label_strings_lookup[a_label]
     b_str = label_strings_lookup[b_label]
     dist = dist_mat[a_str][b_str]
-    thresholded_dist = max(0, 1 - (dist/max_dist))
+    thresholded_dist = dist_fcn(dist, max_dist)
     return thresholded_dist
 
-def create_flexible_data_pairs(X, y, true_ids, indices_lists, same_lim, dist_mat_file, label_strings_lookup, max_dist):
-    cache_path = join(CACHE_ROOT, SIAM_CACHE)
+def create_flexible_data_pairs(X, y, true_ids, indices_lists, same_lim, label_strings_lookup, args):
+    dist_mat_file = args['--flexibleLoss']
+    max_dist = int(args['--max_ont_dist'])
+    if args['--dist_fcn'] == 'linear':
+        print("Using linear distance decay")
+        dist_fcn = distances.linear_decay
+    elif args['--dist_fcn'] == 'exponential':
+        print("Using exponential distance decay")
+        dist_fcn = distances.exponential_decay
+    cache_path = join(join(CACHE_ROOT, SIAM_CACHE), args['--dist_fcn'])
+    cache_path = join(cache_path, args['--data']) # To make sure that we change cache when we change the dataset
     if exists(cache_path):
         print("Loading siamese data from cache...")
         pairs = np.load(join(cache_path, "siam_X.npy"))
@@ -289,7 +313,7 @@ def create_flexible_data_pairs(X, y, true_ids, indices_lists, same_lim, dist_mat
         for diff_label, diff_samples in indices_lists.items():
             if diff_label == anchor_label:
                 continue
-            dist = get_distance(dist_mat_by_strings, label_strings_lookup, max_dist, anchor_label, diff_label)
+            dist = get_distance(dist_mat_by_strings, label_strings_lookup, max_dist, anchor_label, diff_label, dist_fcn)
             for s in diff_samples:
                 distance_lists[dist].append(s)
         for distance, samples in distance_lists.items():
@@ -366,7 +390,7 @@ def get_data_for_siamese(data_container, args, same_lim):
     # assert(len(dataset_IDs) == len(y))
     # X_siamese, y_siamese = create_data_pairs_diff_datasets(X, y, dataset_IDs, indices_lists, same_lim)
     if args['--flexibleLoss']:
-        X_siamese, y_siamese = create_flexible_data_pairs(X, y, true_ids, indices_lists, same_lim, args['--flexibleLoss'], label_strings_lookup, int(args['--max_ont_dist']))
+        X_siamese, y_siamese = create_flexible_data_pairs(X, y, true_ids, indices_lists, same_lim, label_strings_lookup, args)
     else:
         X_siamese, y_siamese = create_data_pairs(X, y, true_ids, indices_lists, same_lim)
     X_siamese, y_siamese = shuffle(X_siamese, y_siamese) # Shuffle so that Keras's naive selection of validation data doesn't get all same class
@@ -376,6 +400,7 @@ def get_data_for_siamese(data_container, args, same_lim):
     return X_siamese, y_siamese
 
 def plot_training_history(history, path):
+    plt.figure()
     plt.plot(history.history['loss'])
     plt.plot(history.history['val_loss'])
     plt.title('Model loss')
@@ -383,7 +408,20 @@ def plot_training_history(history, path):
     plt.xlabel('epoch')
     plt.legend(['train', 'test'], loc='upper left')
     plt.savefig(path)
+    plt.close()
 
+def plot_lr_steps(lr_step_history, path):
+    plt.figure()
+    epochs = np.arange(1, len(lr_step_history.losses)+1)
+    plt.plot(epochs, lr_step_history.losses)
+    plt.plot(epochs, lr_step_history.val_losses)
+    plt.plot(epochs, lr_step_history.lr, marker='o', linestyle='None')
+    plt.title('Learning Rate & Loss History')
+    plt.xlabel('epoch')
+    plt.legend(['train', 'valid', 'lr'], loc='upper right')
+    plt.savefig(path)
+    plt.close()
+    
 def visualize_embedding(X, labels, path):
     print(X.shape)
     label_subset = {'HSC':'blue', '2cell':'green', 'spleen':'red', 'neuron':'cyan', 'ESC':'black'}
@@ -443,12 +481,13 @@ def train_pca_model(working_dir_path, args, data_container):
     with open(join(working_dir_path, "pca.p"), 'wb') as f:
         pickle.dump(model, f)
 
-def train_siamese_neural_net(model, args, data_container):
+def train_siamese_neural_net(model, args, data_container, callbacks_list):
     if args['--online_train']:
+        # TODO: add callbacks option to online training
         history = online_siamese_training(model, data_container, int(args['--epochs']), int(args['--online_train']), same_lim=2000, ratio_hard_negatives=2)
     else:
         X, y = get_data_for_siamese(data_container, args, 300) # this function shuffles the data too
-        history = model.fit(X, y, epochs=int(args['--epochs']), verbose=1, validation_split=float(args['--valid']))
+        history = model.fit(X, y, epochs=int(args['--epochs']), verbose=1, validation_split=float(args['--valid']), callbacks=callbacks_list)
     return history
 
 def save_neural_net(working_dir_path, args, model):
@@ -468,13 +507,21 @@ def train_neural_net(working_dir_path, args, data_container):
     opt = get_optimizer(args)
     compile_model(model, args, opt)
     print("model compiled and ready for training")
+    # Prep callbacks
+    callbacks_list = []
+    if args['--sgd_step_decay']:
+        lr_history = StepLRHistory(float(args['--sgd_lr']), int(args['--sgd_step_decay']))
+        lrate_sched = LearningRateScheduler(lr_history.get_step_decay_fcn())
+        callbacks_list = [lr_history, lrate_sched]
     print("training model...")
     if args['--siamese']:
         # Specially routines for training siamese models
-        history = train_siamese_neural_net(model, args, data_container)
+        history = train_siamese_neural_net(model, args, data_container, callbacks_list)
     else:
-        history = model.fit(X, y, epochs=int(args['--epochs']), verbose=1, validation_split=float(args['--valid']))
+        history = model.fit(X, y, epochs=int(args['--epochs']), verbose=1, validation_split=float(args['--valid']), callbacks=callbacks_list)
     plot_training_history(history, join(working_dir_path, "loss.png"))
+    if args['--sgd_step_decay']:
+        plot_lr_steps(lr_history, join(working_dir_path, "lr_history.png"))
     save_neural_net(working_dir_path, args, model)
     # This code is an artifact, only works with an old dataset.
     # Needs some attention to make it work for the newer datasets.

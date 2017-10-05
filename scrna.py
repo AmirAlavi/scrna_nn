@@ -49,7 +49,6 @@ Options:
     -h --help                 Show this screen.
     --version                 Show version.
     --data=<path>             Path to input data file.
-                              [default: data/lin_et_al_data/TPM_mouse_7_8_10_PPITF_gene_9437_T.txt]
     --out=<path>              Path to save output to. For training and retrieval this is a folder path.
                               For reduce this is a filepath (name of output file).
                               (trained models/reduced data/retrieval results).
@@ -73,6 +72,7 @@ Options:
                               Available: 'sgd', 'rmsp'
                               TODO: Maybe make rmsp the default if it performs well?
     --sgd_lr=<lr>             Learning rate for SGD. [default: 0.1]
+    --sgd_step_decay=<epochs> Drop the learning rate by half every <epochs> epochs. Shouldn't use '--sgd_d' at the same time as this.
     --sgd_d=<decay>           Decay rate for SGD. [default: 1e-6]
     --sgd_m=<momentum>        Momentum for SGD. [default: 0.9]
     --sgd_nesterov            Use Nesterov momentum for SGD.
@@ -97,6 +97,12 @@ Options:
                               Using this flag has many implications, see code.
     --flexibleLoss=<distmat>  Use a flexible Contrastive Loss for the Siamese training which takes into account
                               distances on the ontology, determined by the <ontology> file.
+    --dist_fcn=<fcn>          The type of decay function to use for distances in the ontology. A distance of zero will always
+                              be transformed to 1, but as you go further from the target, the rate at wich you approach 0 depends
+                              on what <fcn> is:
+                                  linear:      linear decay from 1 to 0
+                                  exponential: exponential decay from 1 to 0 (force to zero at max_ont_dist)
+                              [default: linear]
     --max_ont_dist=<d>        The maximum distance allowed between nodes in the ontology before their similarity is
                               considered to be 0. [default: 4]
     --online_train=<n>        Dynamically generate hard pairs after n epochs for
