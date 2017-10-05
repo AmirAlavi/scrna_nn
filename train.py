@@ -510,6 +510,7 @@ def train_neural_net(working_dir_path, args, data_container):
     # Prep callbacks
     callbacks_list = []
     if args['--sgd_step_decay']:
+        print("Using SGD Step Decay")
         lr_history = StepLRHistory(float(args['--sgd_lr']), int(args['--sgd_step_decay']))
         lrate_sched = LearningRateScheduler(lr_history.get_step_decay_fcn())
         callbacks_list = [lr_history, lrate_sched]
