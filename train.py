@@ -51,8 +51,22 @@ SIAM_CACHE = "siam_data"
 #         if isinstance(optimizer, SGD):
 #             lr = optimizer.lr * (1. / (1. + self.decay * self.iterations))
 #         self.lr.append(lr)
+def get_model_architecture(working_dir_path, args, input_dim, output_dim, gene_names):
+    base_model = get_base_model_architecture(args, input_dim, output_dim, gene_names)
+    plot_model(base_model, to_file=join(working_dir_path, 'base_architecture.png'), show_shapes=True)
+    print(base_model.summary())
+    # Set pretrained weights, if any, before making into siamese
+    if args['--pt']:
+        nn.set_pretrained_weights(base_model, args['--pt'])
+    if args['--siamese']:
+        model = nn.get_siamese(base_model, input_dim)
+        plot_model(model, to_file=join(working_dir_path, 'siamese_architecture.png'), show_shapes=True)
+    else:
+        model = base_model
+    return model
 
-def get_model_architecture(args, input_dim, output_dim, gene_names):
+        
+def get_base_model_architecture(args, input_dim, output_dim, gene_names):
     adj_mat = None
     go_first_level_adj_mat = None
     go_other_levels_adj_mats = None
@@ -338,16 +352,12 @@ def get_data_for_siamese(data_container, args, same_lim):
     print("bincount")
     print(np.bincount(y))
     indices_lists = build_indices_master_list(X, y)
-    # X_siamese, y_siamese = create_data_pairs(X, y, indices_lists, same_lim)
-    # print("X shape: ", X_siamese.shape)
-    # print("y shape: ", y_siamese.shape)
-
-    # Try with dataset-aware pair creation
-    dataset_IDs = data_container.get_dataset_IDs()
-    print("num samples: ", len(y))
-    print("len(dataset_IDs): ", len(dataset_IDs))
-    assert(len(dataset_IDs) == len(y))
-    #X_siamese, y_siamese = create_data_pairs_diff_datasets(X, y, dataset_IDs, indices_lists, same_lim)
+    # # Try with dataset-aware pair creation
+    # dataset_IDs = data_container.get_dataset_IDs()
+    # print("num samples: ", len(y))
+    # print("len(dataset_IDs): ", len(dataset_IDs))
+    # assert(len(dataset_IDs) == len(y))
+    # X_siamese, y_siamese = create_data_pairs_diff_datasets(X, y, dataset_IDs, indices_lists, same_lim)
     if args['--flexibleLoss']:
         X_siamese, y_siamese = create_flexible_data_pairs(X, y, true_ids, indices_lists, same_lim, args['--flexibleLoss'], label_strings_lookup, int(args['--max_ont_dist']))
     else:
@@ -389,16 +399,15 @@ def visualize_embedding(X, labels, path):
     plt.scatter(embedding[:,0], embedding[:,1], c=colors)
     plt.savefig(path)
 
-def get_data_for_training(data_path, args):
-    data = DataContainer(data_path, args['--sn'])
+def get_data_for_training(data_container, args):
     #print("Cleaning up the data first...")
     #preprocess_data(data)
-    gene_names = data.get_gene_names()
+    gene_names = data_container.get_gene_names()
     output_dim = None
     if args['--ae']:
         # Autoencoder training is unsupervised, so we don't have to limit
         # ourselves to labeled samples
-        X_clean, _, label_strings_lookup = data.get_data()
+        X_clean, _, label_strings_lookup = data_container.get_data()
         # Add noise to the data:
         noise_level = 0.1
         X = X_clean + noise_level * np.random.normal(loc=0, scale=1, size=X_clean.shape)
@@ -411,14 +420,69 @@ def get_data_for_training(data_path, args):
     else:
         # Supervised training:
         print("Supervised training")
-        X, y, label_strings_lookup = data.get_data()
+        X, y, label_strings_lookup = data_container.get_data()
         output_dim = max(y) + 1
         y = np_utils.to_categorical(y, output_dim)
     input_dim = X.shape[1]
     print("Input dim: ", input_dim)
     print("Output dim: ", output_dim)
-    return X, y, input_dim, output_dim, label_strings_lookup, gene_names, data
+    return X, y, input_dim, output_dim, label_strings_lookup, gene_names
 
+def train_pca_model(working_dir_path, args, data_container):
+    print("Training a PCA model...")
+    model = PCA(n_components=int(args['--pca']))
+    X = data_container.get_expression_mat()
+    model.fit(X)
+    with open(join(working_dir_path, "pca.p"), 'wb') as f:
+        pickle.dump(model, f)
+
+def train_siamese_neural_net(model, args, data_container):
+    if args['--online_train']:
+        history = online_siamese_training(model, data_container, int(args['--epochs']), int(args['--online_train']), same_lim=2000, ratio_hard_negatives=2)
+    else:
+        X, y = get_data_for_siamese(data_container, args, 300) # this function shuffles the data too
+        history = model.fit(X, y, epochs=int(args['--epochs']), verbose=1, validation_split=float(args['--valid']))
+    return history
+
+def save_neural_net(working_dir_path, args, model):
+    print("saving model to folder: " + working_dir_path)
+    architecture_path = join(working_dir_path, "model_architecture.json")
+    weights_path = join(working_dir_path, "model_weights.p")
+    if args['--siamese']:
+        # For siamese nets, we only care about saving the subnetwork, not the whole siamese net
+        model = model.layers[2] # For now, seems safe to assume index 2 corresponds to base net
+    nn.save_trained_nn(model, architecture_path, weights_path)
+
+def train_neural_net(working_dir_path, args, data_container):
+    print("Training a Neural Network model...")
+    X, y, input_dim, output_dim, label_strings_lookup, gene_names = get_data_for_training(data_container, args)
+    X, y = shuffle(X, y) # Shuffle so that Keras's naive selection of validation data doesn't get all same class
+    model = get_model_architecture(working_dir_path, args, input_dim, output_dim, gene_names)
+    opt = get_optimizer(args)
+    compile_model(model, args, opt)
+    print("model compiled and ready for training")
+    print("training model...")
+    if args['--siamese']:
+        # Specially routines for training siamese models
+        history = train_siamese_neural_net(model, args, data_container)
+    else:
+        history = model.fit(X, y, epochs=int(args['--epochs']), verbose=1, validation_split=float(args['--valid']))
+    plot_training_history(history, join(working_dir_path, "loss.png"))
+    save_neural_net(working_dir_path, args, model)
+    # This code is an artifact, only works with an old dataset.
+    # Needs some attention to make it work for the newer datasets.
+    # if args['--viz']:
+    #     print("Visualizing...")
+    #     X, _, _ = data_container.get_data()
+    #     labels = data_container.get_labels()
+    #     if args['--siamese']:
+    #         last_hidden_layer = model.layers[-1]
+    #     else:
+    #         last_hidden_layer = model.layers[-2]
+    #     get_activations = theano.function([model.layers[0].input], last_hidden_layer.output)
+    #     X_embedded = get_activations(X)
+    #     visualize_embedding(X_embedded, labels, join(working_dir_path, "tsne.png"))
+        
 def train(args):
     model_type = args['--nn'] if args['--nn'] is not None else "pca"
     # create a unique working directory for this model
@@ -426,56 +490,8 @@ def train(args):
     with open(join(working_dir_path, "command_line_args.json"), 'w') as fp:
         json.dump(args, fp)
     print("loading data and setting up model...")
-    # if args['--siamese']:
-    #     get_data_for_siamese(args['--data'], args)
-    X, y, input_dim, output_dim, label_strings_lookup, gene_names, data_container = get_data_for_training(args['--data'], args)
-    X, y = shuffle(X, y) # Shuffle so that Keras's naive selection of validation data doesn't get all same class
-    print(X[0].shape)
-    print(X[1].shape)
+    data_container = DataContainer(args['--data'], args['--sn'])
     if args['--pca']:
-        print("Training a PCA model...")
-        model = PCA(n_components=int(args['--pca']))
-        model.fit(X)
-        with open(join(working_dir_path, "pca.p"), 'wb') as f:
-            pickle.dump(model, f)
+        train_pca_model(working_dir_path, args, data_container)
     else:
-        print("Training a Neural Network model...")
-        model = get_model_architecture(args, input_dim, output_dim, gene_names)
-        plot_model(model, to_file=join(working_dir_path, 'architecture.png'), show_shapes=True)
-        print(model.summary())
-        if args['--pt']:
-            nn.set_pretrained_weights(model, args['--pt'])
-        if args['--siamese']:
-            model = nn.get_siamese(model, input_dim)
-            plot_model(model, to_file='siamese_architecture.png', show_shapes=True)
-        opt = get_optimizer(args)
-        compile_model(model, args, opt)
-        print("model compiled and ready for training")
-        print("training model...")
-        if args['--siamese'] and args['--online_train']:
-            # Special online training (only an option for siamese nets)
-            history = online_siamese_training(model, data_container, int(args['--epochs']), int(args['--online_train']), same_lim=2000, ratio_hard_negatives=2)
-        else:
-            # Normal training
-            if args['--siamese']:
-                X, y = get_data_for_siamese(data_container, args, 300)
-            history = model.fit(X, y, epochs=int(args['--epochs']), verbose=1, validation_split=float(args['--valid']))
-        plot_training_history(history, join(working_dir_path, "loss.png"))
-        print("saving model to folder: " + working_dir_path)
-        architecture_path = join(working_dir_path, "model_architecture.json")
-        weights_path = join(working_dir_path, "model_weights.p")
-        if args['--siamese']:
-            # For siamese nets, we only care about saving the subnetwork, not the whole siamese net
-            model = model.layers[2] # For now, seems safe to assume index 2 corresponds to base net
-        nn.save_trained_nn(model, architecture_path, weights_path)
-        if args['--viz']:
-            print("Visualizing...")
-            X, _, _ = data_container.get_data()
-            labels = data_container.get_labels()
-            if args['--siamese']:
-                last_hidden_layer = model.layers[-1]
-            else:
-                last_hidden_layer = model.layers[-2]
-            get_activations = theano.function([model.layers[0].input], last_hidden_layer.output)
-            X_embedded = get_activations(X)
-            visualize_embedding(X_embedded, labels, join(working_dir_path, "tsne.png"))
+        train_neural_net(working_dir_path, args, data_container)
