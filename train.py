@@ -238,7 +238,15 @@ def online_siamese_training(model, data_container, epochs, n, same_lim, ratio_ha
     History = namedtuple('History', ['history'])
     return History(history=hist)
 
-def create_data_pairs(X, y, true_ids, indices_lists, same_lim):
+def create_data_pairs(X, y, true_ids, indices_lists, same_lim, args):
+    cache_path = join(join(CACHE_ROOT, SIAM_CACHE), 'binary_300K')
+    cache_path = join(cache_path, args['--data']) # To make sure that we change cache when we change the dataset
+    if exists(cache_path):
+        print("Loading siamese data from cache...")
+        pairs = np.load(join(cache_path, "siam_X.npy"))
+        labels = np.load(join(cache_path, "siam_y.npy"))
+        return pairs, labels
+    print("Generating 'Flexible' pairs for siamese")
     pairs = []
     labels = []
     for label in range(len(indices_lists)):
@@ -266,7 +274,12 @@ def create_data_pairs(X, y, true_ids, indices_lists, same_lim):
             diff_count += 1
     print("Generated ", len(pairs), " pairs")
     print("Distribution of different and same pairs: ", np.bincount(labels))
-    return np.array(pairs), np.array(labels)
+    pairs_np = np.array(pairs)
+    labels_np = np.array(labels)
+    makedirs(cache_path)
+    np.save(join(cache_path, "siam_X"), pairs_np)
+    np.save(join(cache_path, "siam_y"), labels_np)
+    return pairs_np, labels_np
 
 def get_distance(dist_mat, label_strings_lookup, max_dist, a_label, b_label, dist_fcn):
     a_str = label_strings_lookup[a_label]
@@ -392,8 +405,9 @@ def get_data_for_siamese(data_container, args, same_lim):
     if args['--flexibleLoss']:
         X_siamese, y_siamese = create_flexible_data_pairs(X, y, true_ids, indices_lists, same_lim, label_strings_lookup, args)
     else:
-        X_siamese, y_siamese = create_data_pairs(X, y, true_ids, indices_lists, same_lim)
-    X_siamese, y_siamese = shuffle(X_siamese, y_siamese) # Shuffle so that Keras's naive selection of validation data doesn't get all same class
+        X_siamese, y_siamese = create_data_pairs(X, y, true_ids, indices_lists, same_lim, args)
+    # Runs out of memory when trying to shuffle
+    #X_siamese, y_siamese = shuffle(X_siamese, y_siamese) # Shuffle so that Keras's naive selection of validation data doesn't get all same class
     print("X shape: ", X_siamese.shape)
     print("y shape: ", y_siamese.shape)
     X_siamese = [ X_siamese[:, 0], X_siamese[:, 1] ]
@@ -486,7 +500,12 @@ def train_siamese_neural_net(model, args, data_container, callbacks_list):
         # TODO: add callbacks option to online training
         history = online_siamese_training(model, data_container, int(args['--epochs']), int(args['--online_train']), same_lim=2000, ratio_hard_negatives=2)
     else:
-        X, y = get_data_for_siamese(data_container, args, 300) # this function shuffles the data too
+        # same_lim =  750, 100K
+        # same_lim = 1500, 200K
+        # same_lim = 3000, 
+        # same_lim = 3300, 400K
+        # same_lim = 3500, 428K
+        X, y = get_data_for_siamese(data_container, args, 3000) # this function shuffles the data too
         history = model.fit(X, y, epochs=int(args['--epochs']), verbose=1, validation_split=float(args['--valid']), callbacks=callbacks_list)
     return history
 

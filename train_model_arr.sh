@@ -6,7 +6,7 @@
 #SBATCH --cpus-per-task=2
 
 #SBATCH --ntasks=1
-#SBATCH --mem-per-cpu=16Gb
+#SBATCH --mem-per-cpu=30Gb
 #SBATCH --mail-type FAIL
 
 module load cuda-8.0
