@@ -83,6 +83,10 @@ def contrastive_loss(y_true, y_pred):
     return K.mean(y_true * K.square(y_pred) +
                   (1 - y_true) * K.square(K.maximum(margin - y_pred, 0)))
 
+# def triplet_loss(y_true, y_pred):
+#     '''
+#     '''
+
 def get_siamese(base_network, input_dim):
     # Create a siamese neural network with the provided base_network as two conjoined twins.
     # Load pretrained weights before calling this function.

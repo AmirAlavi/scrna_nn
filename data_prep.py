@@ -239,6 +239,10 @@ if __name__ == '__main__':
         for accession, label in zip(accessions, pod.labels):
             label_to_accessions_d[label][accession] += 1
 
+        # For Differential Expression, for a node, we only consider cells from the same study, and require
+        # the study to have at least 100 cells (currently). Keep track of how many nodes will satisfy this.
+        de_nodes = set()
+        
         print("\nAccessions for each cell type:")
         for label, accession_counts_d in label_to_accessions_d.items():
             print(label)
@@ -249,6 +253,8 @@ if __name__ == '__main__':
                 print("\t", accession, ": ", count)
                 accns_for_label.append(accession)
                 accns_for_label_counts.append(count)
+                if count >= 100:
+                    de_nodes.add(label)
             if len(accession_counts_d.keys()) >= 2:
                 # Find accession with median number of cells of this type:
                 sorted_indices = np.argsort(accns_for_label_counts)
@@ -265,6 +271,11 @@ if __name__ == '__main__':
         for cell_type in query_accn_for_label.keys():
             print("\t", cell_type)
 
+        # Print out nodes that we can do DE analysis for
+        print("Num nodes for DE: ", len(de_nodes))
+        for n in de_nodes:
+            print("\t", n)
+        
         # Split the dataset
         traindb_ids = []
         traindb_true_ids = []

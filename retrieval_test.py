@@ -108,7 +108,7 @@ def retrieval_test(args):
         avg_flex_precision = average_flex_precision(query_label, retrieved_labels, dist_mat_by_strings, int(args['--max_dist']))
         avg_flex_precision2 = average_flex_precision2(query_label, retrieved_labels, dist_mat_by_strings, int(args['--max_dist']))
         avg_precision = average_precision(query_label, retrieved_labels)
-        if avg_precision <= 0.1:
+        if avg_flex_precision2 <= 0.2:
             print("\tLOW SCORE")
             print("\tQuery label: ", query_label)
             print("\tRetrieved: ")

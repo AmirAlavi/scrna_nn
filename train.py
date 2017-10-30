@@ -239,7 +239,7 @@ def online_siamese_training(model, data_container, epochs, n, same_lim, ratio_ha
     return History(history=hist)
 
 def create_data_pairs(X, y, true_ids, indices_lists, same_lim, args):
-    cache_path = join(join(CACHE_ROOT, SIAM_CACHE), 'binary_300K')
+    cache_path = join(join(CACHE_ROOT, SIAM_CACHE), 'binary_200K')
     cache_path = join(cache_path, args['--data']) # To make sure that we change cache when we change the dataset
     if exists(cache_path):
         print("Loading siamese data from cache...")
@@ -505,7 +505,7 @@ def train_siamese_neural_net(model, args, data_container, callbacks_list):
         # same_lim = 3000, 
         # same_lim = 3300, 400K
         # same_lim = 3500, 428K
-        X, y = get_data_for_siamese(data_container, args, 3000) # this function shuffles the data too
+        X, y = get_data_for_siamese(data_container, args, 1500) # this function shuffles the data too
         history = model.fit(X, y, epochs=int(args['--epochs']), verbose=1, validation_split=float(args['--valid']), callbacks=callbacks_list)
     return history
 
