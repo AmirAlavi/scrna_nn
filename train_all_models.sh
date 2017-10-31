@@ -2,14 +2,15 @@
 
 # Basic help message:
 if [ $# -eq 0 ]; then
-    printf "Usage:\n train_all_models.sh <model_name_prefix> <train_data> <train_session_name> <common_options...>\n"
+    printf "Usage:\n train_all_models.sh <model_name_prefix> <train_data> <train_session_name> <email> <common_options...>\n"
     exit 1
 fi
 
 MODEL_PREFIX=$1
 TRAIN_DATA=$2
 SESSION_NAME=$3
-EXTRA_OPTS="${@:4}"
+EMAIL=$4
+EXTRA_OPTS="${@:5}"
 
 # PCA BASELINES
 echo python scrna.py train --pca=1136 --sn --out=${MODEL_PREFIX}pca_1136 --data=$TRAIN_DATA $EXTRA_OPTS > ${SESSION_NAME}_commands.list
@@ -144,4 +145,4 @@ NUM_JOBS=$(wc -l ${SESSION_NAME}_commands.list | awk {'print $1'})
 echo "$NUM_JOBS"
 NUM_JOBS=$(($NUM_JOBS - 1))
 echo "$NUM_JOBS"
-sbatch --array=0-$NUM_JOBS train_model_arr.sh ${SESSION_NAME}_commands.list
+sbatch --array=0-$NUM_JOBS --mail-user ${EMAIL} train_model_arr.sh ${SESSION_NAME}_commands.list

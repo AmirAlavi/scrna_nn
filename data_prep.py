@@ -253,7 +253,7 @@ if __name__ == '__main__':
                 print("\t", accession, ": ", count)
                 accns_for_label.append(accession)
                 accns_for_label_counts.append(count)
-                if count >= 100:
+                if count >= 75:
                     de_nodes.add(label)
             if len(accession_counts_d.keys()) >= 2:
                 # Find accession with median number of cells of this type:

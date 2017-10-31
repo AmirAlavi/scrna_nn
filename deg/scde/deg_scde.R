@@ -139,19 +139,6 @@ counts.mat <- counts.mat[,filter]
 labels <- labels[filter]
 accessions <- accessions[filter]
 
-## ## Remove genes which have less than 10 reads accross all samples
-## rsums <- rowSums(counts.mat)
-## filter <- rsums >= 10
-## cat("Number of filtered out genes, have less than 10 reads across all samples: ", sum(!filter), "\n")
-## counts.mat <- counts.mat[filter,]
-## gene.symbols <- gene.symbols[filter]
-## ## Remove genes that aren't detected in at least 5 cells
-## rsums <- rowSums(counts.mat > 0)
-## filter <- rsums >= 5
-## cat("Number of filtered out genes, not detected in at least 5 cells: ", sum(!filter), "\n")
-## counts.mat <- counts.mat[filter,]
-## gene.symbols <- gene.symbols[filter]
-
 type.factor.vector <- factor(labels)
 print(table(type.factor.vector))
 accessions.factor.vector <- factor(accessions)
