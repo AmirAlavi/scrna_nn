@@ -2,6 +2,11 @@
 ## using SCDE. Each cell type is a node in a "Cell Ontology", so "cell type"
 ## and "node" may be used interchangeably.
 
+## "study", "accession", "experiment" are also sometimes used interchangeably.
+
+## Order of the code in this file is most-specifc -> high-level (bottom-up),
+## thus it is recommended that you start reading at the bottom of the file
+
 
 ## Poorman's command line argument parsing:
 args = commandArgs(trailingOnly=TRUE)
@@ -238,6 +243,7 @@ MultipleDegExperiments <- function(cell.type, accns, data.env) {
         WriteTable(cell.type, results, extra.name = paste("_", accn))
         deg.results[[deg.results.idx]] <- results
         deg.results.idx <- deg.results.idx + 1
+        cat("\n")
     }
     return(deg.results)
 }
@@ -320,7 +326,7 @@ AnalyzeDegResults <- function(deg.results, data.env) {
         
     ord <- order(meta.adj.pvals[sig.and.consistent.sv]) # order by p-value
     entrez.IDs <- names(data.env$gene.symbols[sig.and.consistent.sv])
-    gene.sybmols <- data.env$gene.symbols[sig.and.consistent.sv]
+    gene.symbols <- data.env$gene.symbols[sig.and.consistent.sv]
     final.results <- cbind(entrez.IDs, gene.symbols, avg.fold.change[sig.and.consistent.sv], meta.adj.pvals[sig.and.consistent.sv])[ord,]
     colnames(final.results) <- c("EntrezID", "Symbol", "Avg_log2_fold_change", "Max_adj_p_value")
     return(final.results)
@@ -336,7 +342,7 @@ data.env <- LoadData(data.dir)
 ## Also place program params in data hashmap for convenience
 data.env$n.cores <- n.cores
 data.env$sample.size <- sample.size
-cat("dim(data.env$counts.mat): ", dim(data.env$counts.mat), "\n")
+cat("dim(data.env$counts.mat) (Before filtering): ", dim(data.env$counts.mat), "\n")
 
 dir.create(output.dir, recursive = TRUE)
 setwd(output.dir)
@@ -347,7 +353,7 @@ FilterGenes(data.env, gene.thresh.selection.vector)
 
 cells.thresh.selection.vector <- CreateCellFilter(data.env)
 FilterCells(data.env, cells.thresh.selection.vector)
-cat("dim(data.env$counts.mat): ", dim(data.env$counts.mat), "\n")
+cat("dim(data.env$counts.mat) (After filtering): ", dim(data.env$counts.mat), "\n")
 
 accessions.info.map <- GetAccessionsInfoMap(data.env)
 ## PrintHashMap(accessions.info.map)
