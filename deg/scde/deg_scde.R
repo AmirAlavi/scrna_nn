@@ -4,7 +4,7 @@
 
 ## "study", "accession", "experiment" are also sometimes used interchangeably.
 
-## Order of the code in this file is most-specifc -> high-level (bottom-up),
+## Order of the code in this file is most-specific -> high-level (bottom-up),
 ## thus it is recommended that you start reading at the bottom of the file
 
 
@@ -288,8 +288,10 @@ RunDegExperiments <- function(data.env, accessions.info.map) {
     for (type in levels(cell.types.f)) {
         cat("Current type: ", type, "\n")
         cell.type.deg.results <- DegForCellType(type, data.env, accessions.info.map)
-        meta.deg.results <- AnalyzeDegResults(cell.type.deg.results, data.env)
-        WriteTable(type, meta.deg.results, extra.name = "_meta")
+        if (length(cell.type.deg.results)) {
+            meta.deg.results <- AnalyzeDegResults(cell.type.deg.results, data.env)
+            WriteTable(type, meta.deg.results, extra.name = "_meta")
+        }
     }
 }
 
