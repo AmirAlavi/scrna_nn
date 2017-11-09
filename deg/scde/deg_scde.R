@@ -240,7 +240,7 @@ MultipleDegExperiments <- function(cell.type, accns, data.env) {
         other.types.sv <- data.env$meta$labels != cell.type
         results <- SetUpAndRunSCDE(cell.type, cell.type.and.accn.sv, other.types.sv, data.env)
         ## save results
-        WriteTable(cell.type, results, extra.name = paste("_", accn))
+        WriteTable(cell.type, results, extra.name = paste("_", accn, sep=""))
         deg.results[[deg.results.idx]] <- results
         deg.results.idx <- deg.results.idx + 1
         cat("\n")
