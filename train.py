@@ -74,7 +74,7 @@ def get_model_architecture(working_dir_path, args, input_dim, output_dim, gene_n
     if args['--pt']:
         nn.set_pretrained_weights(base_model, args['--pt'])
     if args['--siamese']:
-        model = nn.get_siamese(base_model, input_dim)
+        model = nn.get_siamese(base_model, input_dim, args['--freeze'])
         plot_model(model, to_file=join(working_dir_path, 'siamese_architecture.png'), show_shapes=True)
     else:
         model = base_model
@@ -239,14 +239,14 @@ def online_siamese_training(model, data_container, epochs, n, same_lim, ratio_ha
     return History(history=hist)
 
 def create_data_pairs(X, y, true_ids, indices_lists, same_lim, args):
-    cache_path = join(join(CACHE_ROOT, SIAM_CACHE), 'binary_200K')
+    # cache_path = join(join(CACHE_ROOT, SIAM_CACHE), 'binary_200K')
+    cache_path = join(CACHE_ROOT, SIAM_CACHE)
     cache_path = join(cache_path, args['--data']) # To make sure that we change cache when we change the dataset
     if exists(cache_path):
         print("Loading siamese data from cache...")
         pairs = np.load(join(cache_path, "siam_X.npy"))
         labels = np.load(join(cache_path, "siam_y.npy"))
         return pairs, labels
-    print("Generating 'Flexible' pairs for siamese")
     pairs = []
     labels = []
     for label in range(len(indices_lists)):
@@ -413,6 +413,17 @@ def get_data_for_siamese(data_container, args, same_lim):
     X_siamese = [ X_siamese[:, 0], X_siamese[:, 1] ]
     return X_siamese, y_siamese
 
+def plot_accuracy_history(history, path):
+    plt.figure()
+    plt.plot(history.history['acc'])
+    plt.plot(history.history['val_acc'])
+    plt.title('Model accuracy')
+    plt.ylabel('accuracy')
+    plt.xlabel('epoch')
+    plt.legend(['train', 'valid'], loc='upper left')
+    plt.savefig(path)
+    plt.close()
+
 def plot_training_history(history, path):
     plt.figure()
     plt.plot(history.history['loss'])
@@ -420,7 +431,7 @@ def plot_training_history(history, path):
     plt.title('Model loss')
     plt.ylabel('loss')
     plt.xlabel('epoch')
-    plt.legend(['train', 'test'], loc='upper left')
+    plt.legend(['train', 'valid'], loc='upper left')
     plt.savefig(path)
     plt.close()
 
@@ -505,7 +516,7 @@ def train_siamese_neural_net(model, args, data_container, callbacks_list):
         # same_lim = 3000, 
         # same_lim = 3300, 400K
         # same_lim = 3500, 428K
-        X, y = get_data_for_siamese(data_container, args, 1500) # this function shuffles the data too
+        X, y = get_data_for_siamese(data_container, args, 750) # this function shuffles the data too
         history = model.fit(X, y, epochs=int(args['--epochs']), verbose=1, validation_split=float(args['--valid']), callbacks=callbacks_list)
     return history
 
@@ -540,6 +551,8 @@ def train_neural_net(working_dir_path, args, data_container):
     else:
         history = model.fit(X, y, epochs=int(args['--epochs']), verbose=1, validation_split=float(args['--valid']), callbacks=callbacks_list)
     plot_training_history(history, join(working_dir_path, "loss.png"))
+    if not args['--ae'] and not args['--siamese']:
+        plot_accuracy_history(history, join(working_dir_path, "accuracy.png"))
     if args['--sgd_step_decay']:
         plot_lr_steps(lr_history, join(working_dir_path, "lr_history.png"))
     save_neural_net(working_dir_path, args, model)

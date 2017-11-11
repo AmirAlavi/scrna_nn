@@ -49,8 +49,10 @@ def set_pretrained_weights(model, pt_file):
     weight_list = get_pretrained_weights(pt_file)
     if len(model.layers) != len(weight_list):
         raise ScrnaException("Pretrained model weights do not match this architecture!")
+    # Don't take weights from last layer because typically we are taking weights from an unsupervised model
     for layer, pt_weights in zip(model.layers[:-1], weight_list[:-1]):
         layer.set_weights(pt_weights)
+    print("Loaded pre-trained weights from: ", pt_file)
 
 # *** BEGIN SIAMESE NEURAL NETWORK CODE
 # Modified from https://github.com/fchollet/keras/blob/master/examples/mnist_siamese_graph.py
@@ -87,7 +89,7 @@ def contrastive_loss(y_true, y_pred):
 #     '''
 #     '''
 
-def get_siamese(base_network, input_dim):
+def get_siamese(base_network, input_dim, is_frozen):
     # Create a siamese neural network with the provided base_network as two conjoined twins.
     # Load pretrained weights before calling this function.
     # First, remove the last layer (output layer) from base_network
@@ -102,6 +104,11 @@ def get_siamese(base_network, input_dim):
     distance = Lambda(euclidean_distance, output_shape=eucl_dist_output_shape, name="Distance")([processed_a, processed_b])
 
     model = Model([input_a, input_b], distance)
+    if is_frozen and len(model.layers[2].layers) > 2:
+        # Freeze the layers prior to the final embedding layer of the base network
+        for layer in model.layers[2].layers[:-1]:
+            print("Freezing layer: ", layer)
+            layer.trainable = False
     return model
 # *** END SIAMESE NEURAL NETWORK CODE
 

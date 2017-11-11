@@ -95,6 +95,7 @@ Options:
     --siamese                 Uses a siamese neural network architecture, using
                               <nn_architecture> as the base network.
                               Using this flag has many implications, see code.
+    --freeze                  Freeze all but the last layer of a Siamese network (for fine tuning)
     --flexibleLoss=<distmat>  Use a flexible Contrastive Loss for the Siamese training which takes into account
                               distances on the ontology, determined by the <ontology> file.
     --dist_fcn=<fcn>          The type of decay function to use for distances in the ontology. A distance of zero will always
