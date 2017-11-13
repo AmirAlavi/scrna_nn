@@ -14,8 +14,13 @@ class SparseSGD(SGD):
     '''Stochastic Gradient Descent optimizer that works with sparse data
     '''
     def get_updates(self, params, constraints, loss):
-        """From Chieh Lin's code for "(Pub title)"
-        <citation>
+        """From Chieh Lin's code for:
+
+        Chieh Lin, Siddhartha Jain, Hannah Kim, Ziv Bar-Joseph;
+        Using neural networks for reducing the dimensions of single-cell RNA-Seq data,
+        Nucleic Acids Research,
+        Volume 45, Issue 17, 29 September 2017, Pages e156,
+        https://doi.org/10.1093/nar/gkx681
         """
         grads = self.get_gradients(loss, params)
         lr = self.lr * (1. / (1. + self.decay * self.iterations))
