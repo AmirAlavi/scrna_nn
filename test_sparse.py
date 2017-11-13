@@ -1,3 +1,4 @@
+# import pdb; pdb.set_trace()
 from sparse_layer_new import Sparse
 import numpy as np
 from keras.layers import Input, Dense
@@ -5,6 +6,9 @@ from keras.models import Model, load_model
 from keras.utils import to_categorical
 input_dim = 3
 hidden_size = 4
+output_dim = 5
+# adjacency matrix specifiying the connections between
+# the input layer and the hidden layer (not a dense MLP)
 adj = np.array([[0, 1, 1, 0],
                 [1, 1, 0, 1],
                 [1, 0, 1, 1]])
@@ -12,10 +16,9 @@ print("Adjacency matrix:")
 print(adj)
 print()
 orig = adj
-blah = Sparse(adjacency_mat=adj)
+sparse_layer = Sparse(adjacency_mat=adj)
 inputs = Input(shape=(input_dim,))
-x = blah(inputs)
-output_dim = 5
+x = sparse_layer(inputs)
 x = Dense(output_dim, activation='softmax')(x)
 model = Model(inputs=inputs, outputs=x)
 model.compile(loss='categorical_crossentropy', optimizer='sgd', metrics=['accuracy'])

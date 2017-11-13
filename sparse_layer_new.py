@@ -5,12 +5,16 @@ from keras.initializers import Initializer, VarianceScaling, _compute_fans
 from keras.engine import InputSpec
 from keras import backend as K
 
+# For now, only Glorot initializers are supported for the weight matrix of a
+# Sparse layer. Whatever the user specifies for 'kernel_initializer' is ignored.
 class SparseGlorotInitializer(VarianceScaling):
     def __init__(self, adjacency_mat=None, *args, **kwargs):
         self.adjacency_mat = adjacency_mat
         super().__init__(*args, **kwargs)
 
     def __call__(self, shape, dtype=None):
+        # The only difference between this and the built-in VarianceScaling is that
+        # we multiply element-wise by our adjacency matrix as the final step.
         fan_in, fan_out = _compute_fans(shape)
         scale = self.scale
         if self.mode == 'fan_in':
@@ -25,12 +29,11 @@ class SparseGlorotInitializer(VarianceScaling):
             stddev = np.sqrt(scale)
             normal_mat = np.random.normal(loc=mean, scale=stddev, size=shape)
             clipped = np.clip(normal_mat,mean - 2 * stddev, mean + 2 * stddev)
-            final = clipped * self.adjacency_mat
+            return clipped * self.adjacency_mat
         else:
             limit = np.sqrt(3. * scale)
             dense_initial = np.random.uniform(low=-limit, high=limit, size=shape)
-            final = dense_initial * self.adjacency_mat
-        return K.variable(value=final, dtype=dtype)
+            return dense_initial * self.adjacency_mat
 
     def get_config(self):
         config = {
@@ -64,7 +67,6 @@ class Sparse(Dense):
                  *args,
                  **kwargs):
         self.adjacency_mat = adjacency_mat
-        self.adjacency_tensor = K.variable(value=adjacency_mat)
         if adjacency_mat is not None:
             units = adjacency_mat.shape[1]
         super().__init__(units=units, *args, **kwargs)
