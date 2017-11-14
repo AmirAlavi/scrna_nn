@@ -30,20 +30,21 @@ def save_trained_nn(model, path):
 def load_trained_nn(path):
     return load_model(path, custom_objects={'Sparse': Sparse})
 
-def get_pretrained_weights(pt_file):
-    weight_list = []
-    with open(pt_file, 'rb') as weights_file:
-        weight_list = pickle.load(weights_file)
-    return weight_list
+def get_pretrained_weights(pretrained_model_file):
+    pretrained_model = load_trained_nn(pretrained_model_file)
+    return [layer.get_weights() for layer in pretrained_model.layers]
 
-def set_pretrained_weights(model, pt_file):
-    weight_list = get_pretrained_weights(pt_file)
+def set_pretrained_weights(model, pretrained_model_file):
+    # Note: for now, it is assumed that for a siamese architectures, we will
+    # only want to load pretrained weights from the non-siamese version of that
+    # architecture. Pretraining a siamese net with another siamese net is not supported.
+    weight_list = get_pretrained_weights(pretrained_model_file)
     if len(model.layers) != len(weight_list):
         raise ScrnaException("Pretrained model weights do not match this architecture!")
     # Don't take weights from last layer because typically we are taking weights from an unsupervised model
     for layer, pt_weights in zip(model.layers[:-1], weight_list[:-1]):
         layer.set_weights(pt_weights)
-    print("Loaded pre-trained weights from: ", pt_file)
+    print("Loaded pre-trained weights from: ", pretrained_model_file)
 
 # *** BEGIN SIAMESE NEURAL NETWORK CODE
 # Modified from https://github.com/fchollet/keras/blob/master/examples/mnist_siamese_graph.py

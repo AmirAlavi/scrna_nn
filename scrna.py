@@ -90,7 +90,7 @@ Options:
                               [default: data/GO_lvls_arch_2_to_4]
     --with_dense=<num_units>  (For 'sparse' architecture) Number of Dense units to add in the same
                               layer as the Sparse layer. [default: 100]
-    --pt=<weights_file>       Use initial weights from a pretrained model weights file.
+    --pt=<pt_model_file>      Use initial weights from a pretrained model file.
     --ae                      Use an unsupervised autoencoder architecture.
     --siamese                 Uses a siamese neural network architecture, using
                               <nn_architecture> as the base network.
