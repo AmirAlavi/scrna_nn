@@ -3,7 +3,7 @@ from sparse_layer_new import Sparse
 import numpy as np
 from keras.layers import Input, Dense
 from keras.models import Model, load_model
-from keras.utils import to_categorical
+from keras.utils import to_categorical, plot_model
 input_dim = 3
 hidden_size = 4
 output_dim = 5
@@ -21,6 +21,7 @@ inputs = Input(shape=(input_dim,))
 x = sparse_layer(inputs)
 x = Dense(output_dim, activation='softmax')(x)
 model = Model(inputs=inputs, outputs=x)
+plot_model(model, to_file="sparse_test_architecture.png", show_shapes=True)
 model.compile(loss='categorical_crossentropy', optimizer='sgd', metrics=['accuracy'])
 print()
 print(model.summary())

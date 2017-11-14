@@ -22,17 +22,18 @@ from sklearn.metrics.pairwise import euclidean_distances
 from sklearn.utils import shuffle
 from keras.utils import plot_model, np_utils
 from keras.callbacks import LearningRateScheduler
+from keras.optimizers import SGD
 import theano
 
 from util import create_working_directory, ScrnaException
 import neural_nets as nn
 import distances
 from bio_knowledge import get_adj_mat_from_groupings
-from sparse_optimizers import SparseSGD, SparseRMSprop
+#from sparse_optimizers import SparseSGD, SparseRMSprop
 
-from sparse_layer import Sparse
+#from sparse_layer import Sparse
 import keras
-keras.layers.Sparse = Sparse
+#keras.layers.Sparse = Sparse
 
 CACHE_ROOT = "_cache"
 SIAM_CACHE = "siam_data"
@@ -122,7 +123,7 @@ def get_optimizer(args):
         lr = float(args['--sgd_lr'])
         decay = float(args['--sgd_d'])
         momentum = float(args['--sgd_m'])
-        return SparseSGD(lr=lr, decay=decay, momentum=momentum, nesterov=args['--sgd_nesterov'])
+        return SGD(lr=lr, decay=decay, momentum=momentum, nesterov=args['--sgd_nesterov'])
     elif args['--opt'] == 'rmsp':
         # Note: not currently functional
         print("Using RMSprop optimizer")
@@ -522,12 +523,11 @@ def train_siamese_neural_net(model, args, data_container, callbacks_list):
 
 def save_neural_net(working_dir_path, args, model):
     print("saving model to folder: " + working_dir_path)
-    architecture_path = join(working_dir_path, "model_architecture.json")
-    weights_path = join(working_dir_path, "model_weights.p")
+    path = join(working_dir_path, "model.h5")
     if args['--siamese']:
         # For siamese nets, we only care about saving the subnetwork, not the whole siamese net
         model = model.layers[2] # For now, seems safe to assume index 2 corresponds to base net
-    nn.save_trained_nn(model, architecture_path, weights_path)
+    nn.save_trained_nn(model, path)
 
 def train_neural_net(working_dir_path, args, data_container):
     print("Training a Neural Network model...")

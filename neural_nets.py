@@ -4,39 +4,32 @@ import math
 import time
 
 import keras
-from keras.models import Sequential, Model, model_from_json
+from keras.models import Model, load_model
 from keras.layers import Dense, Input, Lambda
 from keras import backend as K
 
-from sparse_layer import Sparse
+#from sparse_layer import Sparse
+from sparse_layer_new import Sparse
 from util import ScrnaException
 
 
-def load_model_weights_from_pickle(model, path):
-    with open(path, 'rb') as fp:
-        weight_list = pickle.load(fp)
-    for layer, weights in zip(model.layers, weight_list):
-        layer.set_weights(weights)
+# def load_model_weights_from_pickle(model, path):
+#     with open(path, 'rb') as fp:
+#         weight_list = pickle.load(fp)
+#     for layer, weights in zip(model.layers, weight_list):
+#         layer.set_weights(weights)
 
-def save_model_weights_to_pickle(model, path):
-    weight_list = [layer.get_weights() for layer in model.layers]
-    with open(path, 'wb') as fp:
-        pickle.dump(weight_list, fp)
+# def save_model_weights_to_pickle(model, path):
+#     weight_list = [layer.get_weights() for layer in model.layers]
+#     with open(path, 'wb') as fp:
+#         pickle.dump(weight_list, fp)
 
-def save_trained_nn(model, architecture_path, weights_path):
-    model_json = model.to_json()
-    with open(architecture_path, "w") as json_file:
-        json_file.write(model_json)
-    save_model_weights_to_pickle(model, weights_path)
+def save_trained_nn(model, path):
+    model.save(path)
 
-def load_trained_nn(architecture_path, weights_path):
-    custom_obj = {'Sparse': Sparse}
-    model = model_from_json(open(architecture_path).read(), custom_objects=custom_obj)
+def load_trained_nn(path):
+    model = load_model(path, custom_objects={'Sparse': Sparse})
     print(model.summary())
-    load_model_weights_from_pickle(model, weights_path)
-    # Must compile to use it for evaluatoin, but not going to train
-    # this model, so we can compile it arbitrarily
-    model.compile(optimizer='sgd', loss='mse')
     return model
 
 def get_pretrained_weights(pt_file):
