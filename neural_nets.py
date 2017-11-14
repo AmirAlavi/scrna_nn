@@ -28,9 +28,7 @@ def save_trained_nn(model, path):
     model.save(path)
 
 def load_trained_nn(path):
-    model = load_model(path, custom_objects={'Sparse': Sparse})
-    print(model.summary())
-    return model
+    return load_model(path, custom_objects={'Sparse': Sparse})
 
 def get_pretrained_weights(pt_file):
     weight_list = []

@@ -37,9 +37,7 @@ def reduce(args):
     X = data_container.get_expression_mat()
     model_base_path = args['<trained_model_folder>']
     if training_args['--nn']:
-        architecture_path = join(model_base_path, "model_architecture.json")
-        weights_path = join(model_base_path, "model_weights.p")
-        model = nn.load_trained_nn(architecture_path, weights_path)
+        model = nn.load_trained_nn(join(model_base_path, "model.h5"))
         print(model.summary())
         # use the last hidden layer of the model as a lower-dimensional representation:
         if training_args['--siamese']:
