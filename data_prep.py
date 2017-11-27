@@ -34,10 +34,8 @@ from scipy.spatial.distance import jaccard
 def get_accessions_from_accessionSeries(accessionSeries_list):
     accessions = []
     for accessionSeries in accessionSeries_list:
-        accession = int(accessionSeries.split('_')[0])
+        accession = accessionSeries.split('_')[0]
         accessions.append(accession)
-    print("Bincounts of each accession #:")
-    print(np.bincount(accessions))
     return np.array(accessions)
 
 
