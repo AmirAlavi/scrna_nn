@@ -133,6 +133,7 @@ Options:
 import sys
 
 from docopt import docopt
+import numpy as np
 
 from train import train
 from reduce import reduce
@@ -142,6 +143,8 @@ from util import ScrnaException
 
 
 if __name__ == '__main__':
+    print("NOTE: setting random seed for reproducability")
+    np.random.seed(34792)
     print(sys.argv)
     args = docopt(__doc__, version='scrna 0.1')
     print(args); print()
