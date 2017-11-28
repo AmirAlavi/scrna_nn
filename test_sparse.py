@@ -1,5 +1,5 @@
 # import pdb; pdb.set_trace()
-from sparse_layer_new import Sparse
+from sparse_layer import Sparse
 import numpy as np
 from keras.layers import Input, Dense
 from keras.models import Model, load_model

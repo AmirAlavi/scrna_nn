@@ -8,8 +8,7 @@ from keras.models import Model, load_model
 from keras.layers import Dense, Input, Lambda
 from keras import backend as K
 
-#from sparse_layer import Sparse
-from sparse_layer_new import Sparse
+from sparse_layer import Sparse
 from util import ScrnaException
 
 

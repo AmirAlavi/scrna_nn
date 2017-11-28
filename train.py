@@ -29,11 +29,8 @@ from util import create_working_directory, ScrnaException
 import neural_nets as nn
 import distances
 from bio_knowledge import get_adj_mat_from_groupings
-#from sparse_optimizers import SparseSGD, SparseRMSprop
 
-#from sparse_layer import Sparse
 import keras
-#keras.layers.Sparse = Sparse
 
 CACHE_ROOT = "_cache"
 SIAM_CACHE = "siam_data"

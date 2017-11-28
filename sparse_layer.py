@@ -1,83 +1,85 @@
-"""From Chieh Lin's code for:
-
-Chieh Lin, Siddhartha Jain, Hannah Kim, Ziv Bar-Joseph;
-Using neural networks for reducing the dimensions of single-cell RNA-Seq data,
-Nucleic Acids Research,
-Volume 45, Issue 17, 29 September 2017, Pages e156,
-https://doi.org/10.1093/nar/gkx681
-"""
-
 import numpy as np
-
-from scipy.sparse import csr_matrix
+from scipy.stats import truncnorm
 from keras.layers import Dense
-from keras import backend as K
+from keras.initializers import Initializer, VarianceScaling, _compute_fans
 from keras.engine import InputSpec
-#from keras.legacy import interfaces
-from theano import sparse
-import theano
+from keras import backend as K
 
-# Hack: Keras 2 does not have a get_fans function in the initializations.py
-# module. This used to be in the initilization.py module in Keras 1. Copying
-# it here for now. TODO: move to Keras 2 API
-def get_fans(shape, dim_ordering='th'):
-    if len(shape) == 2:
-        fan_in = shape[0]
-        fan_out = shape[1]
-    elif len(shape) == 4 or len(shape) == 5:
-        # assuming convolution kernels (2D or 3D).
-        # TH kernel shape: (depth, input_depth, ...)
-        # TF kernel shape: (..., input_depth, depth)
-        if dim_ordering == 'th':
-            receptive_field_size = np.prod(shape[2:])
-            fan_in = shape[1] * receptive_field_size
-            fan_out = shape[0] * receptive_field_size
-        elif dim_ordering == 'tf':
-            receptive_field_size = np.prod(shape[:2])
-            fan_in = shape[-2] * receptive_field_size
-            fan_out = shape[-1] * receptive_field_size
+# For now, only Glorot initializers are supported for the weight matrix of a
+# Sparse layer. Whatever the user specifies for 'kernel_initializer' is ignored.
+class SparseGlorotInitializer(VarianceScaling):
+    def __init__(self, adjacency_mat=None, *args, **kwargs):
+        self.adjacency_mat = adjacency_mat
+        super().__init__(*args, **kwargs)
+
+    def __call__(self, shape, dtype=None):
+        # The only difference between this and the built-in VarianceScaling is that
+        # we multiply element-wise by our adjacency matrix as the final step.
+        fan_in, fan_out = _compute_fans(shape)
+        scale = self.scale
+        if self.mode == 'fan_in':
+            scale /= max(1., fan_in)
+        elif self.mode == 'fan_out':
+            scale /= max(1., fan_out)
         else:
-            raise Exception('Invalid dim_ordering: ' + dim_ordering)
-    else:
-        # no specific assumptions
-        fan_in = np.sqrt(np.prod(shape))
-        fan_out = np.sqrt(np.prod(shape))
-    return fan_in, fan_out
+            scale /= max(1., float(fan_in + fan_out) / 2)
+        final = None
+        if self.distribution == 'normal':
+            mean = 0.0
+            stddev = np.sqrt(scale)
+            normal_mat = np.random.normal(loc=mean, scale=stddev, size=shape)
+            clipped = np.clip(normal_mat,mean - 2 * stddev, mean + 2 * stddev)
+            return clipped * self.adjacency_mat
+        else:
+            limit = np.sqrt(3. * scale)
+            dense_initial = np.random.uniform(low=-limit, high=limit, size=shape)
+            return dense_initial * self.adjacency_mat
+
+    def get_config(self):
+        config = {
+            'adjacency_mat': self.adjacency_mat.tolist()
+        }
+        base_config = super().get_config()
+        return dict(list(base_config.items()) + list(config.items()))
+
+    @classmethod
+    def from_config(cls, config):
+        adjacency_mat_as_list = config['adjacency_mat']
+        config['adjacency_mat'] = np.array(adjacency_mat_as_list)
+        super().from_config(cls, config)
+        #return cls(**config)
+        
+class AdjacencyInitializer(Initializer):
+    def __init__(self, adjacency_mat=1):
+        # Default value is 1 which translates to a dense (fully connected) layer
+        self.adjacency_mat = adjacency_mat
+
+    def __call__(self, shape, dtype=None):
+        return K.constant(self.adjacency_mat, shape=shape, dtype=dtype)
+
+    def get_config(self):
+        return {'adjacency_mat':self.adjacency_mat}
 
 
 class Sparse(Dense):
-    def __init__(self, units=0,
-                 activation='linear',
-                 use_bias=True,
-                 kernel_initializer='glorot_uniform',
-                 bias_initializer='zeros',
-                 kernel_regularizer=None,
-                 bias_regularizer=None,
-                 activity_regularizer=None,
-                 kernel_constraint=None,
-                 bias_constraint=None,
+    def __init__(self,
                  adjacency_mat=None, #Specifies which inputs (rows) are connected to which outputs (columns)
+                 *args,
                  **kwargs):
-        # if adjacency_mat == None:
-        #     raise ValueError("Must provide adjacency_mat to Sparse constructor!")
-        self.adjacency_mat=adjacency_mat
-        # Hack, necessary because of the way deserialization from json calls this constructor,
-        # doesn't provide the adjacency_mat, though it doesn't matter because when we load
-        # a model from a file, we will eventually load weights we have already trained.
-        if self.adjacency_mat is not None:
-            units = self.adjacency_mat.shape[1]
-        super().__init__(units=units, kernel_initializer=kernel_initializer, activation=activation, kernel_regularizer=kernel_regularizer, bias_regularizer=bias_regularizer, activity_regularizer=activity_regularizer, kernel_constraint=kernel_constraint, bias_constraint=bias_constraint, use_bias=use_bias, **kwargs)
+        self.adjacency_mat = adjacency_mat
+        if adjacency_mat is not None:
+            units = adjacency_mat.shape[1]
+        super().__init__(units=units, *args, **kwargs)
 
     def build(self, input_shape):
         assert len(input_shape) >= 2
         input_dim = input_shape[-1]
-
-        self.input_spec = [InputSpec(dtype=K.floatx(),
-                                     shape=(None, input_dim))]
-
-        # The difference between built-in Dense and Sparse
-        self.kernel = self.get_kernel(input_shape)
-
+        
+        self.kernel = self.add_weight(shape=(input_dim, self.units),
+                                      initializer=SparseGlorotInitializer(adjacency_mat=self.adjacency_mat, scale=1., mode='fan_avg', distribution='uniform'),
+                                      name='kernel',
+                                      regularizer=self.kernel_regularizer,
+                                      constraint=self.kernel_constraint)
         if self.use_bias:
             self.bias = self.add_weight(shape=(self.units,),
                                         initializer=self.bias_initializer,
@@ -87,58 +89,32 @@ class Sparse(Dense):
         else:
             self.bias = None
         self.input_spec = InputSpec(min_ndim=2, axes={-1: input_dim})
+        # Ensure we set weights to zero according to adjancency matrix
+        self.adjacency_tensor = self.add_weight(shape=(input_dim, self.units),
+                                                initializer=AdjacencyInitializer(self.adjacency_mat),
+                                                name='adjacency_matrix',
+                                                trainable=False)
         self.built = True
 
-    def get_kernel(self, input_shape):
-        temp_W = np.asarray(self.adjacency_mat, dtype=K.floatx())
-        if self.adjacency_mat is not None:
-            fan_in, fan_out = get_fans((input_shape[1], self.units), dim_ordering='th')
-            print (fan_in, fan_out)
-            scale = np.sqrt(6. / (fan_in + fan_out))
-            for i in range(self.adjacency_mat.shape[0]):
-                for j in range(self.adjacency_mat.shape[1]):
-                    if  self.adjacency_mat[i,j] == 1.:
-                        temp_W[i,j]=np.random.uniform(low=-scale, high=scale)
-
-        temp_W=csr_matrix(temp_W)
-        W=theano.shared(value=temp_W, name='{}_W'.format(self.name), strict=False)
-        if self.kernel_regularizer is not None:
-            self.add_loss(self.kernel_regularizer(W))
-        if self.kernel_constraint is not None:
-            self.constraints[W] = self.kernel_constraint
-        self._trainable_weights.append(W)
-
-        return W
-
     def call(self, inputs):
-        output = sparse.structured_dot(inputs, self.kernel)
+        output = self.kernel * self.adjacency_tensor
+        output = K.dot(inputs, output)
         if self.use_bias:
-            output += self.bias
+            output = K.bias_add(output, self.bias)
         if self.activation is not None:
             output = self.activation(output)
         return output
+        
+    def get_config(self):
+        config = {
+            'adjacency_mat': self.adjacency_mat.tolist()
+        }
+        base_config = super().get_config()
+        base_config.pop('units', None)
+        return dict(list(base_config.items()) + list(config.items()))
 
-    def set_weights(self, weights):
-        '''Sets the weights of the layer, from Numpy arrays.
-
-        # Arguments
-            weights: a list of Numpy arrays. The number
-                of arrays and their shape must match
-                number of the dimensions of the weights
-                of the layer (i.e. it should match the
-                output of `get_weights`).
-        '''
-        params = self.trainable_weights + self.non_trainable_weights
-        if len(params) != len(weights):
-            raise Exception('You called `set_weights(weights)` on layer "' + self.name +
-                            '" with a  weight list of length ' + str(len(weights)) +
-                            ', but the layer was expecting ' + str(len(params)) +
-                            ' weights. Provided weights: ' + str(weights))
-        if not params:
-            return
-        weight_value_tuples = []
-        for  p, w in zip(params, weights):
-            weight_value_tuples.append((p, w))
-        weight_value_tuples
-        for x, value in weight_value_tuples:
-            x.set_value(value)
+    @classmethod
+    def from_config(cls, config):
+        adjacency_mat_as_list = config['adjacency_mat']
+        config['adjacency_mat'] = np.array(adjacency_mat_as_list)
+        return cls(**config)
