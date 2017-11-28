@@ -4,7 +4,7 @@
 #SBATCH --partition=pool3-bigmem
 
 #SBATCH --ntasks=1
-#SBATCH --mem-per-cpu=60Gb
+#SBATCH --mem-per-cpu=30Gb
 #SBATCH --mail-type FAIL
 
 module load cuda-8.0
