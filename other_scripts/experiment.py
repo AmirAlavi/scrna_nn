@@ -1,7 +1,7 @@
 """Retrieval Experiment Runner
 
 Usage:
-    experiment.py <model_list_file> <query_file> <db_file> <email_address>
+    experiment.py <model_list_file> <query_file> <db_file> <partition> <email_address>
 
 Options:
     -h --help  Show this screen.
@@ -12,30 +12,32 @@ import subprocess
 import time
 from os import makedirs
 # import pdb; pdb.set_trace()
-from os.path import join, basename, normpath
+from os.path import join, basename, normpath, realpath, dirname
 
 from docopt import docopt
 
 DEFAULT_WORKING_DIR_ROOT = 'experiments'
-REDUCE_COMMAND_TEMPLATE = """python scrna.py reduce {trained_nn_folder} \
+REDUCE_COMMAND_TEMPLATE = """scrna-nn reduce {trained_nn_folder} \
 --data={data_file} --out={output_file} --save_meta"""
 
-RETRIEVAL_COMMAND_TEMPLATE = """python scrna.py retrieval {reduced_query_file} {reduced_db_file} \
+RETRIEVAL_COMMAND_TEMPLATE = """scrna-nn retrieval {reduced_query_file} {reduced_db_file} \
 --out={output_folder} --dist_mat_file=dist_mat_by_strings.p"""
 
-SLURM_TRANSFORM_COMMAND = """sbatch --array=0-{num_jobs} --mail-user {email} \
+SLURM_TRANSFORM_COMMAND = """sbatch -p {partition} --array=0-{num_jobs} --mail-user {email} \
 --output {out_folder}/scrna_transform_array_%A_%a.out
---error {err_folder}/scrna_transform_array_%A_%a.err slurm_transform_array.sh"""
+--error {err_folder}/scrna_transform_array_%A_%a.err {slurm_script}"""
 
-SLURM_RETRIEVAL_COMMAND = """sbatch --array=0-{num_jobs} --mail-user {email} \
+SLURM_RETRIEVAL_COMMAND = """sbatch -p {partition} --array=0-{num_jobs} --mail-user {email} \
 --output {out_folder}/scrna_retrieval_array_%A_%a.out
---error {err_folder}/scrna_retrieval_array_%A_%a.err -d afterok:{depends} slurm_retrieval_array.sh"""
+--error {err_folder}/scrna_retrieval_array_%A_%a.err -d afterok:{depends} {slurm_script}"""
+
+def get_slurm_transform_script_path():
+    return join(dirname(realpath(__file__)), '../slurm/slurm_transform_array.sh')
 
 
-# The cell types that were used for retrieval testing in the Lin et al. paper
-# PAPER_CELL_TYPES = ['HSC', '4cell', 'ICM', 'spleen', '8cell', 'neuron', 'zygote', '2cell', 'ESC']
-# A smaller subset that have above a threshold of samples present:
-# from scrna import TESTING_LABEL_SUBSET
+def get_slurm_retrieval_script_path():
+    return join(dirname(realpath(__file__)), '../slurm/slurm_retrieval_array.sh')
+
 
 class SafeDict(dict):
     """Allows for string formatting with unused keyword arguments
@@ -128,14 +130,17 @@ class Experiment(object):
         self.retrieval_result_folders = retrieval_result_folders
         print("Preparation complete, commands constructed.")
 
-    def run(self, email_addr):
+    def run(self, partition, email_addr):
         # First transform the data
         slurm_transform_out_folder = join(self.working_dir_path, "slurm_transform_out")
         makedirs(slurm_transform_out_folder)
         number_jobs = len(self.transform_commands) * 2
-        transform_cmd = SLURM_TRANSFORM_COMMAND.format(num_jobs=str(number_jobs - 1), email=email_addr,
+        slurm_trans_path = get_slurm_transform_script_path()
+        transform_cmd = SLURM_TRANSFORM_COMMAND.format(partition=partition, num_jobs=str(number_jobs - 1),
+                                                       email=email_addr,
                                                        out_folder=slurm_transform_out_folder,
-                                                       err_folder=slurm_transform_out_folder)
+                                                       err_folder=slurm_transform_out_folder,
+                                                       slurm_script=slurm_trans_path)
         print("Running slurm array job to reduce dimensions using models...")
         result = subprocess.run(transform_cmd.split(), stdout=subprocess.PIPE)
         transform_job_id = int(result.stdout.decode("utf-8").strip().split()[-1])
@@ -144,17 +149,20 @@ class Experiment(object):
         slurm_retrieval_out_folder = join(self.working_dir_path, "slurm_retrieval_out")
         makedirs(slurm_retrieval_out_folder)
         number_jobs = len(self.retrieval_commands)
-        retrieval_cmd = SLURM_RETRIEVAL_COMMAND.format(num_jobs=str(number_jobs - 1), email=email_addr,
+        slurm_retr_path = get_slurm_retrieval_script_path()
+        retrieval_cmd = SLURM_RETRIEVAL_COMMAND.format(partition=partition, num_jobs=str(number_jobs - 1),
+                                                       email=email_addr,
                                                        out_folder=slurm_retrieval_out_folder,
-                                                       err_folder=slurm_retrieval_out_folder, depends=transform_job_id)
+                                                       err_folder=slurm_retrieval_out_folder, depends=transform_job_id,
+                                                       slurm_script=slurm_retr_path)
         print("Running slurm array job to conduct retrieval test using each model...")
         result = subprocess.run(retrieval_cmd.split(), stdout=subprocess.PIPE)
         retrieval_job_id = int(result.stdout.decode("utf-8").strip().split()[-1])
         print("Slurm array job submitted, id: ", retrieval_job_id)
         # Must wait for retrieval jobs to finish in order to use their results
         print("Waiting for retrieval jobs to finish...")
-        wait_cmd = "srun -J completion -d afterok:{depends} --mail-type END,FAIL --mail-user {email} -p short1 echo '(done waiting)'"
-        subprocess.run(wait_cmd.format(depends=retrieval_job_id, email=email_addr).split())
+        wait_cmd = "srun -J completion -d afterok:{depends} --mail-type END,FAIL --mail-user {email} -p {partition} echo '(done waiting)'"
+        subprocess.run(wait_cmd.format(partition=partition, depends=retrieval_job_id, email=email_addr).split())
 
     def write_out_table(self, compiled_results, file_prefix, metric_header, metric_key, mean_metric_key):
         # get list of cell types in the results
@@ -203,5 +211,5 @@ if __name__ == '__main__':
     args = docopt(__doc__, version='experiment 0.1')
     exp = Experiment()
     exp.prepare(args['<model_list_file>'], args['<query_file>'], args['<db_file>'])
-    exp.run(args['<email_address>'])
+    exp.run(args['<partition>'], args['<email_address>'])
     exp.compile_results()

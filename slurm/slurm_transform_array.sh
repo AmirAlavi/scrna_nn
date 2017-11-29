@@ -1,8 +1,6 @@
 #!/bin/bash
 
 #SBATCH --job-name=scrna_transform_array
-#SBATCH --partition=pool3-bigmem
-
 #SBATCH --ntasks=1
 #SBATCH --mem-per-cpu=30Gb
 #SBATCH --mail-type FAIL

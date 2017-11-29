@@ -1,9 +1,10 @@
-"""Data Analysis & Preparation Script (for scRNA Pipeline)
+#!/usr/bin/env python
+"""Data Analysis & Preparation Script (for scrna-nn)
 
 Usage:
-    data_prep.py <expression_h5> <ontology_mappings_json> [--filter --term_distances --assign=<assn>]
-    data_prep.py (-h | --help)
-    data_prep.py --version
+    scrna-nn-data-prep <expression_h5> <ontology_mappings_json> [--filter --term_distances --assign=<assn>]
+    scrna-nn-data-prep (-h | --help)
+    scrna-nn-data-prep --version
 
 Options:
     --filter            Remove terms that have less than 75 cells mapping to them. Also remove terms that are not part

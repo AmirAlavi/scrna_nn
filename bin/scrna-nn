@@ -3,12 +3,12 @@
 (Includes commands to assess the learned embedding: visualize, retrieval)
 
 Usage:
-    scrna_nn train (--nn=<nn_architecture> | --pca=<n_comp>) [<hidden_layer_sizes>...] [--out=<path> --data=<path>] [options]
-    scrna_nn reduce <trained_model_folder> [--out=<path> --data=<path> --save_meta]
-    scrna_nn visualize <reduced_data_file> [--out=<path> --ntypes=<ntypes> --nsamples=<nsamples> --title=<title>]
-    scrna_nn retrieval <query_data_file> <database_data_file> [--dist_metric=<metric> --out=<path> --max_dist=<d>] --dist_mat_file=<path>
-    scrna_nn (-h | --help)
-    scrna_nn --version
+    scrna-nn train (--nn=<nn_architecture> | --pca=<n_comp>) [<hidden_layer_sizes>...] [--out=<path> --data=<path>] [options]
+    scrna-nn reduce <trained_model_folder> [--out=<path> --data=<path> --save_meta]
+    scrna-nn visualize <reduced_data_file> [--out=<path> --ntypes=<ntypes> --nsamples=<nsamples> --title=<title>]
+    scrna-nn retrieval <query_data_file> <database_data_file> [--dist_metric=<metric> --out=<path> --max_dist=<d>] --dist_mat_file=<path>
+    scrna-nn (-h | --help)
+    scrna-nn --version
 
 Neural Net Architectures:
     dense                     Simple, fully connected layers, uses Keras's built-in Dense Layer.

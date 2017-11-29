@@ -12,5 +12,5 @@ setup(name='scrna_nn',
           'numpy',
           'matplotlib'
       ],
-      scripts=['bin/scrna-nn', 'bin/scrna-nn-data-prep', 'bin/scrna-nn-experiment'],
+      scripts=['bin/scrna-nn', 'bin/scrna-nn-data-prep'],
       zip_safe=False)
