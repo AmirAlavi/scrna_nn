@@ -9,11 +9,8 @@ from itertools import combinations
 from os import makedirs
 from os.path import join, exists
 
-import matplotlib
 import numpy as np
-
-from data_container import DataContainer
-
+import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from sklearn.decomposition import PCA
@@ -21,22 +18,21 @@ from sklearn.manifold import TSNE
 from sklearn.metrics.pairwise import euclidean_distances
 from sklearn.utils import shuffle
 from keras.utils import plot_model, np_utils
-from keras.callbacks import LearningRateScheduler
+from keras.callbacks import Callback, LearningRateScheduler
 from keras.optimizers import SGD
 import theano
 
-from util import create_working_directory, ScrnaException
-import neural_nets as nn
-import distances
-from bio_knowledge import get_adj_mat_from_groupings
-
-import keras
+from .data_container import DataContainer
+from .util import create_working_directory, ScrnaException
+from . import neural_nets as nn
+from . import distances
+from .bio_knowledge import get_adj_mat_from_groupings
 
 CACHE_ROOT = "_cache"
 SIAM_CACHE = "siam_data"
 
 
-class StepLRHistory(keras.callbacks.Callback):
+class StepLRHistory(Callback):
     """Adapted from Suki Lau's blog post:
            'Learning Rate Schedules and Adaptive Learning Rate Methods for Deep Learning'
            https://medium.com/towards-data-science/learning-rate-schedules-and-adaptive-learning-rate-methods-for-deep-learning-2c8f433990d1

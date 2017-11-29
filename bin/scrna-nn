@@ -1,12 +1,14 @@
-"""Single-cell RNA-seq Analysis Pipeline.
+#!/usr/bin/env python
+"""Single-cell RNA-seq dimensionality reduction using neural networks
+(Includes commands to assess the learned embedding: visualize, retrieval)
 
 Usage:
-    scrna.py train (--nn=<nn_architecture> | --pca=<n_comp>) [<hidden_layer_sizes>...] [--out=<path> --data=<path>] [options]
-    scrna.py reduce <trained_model_folder> [--out=<path> --data=<path> --save_meta]
-    scrna.py visualize <reduced_data_file> [--out=<path> --ntypes=<ntypes> --nsamples=<nsamples> --title=<title>]
-    scrna.py retrieval <query_data_file> <database_data_file> [--dist_metric=<metric> --out=<path> --max_dist=<d>] --dist_mat_file=<path>
-    scrna.py (-h | --help)
-    scrna.py --version
+    scrna_nn train (--nn=<nn_architecture> | --pca=<n_comp>) [<hidden_layer_sizes>...] [--out=<path> --data=<path>] [options]
+    scrna_nn reduce <trained_model_folder> [--out=<path> --data=<path> --save_meta]
+    scrna_nn visualize <reduced_data_file> [--out=<path> --ntypes=<ntypes> --nsamples=<nsamples> --title=<title>]
+    scrna_nn retrieval <query_data_file> <database_data_file> [--dist_metric=<metric> --out=<path> --max_dist=<d>] --dist_mat_file=<path>
+    scrna_nn (-h | --help)
+    scrna_nn --version
 
 Neural Net Architectures:
     dense                     Simple, fully connected layers, uses Keras's built-in Dense Layer.
@@ -133,20 +135,20 @@ Options:
 import sys
 
 from docopt import docopt
-import numpy as np
+#import numpy as np
 
-from train import train
-from reduce import reduce
-from visualize import visualize
-from retrieval_test import retrieval_test
-from util import ScrnaException
+from scrna_nn.train import train
+from scrna_nn.reduce import reduce
+from scrna_nn.visualize import visualize
+from scrna_nn.retrieval_test import retrieval_test
+from scrna_nn.util import ScrnaException
 
 
 if __name__ == '__main__':
-    print("NOTE: setting random seed for reproducability")
-    np.random.seed(34792)
+    # print("NOTE: setting random seed for reproducability")
+    # np.random.seed(34792)
     print(sys.argv)
-    args = docopt(__doc__, version='scrna 0.1')
+    args = docopt(__doc__, version='scrna 0.3.0')
     print(args); print()
     try:
         if args['train']:

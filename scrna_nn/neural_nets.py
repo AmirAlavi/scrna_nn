@@ -8,8 +8,8 @@ from keras.models import Model, load_model
 from keras.layers import Dense, Input, Lambda
 from keras import backend as K
 
-from sparse_layer import Sparse
-from util import ScrnaException
+from .sparse_layer import Sparse
+from .util import ScrnaException
 
 
 # def load_model_weights_from_pickle(model, path):

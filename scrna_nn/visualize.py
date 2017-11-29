@@ -5,9 +5,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.decomposition import PCA
 
-from data_container import DataContainer
-from util import create_working_directory
-from train import build_indices_master_list
+from .data_container import DataContainer
+from .util import create_working_directory
+from .train import build_indices_master_list
 
 
 def visualize(args):

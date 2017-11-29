@@ -6,8 +6,8 @@ from os.path import join, dirname, exists
 import pandas as pd
 import theano
 
-import neural_nets as nn
-from data_container import DataContainer
+from . import neural_nets as nn
+from .data_container import DataContainer
 
 
 def save_reduced_data_to_h5(filename, X_reduced, data_container, save_metadata):
