@@ -1,9 +1,12 @@
 # import pdb; pdb.set_trace()
-from sparse_layer import Sparse
+
 import numpy as np
 from keras.layers import Input, Dense
 from keras.models import Model, load_model
 from keras.utils import to_categorical, plot_model
+
+from context import scrna_nn
+from scrna_nn.sparse_layer import Sparse
 input_dim = 3
 hidden_size = 4
 output_dim = 5
