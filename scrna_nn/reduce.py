@@ -4,7 +4,7 @@ from os import makedirs, remove
 from os.path import join, dirname, exists
 
 import pandas as pd
-import theano
+from keras import backend as K
 
 from . import neural_nets as nn
 from .data_container import DataContainer
@@ -45,8 +45,8 @@ def reduce(args):
             last_hidden_layer = model.layers[-1]
         else:
             last_hidden_layer = model.layers[-2]
-        get_activations = theano.function([model.layers[0].input], last_hidden_layer.output)
-        X_transformed = get_activations(X)
+        get_activations = K.function([model.layers[0].input], [last_hidden_layer.output])
+        X_transformed = get_activations([X])[0]
     else:
         # Use PCA
         with open(join(model_base_path, "pca.p"), 'rb') as f:

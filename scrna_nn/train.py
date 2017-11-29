@@ -20,7 +20,7 @@ from sklearn.utils import shuffle
 from keras.utils import plot_model, np_utils
 from keras.callbacks import Callback, LearningRateScheduler
 from keras.optimizers import SGD
-import theano
+from keras import backend as K
 
 from .data_container import DataContainer
 from .util import create_working_directory, ScrnaException
@@ -158,7 +158,7 @@ def get_hard_pairs(X, indices_lists, same_lim, ratio_hard_negatives, siamese_mod
     labels = []
     if siamese_model:
         base_net = siamese_model.layers[2]
-        get_embedding = theano.function([base_net.layers[0].input], base_net.layers[-1].output)
+        get_embedding = K.function([base_net.layers[0].input], [base_net.layers[-1].output])
     # Initially generate pairs by going through each cell type, generate all same pairs, and
     # then list all the different samples sorted by their distance and choose the closest samples
     for cell_type in range(len(indices_lists)):
@@ -186,7 +186,7 @@ def get_hard_pairs(X, indices_lists, same_lim, ratio_hard_negatives, siamese_mod
         all_different_indices = np.array(all_different_indices)
         all_different = X[all_different_indices]
         if siamese_model:
-            all_different = get_embedding(all_different)
+            all_different = get_embedding([all_different])[0]
         # Sort them by distance to the representative
         distances = euclidean_distances(all_different, [rep])
         #distances = np.linalg.norm(rep-all_different, axis=1) #slowest
