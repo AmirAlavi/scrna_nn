@@ -62,14 +62,14 @@ class StepLRHistory(Callback):
 
 def get_model_architecture(working_dir_path, args, input_dim, output_dim, gene_names):
     base_model = get_base_model_architecture(args, input_dim, output_dim, gene_names)
-    plot_model(base_model, to_file=join(working_dir_path, 'base_architecture.png'), show_shapes=True)
+    #plot_model(base_model, to_file=join(working_dir_path, 'base_architecture.png'), show_shapes=True)
     print(base_model.summary())
     # Set pretrained weights, if any, before making into siamese
     if args['--pt']:
         nn.set_pretrained_weights(base_model, args['--pt'])
     if args['--siamese']:
         model = nn.get_siamese(base_model, input_dim, args['--freeze'])
-        plot_model(model, to_file=join(working_dir_path, 'siamese_architecture.png'), show_shapes=True)
+        #plot_model(model, to_file=join(working_dir_path, 'siamese_architecture.png'), show_shapes=True)
     else:
         model = base_model
     return model

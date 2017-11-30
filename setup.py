@@ -9,8 +9,15 @@ setup(name='scrna_nn',
           'keras>=2.0.9',
           'docopt',
           'pandas',
+          'tables',
           'numpy',
-          'matplotlib'
+          'matplotlib',
+          'scikit-learn',
+          'pydot',
+          'graphviz',
+          'h5py'
       ],
+      python_requires='>=3',
       scripts=['bin/scrna-nn', 'bin/scrna-nn-data-prep'],
-      zip_safe=False)
+      #zip_safe=False
+)
