@@ -2,6 +2,8 @@ data/
 models/
 reduced_data/
 retrieval_results/
+visualizations/
+experiments/
 # All pickle files
 *.p
 *.png

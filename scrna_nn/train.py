@@ -17,7 +17,7 @@ from sklearn.decomposition import PCA
 from sklearn.manifold import TSNE
 from sklearn.metrics.pairwise import euclidean_distances
 from sklearn.utils import shuffle
-from keras.utils import plot_model, np_utils
+from keras.utils import plot_model, np_utils, multi_gpu_model
 from keras.callbacks import Callback, LearningRateScheduler
 from keras.optimizers import SGD
 from keras import backend as K
@@ -511,7 +511,7 @@ def train_siamese_neural_net(model, args, data_container, callbacks_list):
         # same_lim = 3300, 400K
         # same_lim = 3500, 428K
         X, y = get_data_for_siamese(data_container, args, 750) # this function shuffles the data too
-        history = model.fit(X, y, epochs=int(args['--epochs']), verbose=1, validation_split=float(args['--valid']), callbacks=callbacks_list)
+        history = model.fit(X, y, batch_size=int(args['--batch_size']), epochs=int(args['--epochs']), verbose=1, validation_split=float(args['--valid']), callbacks=callbacks_list)
     return history
 
 def save_neural_net(working_dir_path, args, model):
@@ -526,7 +526,15 @@ def train_neural_net(working_dir_path, args, data_container):
     print("Training a Neural Network model...")
     X, y, input_dim, output_dim, label_strings_lookup, gene_names = get_data_for_training(data_container, args)
     X, y = shuffle(X, y) # Shuffle so that Keras's naive selection of validation data doesn't get all same class
-    model = get_model_architecture(working_dir_path, args, input_dim, output_dim, gene_names)
+    ngpus = int(args['--ngpus'])
+    if ngpus > 1:
+        import tensorflow as tf
+        with tf.device('/cpu:0'):
+            template_model = get_model_architecture(working_dir_path, args, input_dim, output_dim, gene_names)
+        model = multi_gpu_model(template_model, gpus=ngpus)
+    else:
+        template_model = get_model_architecture(working_dir_path, args, input_dim, output_dim, gene_names)
+        model = template_model
     opt = get_optimizer(args)
     compile_model(model, args, opt)
     print("model compiled and ready for training")
@@ -542,13 +550,13 @@ def train_neural_net(working_dir_path, args, data_container):
         # Specially routines for training siamese models
         history = train_siamese_neural_net(model, args, data_container, callbacks_list)
     else:
-        history = model.fit(X, y, epochs=int(args['--epochs']), verbose=1, validation_split=float(args['--valid']), callbacks=callbacks_list)
+        history = model.fit(X, y, batch_size=int(args['--batch_size']), epochs=int(args['--epochs']), verbose=1, validation_split=float(args['--valid']), callbacks=callbacks_list)
     plot_training_history(history, join(working_dir_path, "loss.png"))
     if not args['--ae'] and not args['--siamese']:
         plot_accuracy_history(history, join(working_dir_path, "accuracy.png"))
     if args['--sgd_step_decay']:
         plot_lr_steps(lr_history, join(working_dir_path, "lr_history.png"))
-    save_neural_net(working_dir_path, args, model)
+    save_neural_net(working_dir_path, args, template_model)
     # This code is an artifact, only works with an old dataset.
     # Needs some attention to make it work for the newer datasets.
     # if args['--viz']:

@@ -61,6 +61,7 @@ Options:
     --nn=<nn_architecture>    Train an instance of a nn_architecture neural network.
     --pca=<n_comp>            Fit a PCA model with n_comp principal components.
     --epochs=<nepochs>        Number of epochs to train for. [default: 100]
+    --batch_size=<nbatch>     Number of samples per batch. [default: 32]
     --act=<activation_fcn>    Activation function to use for the layers.
                               [default: tanh]
     --sn                      Divide each sample by the total number of reads for
@@ -111,6 +112,8 @@ Options:
     --online_train=<n>        Dynamically generate hard pairs after n epochs for
                               siamese neural network training.
     --viz                     Visualize the data in the embedding space.
+    --ngpus=<n>               Number of gpus to use. n > 1 is for data-parallel model training (Only works
+                              with TensorFlow backend. [default: 1]
 
     "reduce" specific command options:
     --save_meta               Also save the metadata that was associated with the input data with the
