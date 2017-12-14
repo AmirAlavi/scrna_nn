@@ -57,32 +57,17 @@ Options:
                               'None' means that a time-stamped folder will
                               automatically be created. [default: None]
 
-    "train" specific command options:
-    --nn=<nn_architecture>    Train an instance of a nn_architecture neural network.
+"train" specific command options:
     --pca=<n_comp>            Fit a PCA model with n_comp principal components.
-    --epochs=<nepochs>        Number of epochs to train for. [default: 100]
-    --batch_size=<nbatch>     Number of samples per batch. [default: 32]
-    --act=<activation_fcn>    Activation function to use for the layers.
-                              [default: tanh]
     --sn                      Divide each sample by the total number of reads for
                               that sample.
-    --valid=<valid_portion>   The portion of the training data to set aside for validation. Model is not
-                              trained on this data. (only used if training a neural network model).
-                              [default: 0.15]
     --gs                      Subtract the mean and divide by standard deviation
                               within each gene.
-    --opt=<optimizer>         Optimizer to use. [default: sgd]
-                              Available: 'sgd', 'rmsp'
-                              TODO: Maybe make rmsp the default if it performs well?
-    --sgd_lr=<lr>             Learning rate for SGD. [default: 0.1]
-    --sgd_step_decay=<epochs> Drop the learning rate by half every <epochs> epochs. Shouldn't use '--sgd_d' at the same time as this.
-    --sgd_d=<decay>           Decay rate for SGD. [default: 1e-6]
-    --sgd_m=<momentum>        Momentum for SGD. [default: 0.9]
-    --sgd_nesterov            Use Nesterov momentum for SGD.
-    --rmsp_lr=<lr>            Learning rate for RMSprop. [default: 0.001]
-    --rmsp_rho=<rho>          Rho param for RMSprop. [default: 0.9]
-    --rmsp_eps=<eps>          Fuzz factor for RMSprop. [default: 1e-08]
-    --rmsp_decay=<decay>      Learning rate decay over each update for RMSprop. [default: 0.0]
+
+    **ARCHITECTURE-RELATED-OPTIONS**
+    --nn=<nn_architecture>    Train an instance of a nn_architecture neural network.
+    --act=<activation_fcn>    Activation function to use for the layers.
+                              [default: tanh]
     --sparse_groupings=<path> (For 'sparse' architecture) Path to file containing the genes
                               grouped to nodes for a sparse layer.
                               [default: data/mouse_ppitf_groups.txt]
@@ -95,38 +80,79 @@ Options:
                               layer as the Sparse layer. [default: 100]
     --pt=<pt_model_file>      Use initial weights from a pretrained model file.
     --ae                      Use an unsupervised autoencoder architecture.
+
+
+    **OPTIMIZER-RELATED-OPTIONS**
+    --ngpus=<n>               Number of gpus to use. n > 1 is for data-parallel model training (Only works
+                              with TensorFlow backend. [default: 1]
+    --valid=<valid_portion>   The portion of the training data to set aside for validation. Model is not
+                              trained on this data. (only used if training a neural network model).
+                              [default: 0.15]
+    --epochs=<nepochs>        Number of epochs to train for. [default: 100]
+    --batch_size=<nbatch>     Number of samples per batch. [default: 32]
+    --opt=<optimizer>         Optimizer to use. [default: sgd]
+                              Available: 'sgd', 'rmsp'
+                              TODO: Maybe make rmsp the default if it performs well?
+    --sgd_lr=<lr>             Learning rate for SGD. [default: 0.1]
+    --sgd_step_decay=<epochs> Drop the learning rate by half every <epochs> epochs. Shouldn't use '--sgd_d' at the same time as this.
+    --sgd_d=<decay>           Decay rate for SGD. [default: 1e-6]
+    --sgd_m=<momentum>        Momentum for SGD. [default: 0.9]
+    --sgd_nesterov            Use Nesterov momentum for SGD.
+    --rmsp_lr=<lr>            Learning rate for RMSprop. [default: 0.001]
+    --rmsp_rho=<rho>          Rho param for RMSprop. [default: 0.9]
+    --rmsp_eps=<eps>          Fuzz factor for RMSprop. [default: 1e-08]
+    --rmsp_decay=<decay>      Learning rate decay over each update for RMSprop. [default: 0.0]
+
+
+    **SIAMESE-RELATED-OPTIONS**
     --siamese                 Uses a siamese neural network architecture, using
                               <nn_architecture> as the base network.
                               Using this flag has many implications, see code.
+    --unif_diff=<n_buckets>   For Siamese pair selection, when selecting different pairs, select uniformly from n_buckets
+                              which stratify how different the pairs are. 0 means select completely randomly, unconstrained.
+                              [default: 0]
+    --same_lim=<n>            Maximum number of "same" pairs to be generated for a cell-type. [default: 750]
+    --diff_multiplier=<n>     For Siamese pair selection, when selecting different pairs, if same_count pairs of "same" points
+                              were generated, generate (diff_multiplier * same_count) pairs of different points.
+                              [default: 2]
     --freeze                  Freeze all but the last layer of a Siamese network (for fine tuning)
-    --flexibleLoss=<distmat>  Use a flexible Contrastive Loss for the Siamese training which takes into account
-                              distances on the ontology, determined by the <ontology> file.
-    --dist_fcn=<fcn>          The type of decay function to use for distances in the ontology. A distance of zero will always
-                              be transformed to 1, but as you go further from the target, the rate at wich you approach 0 depends
-                              on what <fcn> is:
+    --flexibleLoss=<type>     Use a flexible Contrastive Loss for the Siamese training which takes into account
+                              distances between cell-types (rather than just binary, 0=different, 1=same). Different types of
+                              distances are available, specified by the <type> required argument:
+                                  ontology: distances are based on distances between nodes in the Cell Ontology DAG (graph based).
+                                      These distances are the path lengths in the DAG converted to an undirected graph. Need to be
+                                      normalized using the --max_ont_dist option.
+                                  text-mined: distances are based on co-occurance of terms in PubMed articles. These distances
+                                      are already normalized between 0 and 1.
+    --distance_mat=<file>     A pickled, double-keyed dictionary of cell types whose values are distances (this file provides the actual
+                              distances that the user will use, must agree with the type of distance specified in --flexibleLoss.
+    --trnsfm_fcn=<fcn>        The type of transform function to use on top of raw similarity values between cell types. A similarity
+                              of zero will always be transformed to 0, and one will always be transformed to 1. Available transforms:
                                   linear:      linear decay from 1 to 0
-                                  exponential: exponential decay from 1 to 0 (force to zero at max_ont_dist)
+                                  exponential: exponential growth from 0 to 1 (lower bound to linear)
+                                  sigmoidal:   sigmoidal (or tanh)-like function from 0 to 1 (upper bound to linear)
                               [default: linear]
+    --trnsfm_fcn_param=<n>    A numerical constant necessary for some transform functions, allows you to tune their shape. [default: 1]
     --max_ont_dist=<d>        The maximum distance allowed between nodes in the ontology before their similarity is
-                              considered to be 0. [default: 4]
+                              considered to be 0. Only used for --flexibleLoss=ontology. [default: 4]
     --online_train=<n>        Dynamically generate hard pairs after n epochs for
                               siamese neural network training.
-    --viz                     Visualize the data in the embedding space.
-    --ngpus=<n>               Number of gpus to use. n > 1 is for data-parallel model training (Only works
-                              with TensorFlow backend. [default: 1]
 
-    "reduce" specific command options:
+    --viz                     Visualize the data in the embedding space.
+
+
+"reduce" specific command options:
     --save_meta               Also save the metadata that was associated with the input data with the
                               reduced data (labels for the samples, accession numbers for the samples)
 
-    "visualize" specific command options:
+"visualize" specific command options:
     --ntypes=<ntypes>         Number of different cell types to plot. Zero is interpreted as "all".
                               [default: 10]
     --nsamples=<nsamples>     Maximum number of samples of each selected cell type to plot.
                               [default: 100]
     --title=<title>           Title to use for plot. [default: "No title provided"]
 
-    "retrieval" specific command options:
+"retrieval" specific command options:
     --dist_metric=<metric>    Distance metric to use for nearest neighbors
                               retrieval [default: euclidean].
     --dist_mat_file=<path>    Use this distance matrix to calculate distances between retrieved points and
@@ -140,19 +166,19 @@ import sys
 from docopt import docopt
 #import numpy as np
 
-from scrna_nn.train import train
-from scrna_nn.reduce import reduce
-from scrna_nn.visualize import visualize
-from scrna_nn.retrieval_test import retrieval_test
-from scrna_nn.util import ScrnaException
-
-
 if __name__ == '__main__':
     # print("NOTE: setting random seed for reproducability")
     # np.random.seed(34792)
     print(sys.argv)
     args = docopt(__doc__, version='scrna 0.3.0')
     print(args); print()
+
+    from scrna_nn.train import train
+    from scrna_nn.reduce import reduce
+    from scrna_nn.visualize import visualize
+    from scrna_nn.retrieval_test import retrieval_test
+    from scrna_nn.util import ScrnaException
+    
     try:
         if args['train']:
             train(args)

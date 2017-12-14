@@ -27,6 +27,7 @@ from .util import create_working_directory, ScrnaException
 from . import neural_nets as nn
 from . import distances
 from .bio_knowledge import get_adj_mat_from_groupings
+from . import siamese
 
 CACHE_ROOT = "_cache"
 SIAM_CACHE = "siam_data"
@@ -282,72 +283,72 @@ def get_distance(dist_mat, label_strings_lookup, max_dist, a_label, b_label, dis
     thresholded_dist = dist_fcn(dist, max_dist)
     return thresholded_dist
 
-def create_flexible_data_pairs(X, y, true_ids, indices_lists, same_lim, label_strings_lookup, args):
-    dist_mat_file = args['--flexibleLoss']
-    max_dist = int(args['--max_ont_dist'])
-    if args['--dist_fcn'] == 'linear':
-        print("Using linear distance decay")
-        dist_fcn = distances.linear_decay
-    elif args['--dist_fcn'] == 'exponential':
-        print("Using exponential distance decay")
-        dist_fcn = distances.exponential_decay
-    cache_path = join(join(CACHE_ROOT, SIAM_CACHE), args['--dist_fcn'])
-    cache_path = join(cache_path, args['--data']) # To make sure that we change cache when we change the dataset
-    if exists(cache_path):
-        print("Loading siamese data from cache...")
-        pairs = np.load(join(cache_path, "siam_X.npy"))
-        labels = np.load(join(cache_path, "siam_y.npy"))
-        return pairs, labels
-    print("Generating 'Flexible' pairs for siamese")
-    with open(dist_mat_file, 'rb') as f:
-        dist_mat_by_strings = pickle.load(f)
-    pairs = []
-    labels = []
+# def create_flexible_data_pairs(X, y, true_ids, indices_lists, same_lim, label_strings_lookup, args):
+#     dist_mat_file = args['--distance_mat']
+#     max_dist = int(args['--max_ont_dist'])
+#     if args['--dist_fcn'] == 'linear':
+#         print("Using linear distance decay")
+#         dist_fcn = distances.linear_decay
+#     elif args['--dist_fcn'] == 'exponential':
+#         print("Using exponential distance decay")
+#         dist_fcn = distances.exponential_decay
+#     cache_path = join(join(CACHE_ROOT, SIAM_CACHE), args['--dist_fcn'])
+#     cache_path = join(cache_path, args['--data']) # To make sure that we change cache when we change the dataset
+#     if exists(cache_path):
+#         print("Loading siamese data from cache...")
+#         pairs = np.load(join(cache_path, "siam_X.npy"))
+#         labels = np.load(join(cache_path, "siam_y.npy"))
+#         return pairs, labels
+#     print("Generating 'Flexible' pairs for siamese")
+#     with open(dist_mat_file, 'rb') as f:
+#         dist_mat_by_strings = pickle.load(f)
+#     pairs = []
+#     labels = []
 
-    for anchor_label, anchor_samples in indices_lists.items():
-        same_count = 0
-        combs = combinations(anchor_samples, 2)
-        # TODO: should I shuffle the combs?
-        for comb in combs:
-            pairs += [[ X[comb[0]], X[comb[1]] ]]
-            labels += [1]
-            same_count += 1
-            if same_count == same_lim:
-                break
-        # create the different pairs
-        diff_count = 0
-        distance_lists = defaultdict(list)
-        for diff_label, diff_samples in indices_lists.items():
-            if diff_label == anchor_label:
-                continue
-            dist = get_distance(dist_mat_by_strings, label_strings_lookup, max_dist, anchor_label, diff_label, dist_fcn)
-            for s in diff_samples:
-                distance_lists[dist].append(s)
-        for distance, samples in distance_lists.items():
-            np.random.shuffle(samples)
-            num_pairs = min(len(samples), int((2*same_count)/max_dist))
-            for i in range(num_pairs):
-                # select a random anchor sample
-                anchor_idx = random.choice(anchor_samples)
-                diff_idx = samples[i]
-                while(true_ids[anchor_idx] == true_ids[diff_idx]):
-                    # for the current different sample, be sure they aren't the same underlying sample
-                    anchor_idx = random.choice(anchor_samples)
-                anchor_vec = X[anchor_idx]
-                diff_vec = X[diff_idx]
-                pairs += [[ anchor_vec, diff_vec ]]
-                labels += [distance]
-    print("Generated ", len(pairs), " pairs")
-    unique_labels, label_counts = np.unique(labels, return_counts=True)
-    print("Distribution of pairs labels: ")
-    print(unique_labels)
-    print(label_counts)
-    pairs_np = np.array(pairs)
-    labels_np = np.array(labels)
-    makedirs(cache_path)
-    np.save(join(cache_path, "siam_X"), pairs_np)
-    np.save(join(cache_path, "siam_y"), labels_np)
-    return pairs_np, labels_np
+#     for anchor_label, anchor_samples in indices_lists.items():
+#         same_count = 0
+#         combs = combinations(anchor_samples, 2)
+#         # TODO: should I shuffle the combs?
+#         for comb in combs:
+#             pairs += [[ X[comb[0]], X[comb[1]] ]]
+#             labels += [1]
+#             same_count += 1
+#             if same_count == same_lim:
+#                 break
+#         # create the different pairs
+#         diff_count = 0
+#         distance_lists = defaultdict(list)
+#         for diff_label, diff_samples in indices_lists.items():
+#             if diff_label == anchor_label:
+#                 continue
+#             dist = get_distance(dist_mat_by_strings, label_strings_lookup, max_dist, anchor_label, diff_label, dist_fcn)
+#             for s in diff_samples:
+#                 distance_lists[dist].append(s)
+#         for distance, samples in distance_lists.items():
+#             np.random.shuffle(samples)
+#             num_pairs = min(len(samples), int((2*same_count)/max_dist))
+#             for i in range(num_pairs):
+#                 # select a random anchor sample
+#                 anchor_idx = random.choice(anchor_samples)
+#                 diff_idx = samples[i]
+#                 while(true_ids[anchor_idx] == true_ids[diff_idx]):
+#                     # for the current different sample, be sure they aren't the same underlying sample
+#                     anchor_idx = random.choice(anchor_samples)
+#                 anchor_vec = X[anchor_idx]
+#                 diff_vec = X[diff_idx]
+#                 pairs += [[ anchor_vec, diff_vec ]]
+#                 labels += [distance]
+#     print("Generated ", len(pairs), " pairs")
+#     unique_labels, label_counts = np.unique(labels, return_counts=True)
+#     print("Distribution of pairs labels: ")
+#     print(unique_labels)
+#     print(label_counts)
+#     pairs_np = np.array(pairs)
+#     labels_np = np.array(labels)
+#     makedirs(cache_path)
+#     np.save(join(cache_path, "siam_X"), pairs_np)
+#     np.save(join(cache_path, "siam_y"), labels_np)
+#     return pairs_np, labels_np
 
 def create_data_pairs_diff_datasets(X, y, dataset_IDs, indices_lists, same_lim):
     pairs = []
@@ -384,7 +385,7 @@ def create_data_pairs_diff_datasets(X, y, dataset_IDs, indices_lists, same_lim):
     print("Distribution of different and same pairs: ", np.bincount(labels))
     return np.array(pairs), np.array(labels)
 
-def get_data_for_siamese(data_container, args, same_lim):
+def get_data_for_siamese(data_container, args):
     X, y, label_strings_lookup = data_container.get_data()
     true_ids = data_container.get_true_ids()
     print("bincount")
@@ -396,8 +397,9 @@ def get_data_for_siamese(data_container, args, same_lim):
     # print("len(dataset_IDs): ", len(dataset_IDs))
     # assert(len(dataset_IDs) == len(y))
     # X_siamese, y_siamese = create_data_pairs_diff_datasets(X, y, dataset_IDs, indices_lists, same_lim)
+    same_lim = int(args['--same_lim'])
     if args['--flexibleLoss']:
-        X_siamese, y_siamese = create_flexible_data_pairs(X, y, true_ids, indices_lists, same_lim, label_strings_lookup, args)
+        X_siamese, y_siamese = siamese.create_flexible_data_pairs(X, y, true_ids, indices_lists, same_lim, label_strings_lookup, args)
     else:
         X_siamese, y_siamese = create_data_pairs(X, y, true_ids, indices_lists, same_lim, args)
     # Runs out of memory when trying to shuffle
@@ -510,7 +512,7 @@ def train_siamese_neural_net(model, args, data_container, callbacks_list):
         # same_lim = 3000, 
         # same_lim = 3300, 400K
         # same_lim = 3500, 428K
-        X, y = get_data_for_siamese(data_container, args, 750) # this function shuffles the data too
+        X, y = get_data_for_siamese(data_container, args) # this function shuffles the data too
         history = model.fit(X, y, batch_size=int(args['--batch_size']), epochs=int(args['--epochs']), verbose=1, validation_split=float(args['--valid']), callbacks=callbacks_list)
     return history
 
