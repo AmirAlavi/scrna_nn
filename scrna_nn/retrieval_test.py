@@ -7,14 +7,15 @@ from scipy.spatial import distance
 
 from .data_container import DataContainer
 from .util import create_working_directory
+from .util import distances
 
-def average_accuracy(query_label, retrieved_labels, dist_mat_by_strings, max_dist):
-    avg_acc = 0
-    for r in retrieved_labels:
-        avg_acc += max(0, 1 - (dist_mat_by_strings[query_label][r] / max_dist))
-    return avg_acc/len(retrieved_labels)
+# def average_accuracy(query_label, retrieved_labels, dist_mat_by_strings, max_dist):
+#     avg_acc = 0
+#     for r in retrieved_labels:
+#         avg_acc += max(0, 1 - (dist_mat_by_strings[query_label][r] / max_dist))
+#     return avg_acc/len(retrieved_labels)
 
-def average_flex_precision2(query_label, retrieved_labels, dist_mat_by_strings, max_dist):
+def average_flex_precision(query_label, retrieved_labels, similarity_fcn, is_asymm):
     """The difference between this and 'average_flex_precision' is that while that function
     only calculated a score at recall positions that were perfect matches, this one calculates
     at every position. (the other function will return 0 if there were no perfect matches).
@@ -22,7 +23,9 @@ def average_flex_precision2(query_label, retrieved_labels, dist_mat_by_strings, 
     scores = []
     relevance_sum = 0
     for idx, retrieved in enumerate(retrieved_labels):
-        relevance = max(0, 1 - (dist_mat_by_strings[query_label][retrieved] / max_dist))
+        relevance = similarity_fcn(query_label, retrieved)
+        if is_asymm:
+            relevance = min(relevance, similarity_fcn(retrieved, query_label))
         relevance_sum += relevance
         scores.append(relevance_sum / float(idx+1))
     if len(scores) > 0:
@@ -30,18 +33,18 @@ def average_flex_precision2(query_label, retrieved_labels, dist_mat_by_strings, 
     else:
         return 0.0
 
-def average_flex_precision(query_label, retrieved_labels, dist_mat_by_strings, max_dist):
-    scores = []
-    relevance_sum = 0
-    for idx, retrieved in enumerate(retrieved_labels):
-        relevance = max(0, 1 - (dist_mat_by_strings[query_label][retrieved] / max_dist))
-        relevance_sum += relevance
-        if retrieved == query_label:
-            scores.append(relevance_sum / float(idx+1))
-    if len(scores) > 0:
-        return np.mean(scores)
-    else:
-        return 0.0
+# def average_flex_precision(query_label, retrieved_labels, dist_mat_by_strings, max_dist):
+#     scores = []
+#     relevance_sum = 0
+#     for idx, retrieved in enumerate(retrieved_labels):
+#         relevance = max(0, 1 - (dist_mat_by_strings[query_label][retrieved] / max_dist))
+#         relevance_sum += relevance
+#         if retrieved == query_label:
+#             scores.append(relevance_sum / float(idx+1))
+#     if len(scores) > 0:
+#         return np.mean(scores)
+#     else:
+#         return 0.0
         
 def average_precision(target, retrieved_list):
     total = 0
@@ -57,8 +60,22 @@ def average_precision(target, retrieved_list):
     return avg_precision
 
 def retrieval_test(args):
-    with open(args['--dist_mat_file'], 'rb') as f:
-        dist_mat_by_strings = pickle.load(f)
+    if args['--similarity_type'] == 'ontology':
+        print("ontology-based similarities")
+        similarity_fcn = distances.OntologyBasedPairSimilarity(max_ontology_distance=int(args['--max_ont_path_len']),
+                                                               distance_mat_file=args['--sim_mat_file'],
+                                                               transform=args['--sim_trnsfm_fcn'],
+                                                               transform_param=int(args['--sim_trnsfm_param']))
+    elif args['--similarity_type'] == 'text-mined':
+        print("text-mined similarities")
+        similarity_fcn = distances.TextMinedPairSimilarity(distance_mat_file=args['--sim_mat_file'],
+                                                           transform=args['--sim_trnsfm_fcn'],
+                                                           transform_param=int(args['--sim_trnsfm_param']))
+    else:
+        raise ScrnaException("Not a valid similarity type!")
+
+
+    
     working_dir_path = create_working_directory(args['--out'], "retrieval_results/")
     # Load the reduced data
     query_data = DataContainer(args['<query_data_file>'])
@@ -93,20 +110,20 @@ def retrieval_test(args):
 
     average_precisions_for_label = defaultdict(list)
     average_flex_precisions_for_label = defaultdict(list)
-    average_flex_precisions_for_label2 = defaultdict(list)
-    average_accuracies_for_label = defaultdict(list)
-    average_top_fourth_accuracies_for_label = defaultdict(list)
+    # average_flex_precisions_for_label2 = defaultdict(list)
+    # average_accuracies_for_label = defaultdict(list)
+    # average_top_fourth_accuracies_for_label = defaultdict(list)
     distance_matrix = distance.cdist(queries, db, metric=args['--dist_metric'])
     for index, distances_to_query in enumerate(distance_matrix): # Loop is over the set of query cells
         query_label = queries_labels[index]
         sorted_distances_indices = np.argsort(distances_to_query)
         retrieved_labels_sorted_by_distance = db_labels[sorted_distances_indices]
         retrieved_labels = retrieved_labels_sorted_by_distance[:num_results]
-        avg_accuracy = average_accuracy(query_label, retrieved_labels, dist_mat_by_strings, int(args['--max_dist']))
-        top_fourth_idx = int(num_results/4)
-        avg_accuracy_of_top_fourth = average_accuracy(query_label, retrieved_labels[:top_fourth_idx], dist_mat_by_strings, int(args['--max_dist']))
-        avg_flex_precision = average_flex_precision(query_label, retrieved_labels, dist_mat_by_strings, int(args['--max_dist']))
-        avg_flex_precision2 = average_flex_precision2(query_label, retrieved_labels, dist_mat_by_strings, int(args['--max_dist']))
+        # avg_accuracy = average_accuracy(query_label, retrieved_labels, dist_mat_by_strings, int(args['--max_ont_dist']))
+        # top_fourth_idx = int(num_results/4)
+        # avg_accuracy_of_top_fourth = average_accuracy(query_label, retrieved_labels[:top_fourth_idx], dist_mat_by_strings, int(args['--max_ont_dist']))
+        avg_flex_precision = average_flex_precision(query_label, retrieved_labels, similarity_fcn, args['--asymm_dist'])
+        #  avg_flex_precision2 = average_flex_precision2(query_label, retrieved_labels, dist_mat_by_strings, int(args['--max_ont_dist']))
         avg_precision = average_precision(query_label, retrieved_labels)
         if avg_flex_precision2 <= 0.2:
             print("\tLOW SCORE")
@@ -116,37 +133,38 @@ def retrieval_test(args):
                 print("\t\t" + l)
         average_precisions_for_label[query_label].append(avg_precision)
         average_flex_precisions_for_label[query_label].append(avg_flex_precision)
-        average_flex_precisions_for_label2[query_label].append(avg_flex_precision2)
-        average_accuracies_for_label[query_label].append(avg_accuracy)
-        average_top_fourth_accuracies_for_label[query_label].append(avg_accuracy_of_top_fourth)
+        # average_flex_precisions_for_label2[query_label].append(avg_flex_precision2)
+        # average_accuracies_for_label[query_label].append(avg_accuracy)
+        # average_top_fourth_accuracies_for_label[query_label].append(avg_accuracy_of_top_fourth)
 
     retrieval_results_d = {"cell_types":{}}
     maps = [] # mean average precisions
     mafps = [] # mean average flex precisions
-    mafp2s = [] # mean average flex precisions (2)
-    macs = [] # mean average accuracies
-    macqs = [] # mean average accuracies of top quarter
+    # mafp2s = [] # mean average flex precisions (2)
+    # macs = [] # mean average accuracies
+    # macqs = [] # mean average accuracies of top quarter
     weights = []
     for label in average_precisions_for_label.keys():
         average_precisions = average_precisions_for_label[label]
         average_flex_precisions = average_flex_precisions_for_label[label]
-        average_flex_precisions2 = average_flex_precisions_for_label2[label]
-        average_accuracies = average_accuracies_for_label[label]
-        average_fourth_accuracies = average_top_fourth_accuracies_for_label[label]
+        # average_flex_precisions2 = average_flex_precisions_for_label2[label]
+        # average_accuracies = average_accuracies_for_label[label]
+        # average_fourth_accuracies = average_top_fourth_accuracies_for_label[label]
 
         cur_map = np.mean(average_precisions)
         maps.append(cur_map)
         cur_mafp = np.mean(average_flex_precisions)
         mafps.append(cur_mafp)
-        cur_mafp2 = np.mean(average_flex_precisions2)
-        mafp2s.append(cur_mafp2)
-        cur_mac = np.mean(average_accuracies)
-        macs.append(cur_mac)
-        cur_macq = np.mean(average_fourth_accuracies)
-        macqs.append(cur_macq)
+        # cur_mafp2 = np.mean(average_flex_precisions2)
+        # mafp2s.append(cur_mafp2)
+        # cur_mac = np.mean(average_accuracies)
+        # macs.append(cur_mac)
+        # cur_macq = np.mean(average_fourth_accuracies)
+        # macqs.append(cur_macq)
         cur_weight = query_label_count_d[label]
         weights.append(cur_weight)
-        retrieval_results_d["cell_types"][label] = {"#_in_query": cur_weight, "#_in_DB": db_label_count_d[label], "Mean_Average_Precision": cur_map, "Mean_Average_Flex_Precision": cur_mafp, "Mean_Average_Flex_Precision2": cur_mafp2, "Mean_Average_Accuracy": cur_mac, "Mean_Average_Accuracy_of_top_quarter": cur_macq}
+        # retrieval_results_d["cell_types"][label] = {"#_in_query": cur_weight, "#_in_DB": db_label_count_d[label], "Mean_Average_Precision": cur_map, "Mean_Average_Flex_Precision": cur_mafp, "Mean_Average_Flex_Precision2": cur_mafp2, "Mean_Average_Accuracy": cur_mac, "Mean_Average_Accuracy_of_top_quarter": cur_macq}
+        retrieval_results_d["cell_types"][label] = {"#_in_query": cur_weight, "#_in_DB": db_label_count_d[label], "Mean_Average_Precision": cur_map, "Mean_Average_Flex_Precision": cur_mafp}
 
     retrieval_results_d["average_map"] = np.mean(maps)
     retrieval_results_d["weighted_average_map"] = np.average(maps, weights=weights)
@@ -154,14 +172,14 @@ def retrieval_test(args):
     retrieval_results_d["average_mafp"] = np.mean(mafps)
     retrieval_results_d["weighted_average_mafp"] = np.average(mafps, weights=weights)
 
-    retrieval_results_d["average_mafp2"] = np.mean(mafp2s)
-    retrieval_results_d["weighted_average_mafp2"] = np.average(mafp2s, weights=weights)
+    # retrieval_results_d["average_mafp2"] = np.mean(mafp2s)
+    # retrieval_results_d["weighted_average_mafp2"] = np.average(mafp2s, weights=weights)
 
-    retrieval_results_d["average_mac"] = np.mean(macs)
-    retrieval_results_d["weighted_average_mac"] = np.average(macs, weights=weights)
+    # retrieval_results_d["average_mac"] = np.mean(macs)
+    # retrieval_results_d["weighted_average_mac"] = np.average(macs, weights=weights)
 
-    retrieval_results_d["average_macq"] = np.mean(macqs)
-    retrieval_results_d["weighted_average_macq"] = np.average(macqs, weights=weights)
+    # retrieval_results_d["average_macq"] = np.mean(macqs)
+    # retrieval_results_d["weighted_average_macq"] = np.average(macqs, weights=weights)
     with open(join(working_dir_path, "retrieval_results_d.pickle"), 'wb') as f:
         pickle.dump(retrieval_results_d, f)
         

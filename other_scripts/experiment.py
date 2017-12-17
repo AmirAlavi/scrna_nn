@@ -1,7 +1,7 @@
 """Retrieval Experiment Runner
 
 Usage:
-    experiment.py <model_list_file> <query_file> <db_file> <partition> <email_address>
+    experiment.py <model_list_file> <query_file> <db_file> <similarity_type> <similarity_mat_file> <sim_transform_fcn> <sim_transform_param> <partition> <email_address> [--asymm_similarity]
 
 Options:
     -h --help  Show this screen.
@@ -21,7 +21,7 @@ REDUCE_COMMAND_TEMPLATE = """scrna-nn reduce {trained_nn_folder} \
 --data={data_file} --out={output_file} --save_meta"""
 
 RETRIEVAL_COMMAND_TEMPLATE = """scrna-nn retrieval {reduced_query_file} {reduced_db_file} \
---out={output_folder} --dist_mat_file=dist_mat_by_strings.p"""
+--out={output_folder} --sim_mat_file={sim_mat_file} --similarity_type={sim_type} --sim_trnsfm_fcn={trnsfm} --sim_trnsfm_param={trnsfm_param} {is_asymm}"""
 
 SLURM_TRANSFORM_COMMAND = """sbatch -p {partition} --array=0-{num_jobs} --mail-user {email} \
 --output {out_folder}/scrna_transform_array_%A_%a.out
@@ -105,6 +105,10 @@ class Experiment(object):
         makedirs(retrieval_dir)
         retrieval_commands = {}
         retrieval_result_folders = {}
+        if args['--asymm_similarity']:
+            symmetry = '--asymm_dist'
+        else:
+            symmetry = ''
         for model_name, transformed_data_folder in transform_data_folders.items():
             # path to output location, where the retrieval test results will be written to
             retrieval_result_folder = join(retrieval_dir, model_name)
@@ -113,7 +117,7 @@ class Experiment(object):
             retrieval_commands[model_name] = string.Formatter().vformat(RETRIEVAL_COMMAND_TEMPLATE, (),
                                                                         SafeDict(reduced_query_file=transformed_query,
                                                                                  reduced_db_file=transformed_db,
-                                                                                 output_folder=retrieval_result_folder))
+                                                                                 output_folder=retrieval_result_folder, sim_mat_file=args['<similarity_mat_file>'], sim_type=args['<similarity_type>'], trnsfm=args['<sim_transform_fcn>'], trnsfm_param=args['<sim_transform_param>'], is_assym=symmetry))
             retrieval_result_folders[model_name] = retrieval_result_folder
         # Also compare with using raw, undreduced data
         orig_model_name = "original_data"
@@ -121,7 +125,7 @@ class Experiment(object):
         retrieval_commands[orig_model_name] = string.Formatter().vformat(RETRIEVAL_COMMAND_TEMPLATE, (),
                                                                          SafeDict(reduced_query_file=query_file,
                                                                                   reduced_db_file=db_file,
-                                                                                  output_folder=orig_retrieval_result_folder))
+                                                                                  output_folder=orig_retrieval_result_folder, sim_mat_file=args['<similarity_mat_file>'], sim_type=args['<similarity_type>'], trnsfm=args['<sim_transform_fcn>'], trnsfm_param=args['<sim_transform_param>'], is_assym=symmetry))
         retrieval_result_folders[orig_model_name] = orig_retrieval_result_folder
         # write each of the command lines for retrieval testing to a file, to be consumed by the slurm jobs
         write_out_command_dict(retrieval_commands, 'retrieval_commands.list')
@@ -203,9 +207,9 @@ class Experiment(object):
                 compiled_results[model_name] = pickle.load(f)
         self.write_out_table(compiled_results, "map", "Average MAP", "Mean_Average_Precision", "average_map")
         self.write_out_table(compiled_results, "mafp", "Average MAFP", "Mean_Average_Flex_Precision", "average_mafp")
-        self.write_out_table(compiled_results, "mafp2", "Average MAFP2", "Mean_Average_Flex_Precision2", "average_mafp2")
-        self.write_out_table(compiled_results, "mac", "Average MAC", "Mean_Average_Accuracy", "average_mac")
-        self.write_out_table(compiled_results, "macq", "Average MACQ", "Mean_Average_Accuracy_of_top_quarter", "average_macq")
+        # self.write_out_table(compiled_results, "mafp2", "Average MAFP2", "Mean_Average_Flex_Precision2", "average_mafp2")
+        # self.write_out_table(compiled_results, "mac", "Average MAC", "Mean_Average_Accuracy", "average_mac")
+        # self.write_out_table(compiled_results, "macq", "Average MACQ", "Mean_Average_Accuracy_of_top_quarter", "average_macq")
 
 if __name__ == '__main__':
     args = docopt(__doc__, version='experiment 0.1')

@@ -6,7 +6,7 @@ Usage:
     scrna-nn train (--nn=<nn_architecture> | --pca=<n_comp>) [<hidden_layer_sizes>...] [--out=<path> --data=<path>] [options]
     scrna-nn reduce <trained_model_folder> [--out=<path> --data=<path> --save_meta]
     scrna-nn visualize <reduced_data_file> [--out=<path> --ntypes=<ntypes> --nsamples=<nsamples> --title=<title>]
-    scrna-nn retrieval <query_data_file> <database_data_file> [--dist_metric=<metric> --out=<path> --max_dist=<d>] --dist_mat_file=<path>
+    scrna-nn retrieval <query_data_file> <database_data_file> [--dist_metric=<metric> --out=<path> --similarity_type=<type> --sim_trnsfm_fcn=<fcn> --sim_trnsfm_param=<n> --max_ont_path_len=<d> --asymm_dist] --sim_mat_file=<path>
     scrna-nn (-h | --help)
     scrna-nn --version
 
@@ -124,7 +124,7 @@ Options:
                                       normalized using the --max_ont_dist option.
                                   text-mined: distances are based on co-occurance of terms in PubMed articles. These distances
                                       are already normalized between 0 and 1.
-    --distance_mat=<file>     A pickled, double-keyed dictionary of cell types whose values are distances (this file provides the actual
+    --dist_mat_file=<path>    A pickled, double-keyed dictionary of cell types whose values are distances (this file provides the actual
                               distances that the user will use, must agree with the type of distance specified in --flexibleLoss.
     --trnsfm_fcn=<fcn>        The type of transform function to use on top of raw similarity values between cell types. A similarity
                               of zero will always be transformed to 0, and one will always be transformed to 1. Available transforms:
@@ -155,10 +155,16 @@ Options:
 "retrieval" specific command options:
     --dist_metric=<metric>    Distance metric to use for nearest neighbors
                               retrieval [default: euclidean].
-    --dist_mat_file=<path>    Use this distance matrix to calculate distances between retrieved points and
-                              the target in the ontology graph, and use this distance to calculate an accuracy.
-    --max_dist=<d>            See --max_ont_dist from the 'train' command. This is the same thing.
+    --similarity_type=<type>  Same as --flexibleLoss from train command.
+                              [default: text-mined]
+    --sim_mat_file=<path>     Same as --dist_mat_file from train command.
+    --sim_trnsfm_fcn=<fcn>    Same as --trnsfm_fcn from train command.
+                              [default: linear]
+    --sim_trnsfm_param=<n>    Same as --trnsfm_fcn_param from train command.
+                              [default: 1]
+    --max_ont_path_len=<d>    See --max_ont_dist from the 'train' command. This is the same thing.
                               [default: 4]
+    --asymm_dist              Indicates that the similarity matrix is asymmetric.
 """
 # import pdb; pdb.set_trace()
 import sys

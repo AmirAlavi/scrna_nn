@@ -85,7 +85,7 @@ def select_diff_pairs(X, y, true_ids, label_strings_lookup, anchor_label, anchor
     return pairs, labels
 
 def create_flexible_data_pairs(X, y, true_ids, indices_lists, same_lim, label_strings_lookup, args):
-    config_string = '_'.join([args['--data'], args['--flexibleLoss'], args['--distance_mat'], args['--trnsfm_fcn'], args['--trnsfm_fcn_param'], args['--unif_diff'], args['--same_lim'], args['--diff_multiplier']])
+    config_string = '_'.join([args['--data'], args['--flexibleLoss'], args['--dist_mat_file'], args['--trnsfm_fcn'], args['--trnsfm_fcn_param'], args['--unif_diff'], args['--same_lim'], args['--diff_multiplier']])
     cache_path = join(join(CACHE_ROOT, SIAM_CACHE), config_string)
     if exists(cache_path):
         print("Loading siamese data from cache...")
@@ -96,12 +96,12 @@ def create_flexible_data_pairs(X, y, true_ids, indices_lists, same_lim, label_st
     if args['--flexibleLoss'] == 'ontology':
         print("ontology-based similarities")
         similarity_fcn = distances.OntologyBasedPairSimilarity(max_ontology_distance=int(args['--max_ont_dist']),
-                                                               distance_mat_file=args['--distance_mat'],
+                                                               distance_mat_file=args['--dist_mat_file'],
                                                                transform=args['--trnsfm_fcn'],
                                                                transform_param=int(args['--trnsfm_fcn_param']))
     elif args['--flexibleLoss'] == 'text-mined':
         print("text-mined similarities")
-        similarity_fcn = distances.TextMinedPairSimilarity(distance_mat_file=args['--distance_mat'],
+        similarity_fcn = distances.TextMinedPairSimilarity(distance_mat_file=args['--dist_mat_file'],
                                                            transform=args['--trnsfm_fcn'],
                                                            transform_param=int(args['--trnsfm_fcn_param']))
     else:
