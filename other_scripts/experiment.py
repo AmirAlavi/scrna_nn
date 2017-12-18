@@ -15,6 +15,7 @@ from os import makedirs
 from os.path import join, basename, normpath, realpath, dirname
 
 from docopt import docopt
+import numpy as np
 
 DEFAULT_WORKING_DIR_ROOT = 'experiments'
 REDUCE_COMMAND_TEMPLATE = """scrna-nn reduce {trained_nn_folder} \
@@ -190,6 +191,67 @@ class Experiment(object):
                     csv_file.write(str(results["cell_types"][label][metric_key]) + ",")
                 csv_file.write(str(results[mean_metric_key]) + "," + str(results["weighted_"+mean_metric_key]) + "\n")
 
+    def write_split_tables(self, compiled_results, file_prefix, metric_header, metric_key, mean_metric_key, threshold=1000):
+        """Will generate a multiple tables in the same format as 'write_out_table', but will separate into two
+        tables: one that contains only the cell types (columns) that have above 'threshold' number of cells in the 
+        database, and another with the other cell types that don't meet this threshold.
+        """
+        any_model_results = next(iter(compiled_results.values()))
+        high_cell_types = sorted([key for key, value in any_model_results["cell_types"].items() if value["#_in_DB"] >= threshold])
+        low_cell_types = sorted([key for key, value in any_model_results["cell_types"].items() if value["#_in_DB"] < threshold])
+        with open(join(self.working_dir_path, file_prefix + 'high_results_table.csv'), 'w', newline='') as csv_file:
+            csv_file.write("# in Query")
+            high_cell_weights = []
+            for label in high_cell_types:
+                count = any_model_results["cell_types"][label]["#_in_query"]
+                high_cell_weights.append(count)
+                csv_file.write("," + str(count))
+            csv_file.write("\n# in Database")
+            for label in high_cell_types:
+                csv_file.write("," + str(any_model_results["cell_types"][label]["#_in_DB"]))
+            csv_file.write("\nModel")
+            for label in high_cell_types:
+                csv_file.write("," + label)
+
+            csv_file.write("," + metric_header + ",Weighted " + metric_header + "\n")
+            for model_name, results in compiled_results.items():
+                csv_file.write(model_name + ",")
+                scores = []
+                for label in high_cell_types:
+                    score = results["cell_types"][label][metric_key]
+                    scores.append(score)
+                    csv_file.write(str(score) + ",")
+                mean = np.mean(scores)
+                weighted_mean = np.average(scores, weights=high_cell_weights)
+                csv_file.write(str(mean) + "," + str(weighted_mean) + "\n")
+
+        with open(join(self.working_dir_path, file_prefix + 'low_results_table.csv'), 'w', newline='') as csv_file:
+            csv_file.write("# in Query")
+            low_cell_weights = []
+            for label in low_cell_types:
+                count = any_model_results["cell_types"][label]["#_in_query"]
+                low_cell_weights.append(count)
+                csv_file.write("," + str(count))
+            csv_file.write("\n# in Database")
+            for label in low_cell_types:
+                csv_file.write("," + str(any_model_results["cell_types"][label]["#_in_DB"]))
+            csv_file.write("\nModel")
+            for label in low_cell_types:
+                csv_file.write("," + label)
+
+            csv_file.write("," + metric_header + ",Weighted " + metric_header + "\n")
+            for model_name, results in compiled_results.items():
+                csv_file.write(model_name + ",")
+                scores = []
+                for label in low_cell_types:
+                    score = results["cell_types"][label][metric_key]
+                    scores.append(score)
+                    csv_file.write(str(score) + ",")
+                mean = np.mean(scores)
+                weighted_mean = np.average(scores, weights=low_cell_weights)
+                csv_file.write(str(mean) + "," + str(weighted_mean) + "\n")
+
+                
     def compile_results(self):
         """Compiles results into various tables:
         - overall table - contains all of the raw data in a single table
@@ -206,7 +268,9 @@ class Experiment(object):
             with open(results_file, 'rb') as f:
                 compiled_results[model_name] = pickle.load(f)
         self.write_out_table(compiled_results, "map", "Average MAP", "Mean_Average_Precision", "average_map")
+        self.write_split_tables(compiled_results, "map", "Average MAP", "Mean_Average_Precision", "average_map", threshold=1000)
         self.write_out_table(compiled_results, "mafp", "Average MAFP", "Mean_Average_Flex_Precision", "average_mafp")
+        self.write_split_tables(compiled_results, "mafp", "Average MAFP", "Mean_Average_Flex_Precision", "average_mafp", threshold=1000))
         # self.write_out_table(compiled_results, "mafp2", "Average MAFP2", "Mean_Average_Flex_Precision2", "average_mafp2")
         # self.write_out_table(compiled_results, "mac", "Average MAC", "Mean_Average_Accuracy", "average_mac")
         # self.write_out_table(compiled_results, "macq", "Average MACQ", "Mean_Average_Accuracy_of_top_quarter", "average_macq")
