@@ -3,6 +3,7 @@ import json
 import pickle
 import random
 import time
+import datetime
 import math
 from collections import defaultdict, namedtuple
 from itertools import combinations
@@ -31,6 +32,11 @@ from . import siamese
 
 CACHE_ROOT = "_cache"
 SIAM_CACHE = "siam_data"
+
+def pretty_tdelta(tdelta):
+    hours, rem = divmod(tdelta.seconds, 3600)
+    mins, secs = divmod(rem, 60)
+    return "{:2d} hours {:2d} mins {:2d} secs".format(hours, mins, secs)
 
 
 class StepLRHistory(Callback):
@@ -548,11 +554,17 @@ def train_neural_net(working_dir_path, args, data_container):
         lrate_sched = LearningRateScheduler(lr_history.get_step_decay_fcn())
         callbacks_list = [lr_history, lrate_sched]
     print("training model...")
+    t0 = datetime.datetime.now()
     if args['--siamese']:
         # Specially routines for training siamese models
         history = train_siamese_neural_net(model, args, data_container, callbacks_list)
     else:
         history = model.fit(X, y, batch_size=int(args['--batch_size']), epochs=int(args['--epochs']), verbose=1, validation_split=float(args['--valid']), callbacks=callbacks_list)
+    t1 = datetime.datetime.now()
+    time_str = pretty_tdelta(t1-t0)
+    print("Training neural net took " + time_str)
+    with open(join(working_dir_path, "timing.txt"), 'w') as f:
+        f.write(time_str + "\n")
     plot_training_history(history, join(working_dir_path, "loss.png"))
     if not args['--ae'] and not args['--siamese']:
         plot_accuracy_history(history, join(working_dir_path, "accuracy.png"))

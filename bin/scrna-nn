@@ -131,6 +131,7 @@ Options:
                                   linear:      linear decay from 1 to 0
                                   exponential: exponential growth from 0 to 1 (lower bound to linear)
                                   sigmoidal:   sigmoidal (or tanh)-like function from 0 to 1 (upper bound to linear)
+                                  binary:      same pairs are 1, different pairs are all 0 (will not use a flexible contrastive loss metric)
                               [default: linear]
     --trnsfm_fcn_param=<n>    A numerical constant necessary for some transform functions, allows you to tune their shape. [default: 1]
     --max_ont_dist=<d>        The maximum distance allowed between nodes in the ontology before their similarity is
@@ -170,11 +171,11 @@ Options:
 import sys
 
 from docopt import docopt
-#import numpy as np
+import numpy as np
 
 if __name__ == '__main__':
-    # print("NOTE: setting random seed for reproducability")
-    # np.random.seed(34792)
+    print("NOTE: setting random seed for reproducability")
+    np.random.seed(34792)
     print(sys.argv)
     args = docopt(__doc__, version='scrna 0.3.0')
     print(args); print()

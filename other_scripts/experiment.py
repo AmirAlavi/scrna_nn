@@ -107,6 +107,7 @@ class Experiment(object):
         retrieval_commands = {}
         retrieval_result_folders = {}
         if args['--asymm_similarity']:
+            print("using asymmetric metric")
             symmetry = '--asymm_dist'
         else:
             symmetry = ''
@@ -118,7 +119,7 @@ class Experiment(object):
             retrieval_commands[model_name] = string.Formatter().vformat(RETRIEVAL_COMMAND_TEMPLATE, (),
                                                                         SafeDict(reduced_query_file=transformed_query,
                                                                                  reduced_db_file=transformed_db,
-                                                                                 output_folder=retrieval_result_folder, sim_mat_file=args['<similarity_mat_file>'], sim_type=args['<similarity_type>'], trnsfm=args['<sim_transform_fcn>'], trnsfm_param=args['<sim_transform_param>'], is_assym=symmetry))
+                                                                                 output_folder=retrieval_result_folder, sim_mat_file=args['<similarity_mat_file>'], sim_type=args['<similarity_type>'], trnsfm=args['<sim_transform_fcn>'], trnsfm_param=args['<sim_transform_param>'], is_asymm=symmetry))
             retrieval_result_folders[model_name] = retrieval_result_folder
         # Also compare with using raw, undreduced data
         orig_model_name = "original_data"
@@ -126,7 +127,7 @@ class Experiment(object):
         retrieval_commands[orig_model_name] = string.Formatter().vformat(RETRIEVAL_COMMAND_TEMPLATE, (),
                                                                          SafeDict(reduced_query_file=query_file,
                                                                                   reduced_db_file=db_file,
-                                                                                  output_folder=orig_retrieval_result_folder, sim_mat_file=args['<similarity_mat_file>'], sim_type=args['<similarity_type>'], trnsfm=args['<sim_transform_fcn>'], trnsfm_param=args['<sim_transform_param>'], is_assym=symmetry))
+                                                                                  output_folder=orig_retrieval_result_folder, sim_mat_file=args['<similarity_mat_file>'], sim_type=args['<similarity_type>'], trnsfm=args['<sim_transform_fcn>'], trnsfm_param=args['<sim_transform_param>'], is_asymm=symmetry))
         retrieval_result_folders[orig_model_name] = orig_retrieval_result_folder
         # write each of the command lines for retrieval testing to a file, to be consumed by the slurm jobs
         write_out_command_dict(retrieval_commands, 'retrieval_commands.list')
@@ -270,7 +271,7 @@ class Experiment(object):
         self.write_out_table(compiled_results, "map", "Average MAP", "Mean_Average_Precision", "average_map")
         self.write_split_tables(compiled_results, "map", "Average MAP", "Mean_Average_Precision", "average_map", threshold=1000)
         self.write_out_table(compiled_results, "mafp", "Average MAFP", "Mean_Average_Flex_Precision", "average_mafp")
-        self.write_split_tables(compiled_results, "mafp", "Average MAFP", "Mean_Average_Flex_Precision", "average_mafp", threshold=1000))
+        self.write_split_tables(compiled_results, "mafp", "Average MAFP", "Mean_Average_Flex_Precision", "average_mafp", threshold=1000)
         # self.write_out_table(compiled_results, "mafp2", "Average MAFP2", "Mean_Average_Flex_Precision2", "average_mafp2")
         # self.write_out_table(compiled_results, "mac", "Average MAC", "Mean_Average_Accuracy", "average_mac")
         # self.write_out_table(compiled_results, "macq", "Average MACQ", "Mean_Average_Accuracy_of_top_quarter", "average_macq")

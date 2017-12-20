@@ -36,8 +36,8 @@ def uniformly_select_diff_pairs(n_buckets, candidate_diff_samples, X, y, true_id
         for i in range(num_to_take):
             # select a random anchor sample
             anchor_idx = random.choice(anchor_samples)
-            diff_idx = subset[i][1]
-            similarity = subset[i][0]
+            diff_idx = subset[i][2]
+            similarity = subset[i][1] # use the transformed similarity
             while(true_ids[anchor_idx] == true_ids[diff_idx]):
                 # for the current different sample, be sure they aren't the same underlying sample
                 anchor_idx = random.choice(anchor_samples)
@@ -55,8 +55,8 @@ def unconstrained_select_diff_pairs(candidate_diff_samples, X, y, true_ids, anch
     for i in range(num_to_take):
         # select a random anchor sample
         anchor_idx = random.choice(anchor_samples)
-        diff_idx = candidate_diff_samples[i][1]
-        similarity = candidate_diff_samples[i][0]
+        diff_idx = candidate_diff_samples[i][2]
+        similarity = candidate_diff_samples[i][1] # use the transformed similarity
         while(true_ids[anchor_idx] == true_ids[diff_idx]):
             # for the current different sample, be sure they aren't the same underlying sample
             anchor_idx = random.choice(anchor_samples)
@@ -67,15 +67,16 @@ def unconstrained_select_diff_pairs(candidate_diff_samples, X, y, true_ids, anch
     return pairs, labels
 
 def select_diff_pairs(X, y, true_ids, label_strings_lookup, anchor_label, anchor_samples, indices_lists, similarity_fcn, same_count, args):
-    similarity_to_anchor = [] # elements will be tuples of (similarity, diff_sample_id) where similarity is the similarity b/w this diff sample and the anchor sample
+    similarity_to_anchor = [] # elements will be tuples of (raw_similarity, transformed_similarity, diff_sample_id) where similarity is the similarity b/w this diff sample and the anchor sample
     for diff_label, diff_samples in indices_lists.items():
         if diff_label == anchor_label:
             continue # picked a cell type that is same as anchor type, we want one that is different
         anchor_string = label_strings_lookup[anchor_label]
         diff_string = label_strings_lookup[diff_label]
-        similarity = similarity_fcn(anchor_string, diff_string)
+        raw_similarity = similarity_fcn(anchor_string, diff_string, transform=False)
+        transformed_similarity = similarity_fcn(anchor_string, diff_string, transform=True)
         for s in diff_samples:
-            similarity_to_anchor.append((similarity, s))
+            similarity_to_anchor.append((raw_similarity, transformed_similarity, s))
     if int(args['--unif_diff']) > 0:
         print("uniform!")
         pairs, labels = uniformly_select_diff_pairs(int(args['--unif_diff']), similarity_to_anchor, X, y, true_ids, anchor_samples, same_count, int(args['--diff_multiplier']))
