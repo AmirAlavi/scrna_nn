@@ -13,20 +13,24 @@ MODELS=$4
 EMAIL=$5
 EXTRA_OPTS="${@:6}"
 
-# PCA BASELINES
-echo  scrna-nn train --pca=1136 --sn --out=${MODEL_PREFIX}pca_1136 --data=$TRAIN_DATA $EXTRA_OPTS > ${SESSION_NAME}_commands.list
-echo ${MODEL_PREFIX}pca_1136 > ${SESSION_NAME}_models.list
-echo  scrna-nn train --pca=500 --sn --out=${MODEL_PREFIX}pca_500 --data=$TRAIN_DATA $EXTRA_OPTS >> ${SESSION_NAME}_commands.list
-echo ${MODEL_PREFIX}pca_500 >> ${SESSION_NAME}_models.list
-echo  scrna-nn train --pca=200 --sn --out=${MODEL_PREFIX}pca_200 --data=$TRAIN_DATA $EXTRA_OPTS >> ${SESSION_NAME}_commands.list
-echo ${MODEL_PREFIX}pca_200 >> ${SESSION_NAME}_models.list
-echo  scrna-nn train --pca=100 --sn --out=${MODEL_PREFIX}pca_100 --data=$TRAIN_DATA $EXTRA_OPTS >> ${SESSION_NAME}_commands.list
-echo ${MODEL_PREFIX}pca_100 >> ${SESSION_NAME}_models.list
-echo  scrna-nn train --pca=50 --sn --out=${MODEL_PREFIX}pca_50 --data=$TRAIN_DATA $EXTRA_OPTS >> ${SESSION_NAME}_commands.list
-echo ${MODEL_PREFIX}pca_50 >> ${SESSION_NAME}_models.list
+> ${SESSION_NAME}_commands.list
+> ${SESSION_NAME}_models.list
 
+if [ "$MODELS" == "all" -o "$MODELS" == "pca" ]; then
+    # PCA BASELINES
+    echo  scrna-nn train --pca=1136 --sn --out=${MODEL_PREFIX}pca_1136 --data=$TRAIN_DATA $EXTRA_OPTS >> ${SESSION_NAME}_commands.list
+    echo ${MODEL_PREFIX}pca_1136 >> ${SESSION_NAME}_models.list
+    echo  scrna-nn train --pca=500 --sn --out=${MODEL_PREFIX}pca_500 --data=$TRAIN_DATA $EXTRA_OPTS >> ${SESSION_NAME}_commands.list
+    echo ${MODEL_PREFIX}pca_500 >> ${SESSION_NAME}_models.list
+    echo  scrna-nn train --pca=200 --sn --out=${MODEL_PREFIX}pca_200 --data=$TRAIN_DATA $EXTRA_OPTS >> ${SESSION_NAME}_commands.list
+    echo ${MODEL_PREFIX}pca_200 >> ${SESSION_NAME}_models.list
+    echo  scrna-nn train --pca=100 --sn --out=${MODEL_PREFIX}pca_100 --data=$TRAIN_DATA $EXTRA_OPTS >> ${SESSION_NAME}_commands.list
+    echo ${MODEL_PREFIX}pca_100 >> ${SESSION_NAME}_models.list
+    echo  scrna-nn train --pca=50 --sn --out=${MODEL_PREFIX}pca_50 --data=$TRAIN_DATA $EXTRA_OPTS >> ${SESSION_NAME}_commands.list
+    echo ${MODEL_PREFIX}pca_50 >> ${SESSION_NAME}_models.list
+fi
 
-if [ "$MODELS" == "all" -o "$MODELS" == "non-siamese" ]; then
+if [ "$MODELS" == "all" -o "$MODELS" == "non-siamese" -o "$MODELS" == "neural-nets" ]; then
     # NON-SIAMESE MODELS
     ####################
     # Dense 1136
@@ -87,7 +91,7 @@ if [ "$MODELS" == "all" -o "$MODELS" == "non-siamese" ]; then
    echo ${MODEL_PREFIX}comb_flatGO_ppitf_dense >> ${SESSION_NAME}_models.list
 fi
 
-if [ "$MODELS" == "all" -o "$MODELS" == "siamese" ]; then
+if [ "$MODELS" == "all" -o "$MODELS" == "siamese" -o "$MODELS" == "neural-nets" ]; then
     # SIAMESE MODELS
     ################
     # Dense 1136

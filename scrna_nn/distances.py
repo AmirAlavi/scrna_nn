@@ -57,6 +57,8 @@ class OntologyBasedPairSimilarity(PairSimilarity):
 
 class TextMinedPairSimilarity(PairSimilarity):
     def __call__(self, a, b, transform=True):
+        if a == b: # necessary because the dictionary doesn't include distances to self
+            return 1.0
         sim = self.dist_mat[a][b] # the value in dist_mat is already a similarity between 0 and 1
         if transform:
             return self._transform(sim, a, b)
