@@ -479,7 +479,7 @@ def get_data_for_training(data_container, args):
     if args['--ae']:
         # Autoencoder training is unsupervised, so we don't have to limit
         # ourselves to labeled samples
-        X_clean, _, label_strings_lookup = data_container.get_data()
+        X_clean = data_container.get_expression_mat()
         # Add noise to the data:
         noise_level = 0.1
         X = X_clean + noise_level * np.random.normal(loc=0, scale=1, size=X_clean.shape)
@@ -489,6 +489,8 @@ def get_data_for_training(data_container, args):
         # shape as the input, and our label vector "y" is no longer labels, but
         # is the uncorrupted samples
         y = X_clean
+        output_dim = X.shape[1]
+        label_strings_lookup = None
     else:
         # Supervised training:
         print("Supervised training")
@@ -592,7 +594,11 @@ def train(args):
     with open(join(working_dir_path, "command_line_args.json"), 'w') as fp:
         json.dump(args, fp)
     print("loading data and setting up model...")
-    data_container = DataContainer(args['--data'], args['--sn'])
+    data_container = DataContainer(args['--data'], sample_normalize=args['--sn'], feature_normalize=args['--gn'])
+    if args['--gn']:
+        # save the training data mean and std for later use with test data
+        data_container.mean.to_pickle(join(working_dir_path, "mean.p"))
+        data_container.std.to_pickle(join(working_dir_path, "std.p"))
     if args['--pca']:
         train_pca_model(working_dir_path, args, data_container)
     else:

@@ -33,7 +33,12 @@ def reduce(args):
     with open(training_args_path, 'r') as fp:
         training_args = json.load(fp)
     # Must ensure that we use the same normalizations/standardization from when model was trained
-    data_container = DataContainer(args['--data'], training_args['--sn'])
+    mean = None
+    std = None
+    if training_args['--gn']:
+        mean = pd.read_pickle(join(args['<trained_model_folder>'], "mean.p"))
+        std = pd.read_pickle(join(args['<trained_model_folder>'], "std.p"))
+    data_container = DataContainer(args['--data'], sample_normalize=training_args['--sn'], feature_normalize=training_args['--gn'], feature_mean=mean, feature_std=std)
     X = data_container.get_expression_mat()
     model_base_path = args['<trained_model_folder>']
     if training_args['--nn']:

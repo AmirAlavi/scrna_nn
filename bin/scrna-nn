@@ -61,7 +61,7 @@ Options:
     --pca=<n_comp>            Fit a PCA model with n_comp principal components.
     --sn                      Divide each sample by the total number of reads for
                               that sample.
-    --gs                      Subtract the mean and divide by standard deviation
+    --gn                      Subtract the mean and divide by standard deviation
                               within each gene.
 
     **ARCHITECTURE-RELATED-OPTIONS**
