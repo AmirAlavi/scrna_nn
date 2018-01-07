@@ -83,7 +83,8 @@ class Experiment(object):
         transform_commands = {}
         transform_data_folders = {}
         for model_folder in model_folders:
-            model_name = basename(normpath(model_folder))
+            #model_name = basename(normpath(model_folder))
+            model_name = model_folder.replace('/', '_')
             # path to output location, where the transformed data will be written to
             reduced_data_folder = join(self.working_dir_path, "data_transformed_by_" + model_name)
             reduced_query_file = join(reduced_data_folder, "reduced_query.h5")
