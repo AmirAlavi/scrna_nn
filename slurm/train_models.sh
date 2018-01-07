@@ -155,4 +155,4 @@ NUM_JOBS=$(wc -l ${SESSION_NAME}_commands.list | awk {'print $1'})
 echo "$NUM_JOBS"
 NUM_JOBS=$(($NUM_JOBS - 1))
 echo "$NUM_JOBS"
-sbatch --array=0-$NUM_JOBS --mail-user ${EMAIL} slurm/train_model_arr.sh ${SESSION_NAME}_commands.list
+sbatch --array=0-$NUM_JOBS --mail-user ${EMAIL} --mail-type=END,FAIL slurm/train_model_arr.sh ${SESSION_NAME}_commands.list
