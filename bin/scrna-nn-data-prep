@@ -2,11 +2,13 @@
 """Data Analysis & Preparation Script (for scrna-nn)
 
 Usage:
-    scrna-nn-data-prep <expression_h5> <ontology_mappings_json> [--filter --term_distances --assign=<assn>]
+    scrna-nn-data-prep <expression_h5> <ontology_mappings_json> [--unlabeled --filter --term_distances --assign=<assn>]
     scrna-nn-data-prep (-h | --help)
     scrna-nn-data-prep --version
 
 Options:
+    --unlabeled         Take all of the data and do not filter any of the samples out. Do not attempt to assign lables.
+                        This is useful for unsupervised learning
     --filter            Remove terms that have less than 75 cells mapping to them. Also remove terms that are not part
                         of the main Cell Ontology DAG (i.e. NCBITaxon terms). Also remove some other, pre-determined
                         specific nodes (see the code for this list).
@@ -24,6 +26,7 @@ import json
 # import pdb; pdb.set_trace()
 from collections import defaultdict, namedtuple
 from typing import List, Tuple
+import sys
 
 import mygene
 import numpy as np
@@ -170,7 +173,7 @@ def filter_cell_to_ontology_terms(mappings, term_counts_d):
     return mappings
 
 
-def write_data_to_h5(name, df, labels, true_cell_ids=None, gene_symbols=None):
+def write_data_to_h5(name, df, labels=None, true_cell_ids=None, gene_symbols=None):
     print(df.shape)
     if not gene_symbols:
         gene_symbols = convert_entrez_to_symbol(df.columns)
@@ -178,13 +181,17 @@ def write_data_to_h5(name, df, labels, true_cell_ids=None, gene_symbols=None):
     gene_symbols_series = pd.Series(data=gene_symbols, index=df.columns)
     accessions = get_accessions_from_accessionSeries(df.index)
     accessions_series = pd.Series(data=accessions, index=df.index)
-    labels_series = pd.Series(data=labels, index=df.index)
+
 
     new_h5_store = pd.HDFStore(name)
+    new_h5_store['rpkm'] = df
     new_h5_store['accessions'] = accessions_series
     new_h5_store['gene_symbols'] = gene_symbols_series
-    new_h5_store['rpkm'] = df
-    new_h5_store['labels'] = labels_series
+
+    if labels is not None:
+        labels_series = pd.Series(data=labels, index=df.index)    
+        new_h5_store['labels'] = labels_series
+
 
     if true_cell_ids is not None:
         new_h5_store['true_ids'] = pd.Series(data=true_cell_ids, index=df.index)
@@ -206,6 +213,10 @@ if __name__ == '__main__':
     with open(args['<ontology_mappings_json>'], 'r') as f:
         cell_to_terms = json.load(f)
     mappings = load_cell_to_ontology_mapping(rpkm_df.index, cell_to_terms)
+
+    if args['--unlabeled']:
+        write_data_to_h5('all_data.h5', rpkm_df)
+        sys.exit()
 
     if args['--filter']:
         # Analyze the mappings

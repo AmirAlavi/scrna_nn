@@ -10,6 +10,7 @@ from keras import backend as K
 
 from .sparse_layer import Sparse
 from .util import ScrnaException
+from . import autoencoders as ae
 
 
 # def load_model_weights_from_pickle(model, path):
@@ -186,6 +187,13 @@ def get_GO_ppitf(hidden_layer_sizes, input_dim, ppitf_adj_mat, go_first_level_ad
     return inputs, x
 
 def get_nn_model(model_name, hidden_layer_sizes, input_dim, is_autoencoder, activation_fcn='tanh', output_dim=None, adj_mat=None, go_first_level_adj_mat=None, go_other_levels_adj_mats=None, flatGO_ppitf_adj_mats=None, extra_dense_units=0):
+    if is_autoencoder:
+        # autoencoder architectures in a separate module for organizational purposes
+        latent_size = None
+        if hidden_layer_sizes is not None:
+            latent_size = hidden_layer_sizes[0]
+        return ae.get_ae_model(model_name, latent_size, input_dim, activation_fcn, adj_mat)
+
     print(hidden_layer_sizes)
     # First get the tensors from hidden layers
     if model_name == 'dense':
@@ -202,9 +210,9 @@ def get_nn_model(model_name, hidden_layer_sizes, input_dim, is_autoencoder, acti
         raise ScrnaException("Bad neural network name: " + model_name)
     
     # Then add output layer on top
-    if is_autoencoder:
-        out_tensors = Dense(input_dim, activation=activation_fcn)(hidden_tensors)
-    else:
-        out_tensors = Dense(output_dim, activation='softmax')(hidden_tensors)
+    # if is_autoencoder:
+    #     out_tensors = Dense(input_dim, activation=activation_fcn)(hidden_tensors)
+    # else:
+    out_tensors = Dense(output_dim, activation='softmax')(hidden_tensors)
     model = Model(inputs=in_tensors, outputs=out_tensors)
     return model
