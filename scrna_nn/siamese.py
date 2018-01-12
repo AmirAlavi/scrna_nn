@@ -86,7 +86,12 @@ def select_diff_pairs(X, y, true_ids, label_strings_lookup, anchor_label, anchor
     return pairs, labels
 
 def create_flexible_data_pairs(X, y, true_ids, indices_lists, same_lim, label_strings_lookup, args):
-    config_string = '_'.join([args['--data'], args['--flexibleLoss'], args['--dist_mat_file'], args['--trnsfm_fcn'], args['--trnsfm_fcn_param'], args['--unif_diff'], args['--same_lim'], args['--diff_multiplier']])
+    normalization = ""
+    if args['--sn']:
+        normalization = "sn"
+    elif args['--gn']:
+        normalization = "gn"
+    config_string = '_'.join([args['--data'], normalization, args['--flexibleLoss'], args['--dist_mat_file'], args['--trnsfm_fcn'], args['--trnsfm_fcn_param'], args['--unif_diff'], args['--same_lim'], args['--diff_multiplier']])
     cache_path = join(join(CACHE_ROOT, SIAM_CACHE), config_string)
     if exists(cache_path):
         print("Loading siamese data from cache...")

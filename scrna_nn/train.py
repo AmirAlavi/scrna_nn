@@ -19,7 +19,7 @@ from sklearn.manifold import TSNE
 from sklearn.metrics.pairwise import euclidean_distances
 from sklearn.utils import shuffle
 from keras.utils import plot_model, np_utils, multi_gpu_model
-from keras.callbacks import Callback, LearningRateScheduler
+from keras.callbacks import Callback, LearningRateScheduler, EarlyStopping
 from keras.optimizers import SGD
 from keras import backend as K
 
@@ -29,6 +29,7 @@ from . import neural_nets as nn
 from . import distances
 from .bio_knowledge import get_adj_mat_from_groupings
 from . import siamese
+from . import unsupervised_pt as pt
 
 CACHE_ROOT = "_cache"
 SIAM_CACHE = "siam_data"
@@ -74,8 +75,10 @@ def get_model_architecture(working_dir_path, args, input_dim, output_dim, gene_n
     # Set pretrained weights, if any, before making into siamese
     if args['--pt']:
         nn.set_pretrained_weights(base_model, args['--pt'])
+    if args['--unsup_pt']:
+        pt.set_pretrained_weights(base_model, args, args['--unsup_pt'])
     if args['--siamese']:
-        model = nn.get_siamese(base_model, input_dim, args['--freeze'])
+        model = nn.get_siamese(base_model, input_dim, args['--freeze'], args['--gn'])
         #plot_model(model, to_file=join(working_dir_path, 'siamese_architecture.png'), show_shapes=True)
     else:
         model = base_model
@@ -115,7 +118,14 @@ def get_base_model_architecture(args, input_dim, output_dim, gene_names):
     #     _, _, adj_mat = get_adj_mat_from_groupings(args['--sparse_groupings'], gene_names)
         
     hidden_layer_sizes = [int(x) for x in args['<hidden_layer_sizes>']]
-    return nn.get_nn_model(args['--nn'], hidden_layer_sizes, input_dim, args['--ae'], args['--act'], output_dim, adj_mat, go_first_level_adj_mat, go_other_levels_adj_mats, flatGO_ppitf_adj_mats, int(args['--with_dense']))
+    if args['--ae']:
+        if args['--nn'] == 'GO':
+            print("For GO autoencoder, doing 1st layer")
+            adj_mat = go_first_level_adj_mat
+            
+            
+        
+    return nn.get_nn_model(args['--nn'], hidden_layer_sizes, input_dim, args['--ae'], args['--act'], output_dim, adj_mat, go_first_level_adj_mat, go_other_levels_adj_mats, flatGO_ppitf_adj_mats, int(args['--with_dense']), float(args['--dropout']))
 
 def get_optimizer(args):
     if args['--opt'] == 'sgd':
@@ -479,16 +489,18 @@ def get_data_for_training(data_container, args):
     if args['--ae']:
         # Autoencoder training is unsupervised, so we don't have to limit
         # ourselves to labeled samples
-        X_clean = data_container.get_expression_mat()
+        #X_clean = data_container.get_expression_mat()
         # Add noise to the data:
-        noise_level = 0.1
-        X = X_clean + noise_level * np.random.normal(loc=0, scale=1, size=X_clean.shape)
-        X = np.clip(X, -1., 1.)
+        #noise_level = 0.1
+        #X = X_clean + noise_level * np.random.normal(loc=0, scale=1, size=X_clean.shape)
+        #X = np.clip(X, -1., 1.)
         # For autoencoders, the input is a noisy sample, and the networks goal
         # is to reconstruct the original sample, and so the output is the same
         # shape as the input, and our label vector "y" is no longer labels, but
         # is the uncorrupted samples
-        y = X_clean
+        #y = X_clean
+        X = data_container.get_expression_mat()
+        y = X
         output_dim = X.shape[1]
         label_strings_lookup = None
     else:
@@ -536,6 +548,35 @@ def train_neural_net(working_dir_path, args, data_container):
     print("Training a Neural Network model...")
     X, y, input_dim, output_dim, label_strings_lookup, gene_names = get_data_for_training(data_container, args)
     X, y = shuffle(X, y) # Shuffle so that Keras's naive selection of validation data doesn't get all same class
+    opt = get_optimizer(args)
+    if args['--layerwise_pt']:
+        hidden_layer_sizes = [int(x) for x in args['<hidden_layer_sizes>']]
+        if args['--nn'] == 'dense':
+            if hidden_layer_sizes == [1136, 100]:
+                pt.pretrain_dense_1136_100_model(input_dim, opt, X, working_dir_path, args)
+            elif hidden_layer_sizes == [1136, 500, 100]:
+                pt.pretrain_dense_1136_500_100_model(input_dim, opt, X, working_dir_path, args)
+            else:
+                raise ScrnaException("Layerwise pretraining not implemented for this architecture")
+        elif args['--nn'] == 'sparse' and int(args['--with_dense']) == 100:
+            if hidden_layer_sizes == [100]:
+                _, _, adj_mat = get_adj_mat_from_groupings(args['--sparse_groupings'], gene_names)
+                pt.pretrain_ppitf_1136_100_model(input_dim, adj_mat, opt, X, working_dir_path, args)
+            elif hidden_layer_sizes == [500, 100]:
+                _, _, adj_mat = get_adj_mat_from_groupings(args['--sparse_groupings'], gene_names)
+                pt.pretrain_ppitf_1136_500_100_model(input_dim, adj_mat, opt, X, working_dir_path, args)
+            else:
+                raise ScrnaException("Layerwise pretraining not implemented for this architecture")
+        elif args['--nn'] == 'GO' and int(args['--with_dense']) == 31:
+            go_first_level_groupings_file = join(args['--go_arch'], 'GO_arch_first_level_groupings.txt')
+            _, _, go_first_level_adj_mat = get_adj_mat_from_groupings(go_first_level_groupings_file, gene_names)
+            go_other_levels_adj_mats_file = join(args['--go_arch'], 'GO_arch_other_levels_adj_mats.pickle')
+            with open(go_other_levels_adj_mats_file, 'rb') as fp:
+                go_other_levels_adj_mats = pickle.load(fp)
+            pt.pretrain_GOlvls_model(input_dim, go_first_level_adj_mat, go_other_levels_adj_mats[0], go_other_levels_adj_mats[1], opt, X, working_dir_path, args)
+        else:
+            raise ScrnaException("Layerwise pretraining not implemented for this architecture")
+    
     ngpus = int(args['--ngpus'])
     if ngpus > 1:
         import tensorflow as tf
@@ -545,7 +586,7 @@ def train_neural_net(working_dir_path, args, data_container):
     else:
         template_model = get_model_architecture(working_dir_path, args, input_dim, output_dim, gene_names)
         model = template_model
-    opt = get_optimizer(args)
+
     compile_model(model, args, opt)
     print("model compiled and ready for training")
     # Prep callbacks
@@ -554,7 +595,9 @@ def train_neural_net(working_dir_path, args, data_container):
         print("Using SGD Step Decay")
         lr_history = StepLRHistory(float(args['--sgd_lr']), int(args['--sgd_step_decay']))
         lrate_sched = LearningRateScheduler(lr_history.get_step_decay_fcn())
-        callbacks_list = [lr_history, lrate_sched]
+        callbacks_list.extend([lr_history, lrate_sched])
+    if args['--early_stop']:
+        callbacks_list.append(EarlyStopping(monitor='val_loss', patience=3))
     print("training model...")
     t0 = datetime.datetime.now()
     if args['--siamese']:

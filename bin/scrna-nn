@@ -79,7 +79,13 @@ Options:
     --with_dense=<num_units>  (For 'sparse' architecture) Number of Dense units to add in the same
                               layer as the Sparse layer. [default: 100]
     --pt=<pt_model_file>      Use initial weights from a pretrained model file.
+    --unsup_pt=<model_folder> Use initial weights from layer-wise unusupervised pretraining.
     --ae                      Use an unsupervised autoencoder architecture.
+    --layerwise_pt            Use greedy layer-wise pretraining to pretrain the model with denoising
+                              autoencoders
+    --dropout=<rate>          Use dropout layers to avoid overfitting. The location and number of dropout
+                              layers depends on the architecture. rate of 0 denotes that no dropout layers
+                              should be added. [default: 0]
 
 
     **OPTIMIZER-RELATED-OPTIONS**
@@ -102,6 +108,8 @@ Options:
     --rmsp_rho=<rho>          Rho param for RMSprop. [default: 0.9]
     --rmsp_eps=<eps>          Fuzz factor for RMSprop. [default: 1e-08]
     --rmsp_decay=<decay>      Learning rate decay over each update for RMSprop. [default: 0.0]
+    --early_stop              Using early stopping in training (stop when validation loss no longer
+                              decreases).
 
 
     **SIAMESE-RELATED-OPTIONS**

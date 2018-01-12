@@ -5,7 +5,7 @@ import time
 
 import keras
 from keras.models import Model, load_model
-from keras.layers import Dense, Input, Lambda
+from keras.layers import Dense, Input, Lambda, Dropout
 from keras import backend as K
 
 from .sparse_layer import Sparse
@@ -60,8 +60,14 @@ def flexible_contrastive_loss(y_true, y_pred):
     """y_true is a float between 0 and 1.0, instead of binary.
     """
     margin = 1
+    # margin = math.sqrt(10)
+    # margin = math.sqrt(100)
+    # margin = 6
+    # margin = math.sqrt(1000)
+    # margin = math.sqrt(1000)
     if y_true == 1:
         # Means that the distance in the ontology for this point was 0, exact same
+        print("y_true == 1")
         return 0.5*K.square(y_pred)
     else:
         return 0.5*K.square(K.maximum((1-y_true)*margin - y_pred, 0))
@@ -81,12 +87,20 @@ def contrastive_loss(y_true, y_pred):
 #     '''
 #     '''
 
-def get_siamese(base_network, input_dim, is_frozen):
+def get_siamese(base_network, input_dim, is_frozen, requires_norm=False):
     # Create a siamese neural network with the provided base_network as two conjoined twins.
     # Load pretrained weights before calling this function.
     # First, remove the last layer (output layer) from base_network
     print("Siamese base Input shape: ", input_dim)
-    base_model = Model(input = base_network.layers[0].input, output = base_network.layers[-2].output, name="BaseNetwork")
+    requires_norm = False
+    if requires_norm:
+        print("Adding L2 Norm layer to nework prior to euclidean distance (for Siamese)")
+        features = base_network.layers[-2].output
+        normed_features = Lambda(lambda x: K.l2_normalize(x, axis=1), output_shape=lambda input_shape: input_shape, name="l2_norm")(features)
+        base_model = Model(input=base_network.layers[0].input, output=normed_features, name="BaseNetwork")
+    else:
+        base_model = Model(input=base_network.layers[0].input, output=base_network.layers[-2].output, name="BaseNetwork")
+
     input_a = Input(shape=(input_dim,))
     input_b = Input(shape=(input_dim,))
 
@@ -104,11 +118,14 @@ def get_siamese(base_network, input_dim, is_frozen):
     return model
 # *** END SIAMESE NEURAL NETWORK CODE
 
-def get_dense(hidden_layer_sizes, input_dim, activation_fcn='tanh'):
+def get_dense(hidden_layer_sizes, input_dim, activation_fcn='tanh', dropout=0.0):
     inputs = Input(shape=(input_dim,))
     # Hidden layers
     x = inputs
     for size in hidden_layer_sizes:
+        if dropout > 0:
+            print("Using dropout layer")
+            x = Dropout(dropout)(x)
         x = Dense(size, activation=activation_fcn)(x)
     return inputs, x
 
@@ -186,7 +203,7 @@ def get_GO_ppitf(hidden_layer_sizes, input_dim, ppitf_adj_mat, go_first_level_ad
         x = Dense(size, activation=activation_fcn)(x)
     return inputs, x
 
-def get_nn_model(model_name, hidden_layer_sizes, input_dim, is_autoencoder, activation_fcn='tanh', output_dim=None, adj_mat=None, go_first_level_adj_mat=None, go_other_levels_adj_mats=None, flatGO_ppitf_adj_mats=None, extra_dense_units=0):
+def get_nn_model(model_name, hidden_layer_sizes, input_dim, is_autoencoder, activation_fcn='tanh', output_dim=None, adj_mat=None, go_first_level_adj_mat=None, go_other_levels_adj_mats=None, flatGO_ppitf_adj_mats=None, extra_dense_units=0, dropout=0.0):
     if is_autoencoder:
         # autoencoder architectures in a separate module for organizational purposes
         latent_size = None
@@ -197,7 +214,7 @@ def get_nn_model(model_name, hidden_layer_sizes, input_dim, is_autoencoder, acti
     print(hidden_layer_sizes)
     # First get the tensors from hidden layers
     if model_name == 'dense':
-        in_tensors, hidden_tensors = get_dense(hidden_layer_sizes, input_dim, activation_fcn)
+        in_tensors, hidden_tensors = get_dense(hidden_layer_sizes, input_dim, activation_fcn, dropout)
     elif model_name == 'sparse':
         in_tensors, hidden_tensors = get_sparse(hidden_layer_sizes, input_dim, adj_mat, activation_fcn, extra_dense_units)
     elif model_name == 'GO':

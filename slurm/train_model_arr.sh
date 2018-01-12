@@ -6,7 +6,7 @@
 #SBATCH --cpus-per-task=2
 
 #SBATCH --ntasks=1
-#SBATCH --mem-per-cpu=20Gb
+#SBATCH --mem-per-cpu=14Gb
 
 module load cuda-8.0
 

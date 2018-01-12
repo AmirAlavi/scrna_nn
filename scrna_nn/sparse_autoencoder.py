@@ -50,7 +50,7 @@ class SparseLayerAutoencoder(Sparse):
         
     def call(self, inputs):
         latent = self.kernel * self.adjacency_tensor
-        latent = K.dot(inputs, output)
+        latent = K.dot(inputs, latent)
         if self.use_bias:
             latent = K.bias_add(latent, self.bias)
         if self.activation is not None:
