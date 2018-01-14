@@ -59,7 +59,8 @@ def eucl_dist_output_shape(shapes):
 def flexible_contrastive_loss(y_true, y_pred):
     """y_true is a float between 0 and 1.0, instead of binary.
     """
-    margin = 1
+    margin = 0.2
+    # margin = 1
     # margin = math.sqrt(10)
     # margin = math.sqrt(100)
     # margin = 6
