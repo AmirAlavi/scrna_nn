@@ -1,0 +1,154 @@
+#!/usr/bin/env python
+"""Impute missing data
+
+Usage:
+    impute.py <expression_h5> [--threshold=<thresh> -k=<k>]
+    impute.py (-h | --help)
+    impute.py --version
+
+Options:
+    -h --help                         Show this screen.
+    --version                         Show version.
+    -t <thresh> --threshold=<thresh>  Missing value threshold. Float between 0
+                                      and 1.0. Only keep cells with at most
+                                      this percentage of missing data (genes).
+                                      [default: 0.25]
+    -k <k>                            Num neighbors for kNN-impute.
+                                      [default: 10]
+
+"""
+
+#import json
+#import pdb; pdb.set_trace()
+import time
+#from collections import defaultdict, namedtuple
+#from typing import List, Tuple
+
+#import mygene
+import numpy as np
+import pandas as pd
+from docopt import docopt
+from scipy.spatial.distance import cdist
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+
+def get_accessions_from_accessionSeries(accessionSeries_list):
+    accessions = []
+    for accessionSeries in accessionSeries_list:
+        accession = accessionSeries.split('_')[0]
+        accessions.append(accession)
+    return np.array(accessions)
+
+
+def write_data_to_h5(name, df, labels, true_cell_ids=None, gene_symbols=None):
+    print(df.shape)
+    if not gene_symbols:
+        gene_symbols = convert_entrez_to_symbol(df.columns)
+    # Add these as Datasets in the hdf5 file
+    gene_symbols_series = pd.Series(data=gene_symbols, index=df.columns)
+    accessions = get_accessions_from_accessionSeries(df.index)
+    accessions_series = pd.Series(data=accessions, index=df.index)
+    labels_series = pd.Series(data=labels, index=df.index)
+
+    new_h5_store = pd.HDFStore(name)
+    new_h5_store['accessions'] = accessions_series
+    new_h5_store['gene_symbols'] = gene_symbols_series
+    new_h5_store['rpkm'] = df
+    new_h5_store['labels'] = labels_series
+
+    if true_cell_ids is not None:
+        new_h5_store['true_ids'] = pd.Series(data=true_cell_ids, index=df.index)
+    new_h5_store.close()
+
+    return gene_symbols
+
+
+def filter_cells(df, missing_threshold):
+    """Remove cells that have more than a given threshold percentage of missing values
+    """
+    nans = df.isnull().values
+    print(nans.shape)
+    num_genes = nans.shape[1]
+    nan_percentages = nans.sum(axis=1) / num_genes
+    to_keep = nan_percentages < missing_threshold
+    print("Keeping  {:8} cells".format(to_keep.sum()))
+    print("Filtered {:8} cells".format(np.logical_not(to_keep).sum()))
+    return df.loc[to_keep]
+
+def fill_with_median_expression(df):
+    cell_medians = df.median(axis=1)
+    filled = df.transpose().fillna(cell_medians).transpose()
+    return filled
+
+def get_kNNs(df, gene_idx, k):
+    t0 = time.time()
+    cur_gene = np.reshape(df.iloc[:,gene_idx].transpose(), (1, -1))
+    other_genes = df.drop(df.columns[[gene_idx]], axis=1).transpose()
+    other_genes_idx = np.arange(df.shape[1])
+    other_genes_idx = np.delete(other_genes_idx, [gene_idx])
+    # Get kNN genes
+    distances = cdist(cur_gene, other_genes).flatten()
+    k_nearest = np.argsort(distances)[:k]
+    k_nearest_distances = distances[k_nearest]
+    k_nearest_idx = other_genes_idx[k_nearest]
+    print("kNN took: ", time.time()-t0)
+    return k_nearest_idx, k_nearest_distances
+
+def impute_for_study(df, samples_in_study, k):
+    study_df = df.iloc[samples_in_study]
+    print("Shape of study subset: ", study_df.shape)
+    study_nans = study_df.isnull()
+    gene_has_nans = study_nans.sum(axis=0) > 0
+    study_filled = fill_with_median_expression(study_df)
+    assert(study_filled.isnull().values.any() == False)
+    nan_neighbor_counts = []
+    for gene in range(study_df.shape[1]):
+        if not gene_has_nans[gene]:
+            continue
+        print("imputing for gene: ", gene)
+        k_nearest_idx, k_nearest_distances = get_kNNs(study_filled, gene, k)
+        t0 = time.time()
+        for cell in range(study_df.shape[0]):
+            if np.isnan(study_df.iloc[cell, gene]):
+                nan_neighbor_counts.append(np.sum(study_nans.iloc[cell, k_nearest_idx]))
+                imputed = np.average(study_filled.iloc[cell, k_nearest_idx], weights=1/(k_nearest_distances + np.finfo(float).eps))
+                study_df.iloc[cell, gene] = imputed
+        print("cell for loop took: ", time.time()-t0)
+    # Incorporate imputed data into original dataframe
+    df.iloc[samples_in_study] = study_df
+    return nan_neighbor_counts
+
+def impute_missing_values(df, accessions, k):
+    accession_set = np.unique(accessions)
+    nan_neighbor_counts = []
+    for accn in accession_set:
+        samples_in_study = accessions == accn
+        study_nan_neighbor_counts = impute_for_study(df, samples_in_study, k)
+        nan_neighbor_counts.extend(study_nan_neighbor_counts)
+    assert(df.isnull().values.any() == False)
+    plt.figure()
+    plt.hist(nan_neighbor_counts, bins=np.arange(k+1))
+    plt.title('Frequencies of number of NaN nearest neighbors for a missing value')
+    plt.xlabel('# k nearest neighbor genes that are NaN in the cell')
+    plt.ylabel('frequency')
+    plt.savefig('imputation_num_nan_neighbors_hist.png')
+    plt.close()
+
+
+if __name__ == '__main__':
+    args = docopt(__doc__)
+
+    h5_store = pd.HDFStore(args['<expression_h5>'])
+    print("loaded h5 file")
+    rpkm_df = h5_store['rpkm']
+    h5_store.close()
+
+    print(rpkm_df.shape)
+
+    rpkm_df = filter_cells(rpkm_df, float(args['--threshold']))
+    accessions = get_accessions_from_accessionSeries(rpkm_df.index)
+    t0 = time.time()
+    impute_missing_values(rpkm_df, accessions, int(args['-k']))
+    print("imputation took: ", time.time()-t0)
+    
