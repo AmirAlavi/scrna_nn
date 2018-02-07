@@ -28,7 +28,7 @@ import time
 import numpy as np
 import pandas as pd
 from docopt import docopt
-from scipy.spatial.distance import cdist
+from scipy.spatial.distance import cdist, pdist, squareform
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
@@ -81,8 +81,7 @@ def fill_with_median_expression(df):
     filled = df.transpose().fillna(cell_medians).transpose()
     return filled
 
-def get_kNNs(df, gene_idx, k):
-    t0 = time.time()
+def get_kNNs_for_gene(df, gene_idx, k):
     cur_gene = np.reshape(df.iloc[:,gene_idx].transpose(), (1, -1))
     other_genes = df.drop(df.columns[[gene_idx]], axis=1).transpose()
     other_genes_idx = np.arange(df.shape[1])
@@ -92,10 +91,108 @@ def get_kNNs(df, gene_idx, k):
     k_nearest = np.argsort(distances)[:k]
     k_nearest_distances = distances[k_nearest]
     k_nearest_idx = other_genes_idx[k_nearest]
-    print("kNN took: ", time.time()-t0)
     return k_nearest_idx, k_nearest_distances
 
+def get_kNNs(df, k):
+    """Input is (n, g) sample matrix. Return two matrices:
+    kNN          (g, k)
+    kNN_weights  (g, k)
+    For each gene (g genes), contains the k nearest neighbors (either their
+    indices or their weights (inverse distances))
+    """
+    t0 = time.time()
+    knn = np.zeros((df.shape[1], k))
+    knn_weights = np.zeros((df.shape[1], k))
+    for gene in range(df.shape[1]):
+        if gene % 1000 == 0:
+            print(gene)
+        cur_knn, cur_distances = get_kNNs_for_gene(df, gene, k)
+        cur_weights = 1 / (cur_distances + np.finfo(float).eps)
+        knn[gene, :] = cur_knn
+        knn_weights[gene, :] = cur_weights
+    print("kNN took: ", time.time()-t0)
+    return knn, knn_weights
+
+def get_kNNs2(df, k):
+    """Input is (n, g) sample matrix. Return two matrices:
+    kNN          (g, k)
+    kNN_weights  (g, k)
+    For each gene (g genes), contains the k nearest neighbors (either their
+    indices or their weights (inverse distances))
+    """
+    t0 = time.time()
+    #knn = np.zeros((df.shape[1], k))
+    #knn_weights = np.zeros((df.shape[1], k))
+    g = df.shape[1]
+    print('calculating dist mat...')
+    mat = df.values.astype('float32')
+    print(mat.dtype)
+    dist_mat = squareform(pdist(mat.T))
+    print('dist_mat: ', type(dist_mat))
+    print('dist_mat: ', dist_mat.shape)
+    print('dist_mat: ', dist_mat.dtype)
+    dist_mat = dist_mat.astype('float32')
+    print('dist_mat: ', dist_mat.dtype)
+    print('done')
+    sort_t0 = time.time()
+    knn = np.argsort(dist_mat, axis=1)
+    #knn_distances = dist_mat[knn]
+    print('argsort took: ', time.time()-sort_t0)
+    sort_t0 = time.time()
+    knn_distances = np.sort(dist_mat, axis=1)
+    print('sort took: ', time.time()-sort_t0)
+    print('argsorted')
+    to_delete_t0 = time.time()
+    to_delete = knn == np.arange(g)[:, None]
+    print('to_delete took: ', time.time()-to_delete_t0)
+    print('got boolean vec')
+    where_t0 = time.time()
+    _, del_ind = np.where(to_delete)
+    print('where took: ', time.time()-where_t0)
+    print('done where')
+    mask_t0 = time.time()
+    mask = np.ones((g,g), dtype=bool)
+    mask[range(g), del_ind] = False
+    knn = knn[mask].reshape(g, g-1)
+    knn_distances = knn_distances[mask].reshape(g, g-1)
+    print('masking took: ', time.time()-mask_t0)
+
+    knn = knn[:, :k]
+    knn_distances = knn_distances[:, :k]
+    knn_weights = 1 / (knn_distances + np.finfo(float).eps)
+    
+    print("kNN took: ", time.time()-t0)
+    return knn, knn_weights
+
 def impute_for_study(df, samples_in_study, k):
+    study_df = df.iloc[samples_in_study]
+    print("Shape of study subset: ", study_df.shape)
+    n, g = study_df.shape
+    study_nans = study_df.isnull().values
+    study_filled = fill_with_median_expression(study_df)
+    assert(study_filled.isnull().values.any() == False)
+    knn, knn_weights = get_kNNs2(study_filled, k)
+    print(knn.shape)
+    print(knn_weights.shape)
+    print("done with knn")
+    print("imputing")
+    impute_t0 = time.time()
+    knn_tensor = np.take(study_filled.values, indices=knn, axis=1)
+    nan_knn_counts = np.sum(np.isnan(knn_tensor), axis=-1)[study_nans]
+
+    imputed = np.average(knn_tensor, axis=-1, weights=np.broadcast_to(knn_weights, shape=(n, g, k)))
+    print("done imputing")
+    print("imputing took: ", time.time()-impute_t0)
+    #study_df = study_df + study_nans.astype(int) * imputed
+    np_study = study_df.values
+    #np_study[study_nans] = imputed
+    inds = np.where(np.isnan(np_study))
+    np_study[inds] = imputed[inds]
+
+    df.iloc[samples_in_study] = np_study
+    return nan_knn_counts
+
+def impute_for_study_old(df, samples_in_study, k):
     study_df = df.iloc[samples_in_study]
     print("Shape of study subset: ", study_df.shape)
     study_nans = study_df.isnull()
