@@ -76,10 +76,14 @@ def filter_cells(df, missing_threshold):
     print("Filtered {:8} cells".format(np.logical_not(to_keep).sum()))
     return df.loc[to_keep]
 
-def fill_with_median_expression(df):
-    cell_medians = df.median(axis=1)
-    filled = df.transpose().fillna(cell_medians).transpose()
-    return filled
+def fill_with_median_expression(mat):
+    # Doing this in pandas, provides convenient operations to fill NaNs
+    #cell_medians = .median(axis=1)
+    #filled = df.transpose().fillna(cell_medians).transpose()
+    cell_medians = np.nanmedian(mat, axis=1)
+    nan_inds = np.where(np.isnan(mat))
+    mat[nan_inds] = np.take(cell_medians, indices=nan_inds[0])
+    #return mat
 
 def get_kNNs_for_gene(df, gene_idx, k):
     cur_gene = np.reshape(df.iloc[:,gene_idx].transpose(), (1, -1))
@@ -164,73 +168,119 @@ def get_kNNs2(df, k):
     print("kNN took: ", time.time()-t0)
     return knn, knn_weights
 
+def get_kNN_tensors(data, k):
+    t0 = time.time()
+    n, g = data.shape
+
+    dist_mat = squareform(pdist(data.T)) # calculate the distance matrix
+    print("time to calc dist_mat: ", time.time()-t0)
+    t0 = time.time()
+    dist_mat = dist_mat.astype('float16')
+    dist_mat = np.repeat(dist_mat[np.newaxis, :, :], n, axis=0) # make it a tensor
+    print("time to do np.repeat: ", time.time()-t0)
+    print('dist_mat: ', type(dist_mat))
+    print('dist_mat: ', dist_mat.shape)
+    print('dist_mat: ', dist_mat.dtype)
+    print(dist_mat.nbytes/(1e9))
+    nan_indices = np.where(np.isnan(data))
+    dist_mat[nan_indices[0], :, nan_indices[1]] = np.nan
+    dist_mat = dist_mat.astype('float16')
+    print('dist_mat: ', dist_mat.dtype)
+    # At this point, we have an (n x g x g) tensor that has for each
+    # of the n cells, for each of their genes, their distances (or nan)
+    # to all of the other genes.
+
+    # Key point: because nans get moved to the end of an array when sorted,
+    # we can ensure that the closest neighbor genes for each cell are only
+    # those that are not nan. We can also assume the the closes gene will
+    # be the gene itself, so we can get rid of the first column in the sorted
+    # distance matrix, and then only keep the first k columns
+    sort_t0 = time.time()
+    knn = np.argsort(dist_mat, axis=-1)
+    print('argsort took: ', time.time()-sort_t0)
+    sort_t0 = time.time()
+    knn_distances = np.sort(dist_mat, axis=-1)
+    print('sort took: ', time.time()-sort_t0)
+    knn = knn[:, :, 1:k+1]
+    knn_distances = knn_distances[:, :, 1:k+1]
+    knn_weights = knn_distances / (1 + np.finfo(float).eps)
+    return knn_distances, knn_weights
+
 def impute_for_study(df, samples_in_study, k):
     study_df = df.iloc[samples_in_study]
-    print("Shape of study subset: ", study_df.shape)
     n, g = study_df.shape
-    study_nans = study_df.isnull().values
-    study_filled = fill_with_median_expression(study_df)
-    assert(study_filled.isnull().values.any() == False)
-    knn, knn_weights = get_kNNs2(study_filled, k)
-    print(knn.shape)
-    print(knn_weights.shape)
-    print("done with knn")
-    print("imputing")
-    impute_t0 = time.time()
-    knn_tensor = np.take(study_filled.values, indices=knn, axis=1)
-    nan_knn_counts = np.sum(np.isnan(knn_tensor), axis=-1)[study_nans]
+    study_mat = study_df.values.astype('float32')
+    study_filled = study_mat.copy()
+    fill_with_median_expression(study_filled)
+    knn_selection_tensor, knn_weights_tensor = get_kNN_tensors(study_filled, k)
+    knn_expressions = np.take(study_mat, indices=knn_selection_vector, axis=-1)
+    imputed = np.average(knn_expressions, axis=-1, weights=knn_weights_tensor)
+    nan_inds = np.where(np.isnan(study_mat))
+    study_mat[nan_inds] = imputed[nan_inds]
+    assert(np.isnan(study_mat).any() == False)
+    df.iloc[samples_in_study] = study_mat
+    
+    
 
-    imputed = np.average(knn_tensor, axis=-1, weights=np.broadcast_to(knn_weights, shape=(n, g, k)))
-    print("done imputing")
-    print("imputing took: ", time.time()-impute_t0)
-    #study_df = study_df + study_nans.astype(int) * imputed
-    np_study = study_df.values
-    #np_study[study_nans] = imputed
-    inds = np.where(np.isnan(np_study))
-    np_study[inds] = imputed[inds]
+# def impute_for_study_naive(df, samples_in_study, k):
+#     study_df = df.iloc[samples_in_study]
+#     print("Shape of study subset: ", study_df.shape)
+#     n, g = study_df.shape
+#     study_nans = study_df.isnull().values
+#     study_filled = fill_with_median_expression(study_df)
+#     assert(study_filled.isnull().values.any() == False)
+#     knn, knn_weights = get_kNNs2(study_filled, k)
+#     print(knn.shape)
+#     print(knn_weights.shape)
+#     print("done with knn")
+#     print("imputing")
+#     impute_t0 = time.time()
+#     knn_tensor = np.take(study_filled.values, indices=knn, axis=1)
+#     nan_knn_counts = np.sum(np.isnan(knn_tensor), axis=-1)[study_nans]
 
-    df.iloc[samples_in_study] = np_study
-    return nan_knn_counts
+#     imputed = np.average(knn_tensor, axis=-1, weights=np.broadcast_to(knn_weights, shape=(n, g, k)))
+#     print("done imputing")
+#     print("imputing took: ", time.time()-impute_t0)
+#     #study_df = study_df + study_nans.astype(int) * imputed
+#     np_study = study_df.values
+#     #np_study[study_nans] = imputed
+#     inds = np.where(np.isnan(np_study))
+#     np_study[inds] = imputed[inds]
 
-def impute_for_study_old(df, samples_in_study, k):
-    study_df = df.iloc[samples_in_study]
-    print("Shape of study subset: ", study_df.shape)
-    study_nans = study_df.isnull()
-    gene_has_nans = study_nans.sum(axis=0) > 0
-    study_filled = fill_with_median_expression(study_df)
-    assert(study_filled.isnull().values.any() == False)
-    nan_neighbor_counts = []
-    for gene in range(study_df.shape[1]):
-        if not gene_has_nans[gene]:
-            continue
-        print("imputing for gene: ", gene)
-        k_nearest_idx, k_nearest_distances = get_kNNs(study_filled, gene, k)
-        t0 = time.time()
-        for cell in range(study_df.shape[0]):
-            if np.isnan(study_df.iloc[cell, gene]):
-                nan_neighbor_counts.append(np.sum(study_nans.iloc[cell, k_nearest_idx]))
-                imputed = np.average(study_filled.iloc[cell, k_nearest_idx], weights=1/(k_nearest_distances + np.finfo(float).eps))
-                study_df.iloc[cell, gene] = imputed
-        print("cell for loop took: ", time.time()-t0)
-    # Incorporate imputed data into original dataframe
-    df.iloc[samples_in_study] = study_df
-    return nan_neighbor_counts
+#     df.iloc[samples_in_study] = np_study
+#     return nan_knn_counts
+
+# def impute_for_study_old(df, samples_in_study, k):
+#     study_df = df.iloc[samples_in_study]
+#     print("Shape of study subset: ", study_df.shape)
+#     study_nans = study_df.isnull()
+#     gene_has_nans = study_nans.sum(axis=0) > 0
+#     study_filled = fill_with_median_expression(study_df)
+#     assert(study_filled.isnull().values.any() == False)
+#     nan_neighbor_counts = []
+#     for gene in range(study_df.shape[1]):
+#         if not gene_has_nans[gene]:
+#             continue
+#         print("imputing for gene: ", gene)
+#         k_nearest_idx, k_nearest_distances = get_kNNs(study_filled, gene, k)
+#         t0 = time.time()
+#         for cell in range(study_df.shape[0]):
+#             if np.isnan(study_df.iloc[cell, gene]):
+#                 nan_neighbor_counts.append(np.sum(study_nans.iloc[cell, k_nearest_idx]))
+#                 imputed = np.average(study_filled.iloc[cell, k_nearest_idx], weights=1/(k_nearest_distances + np.finfo(float).eps))
+#                 study_df.iloc[cell, gene] = imputed
+#         print("cell for loop took: ", time.time()-t0)
+#     # Incorporate imputed data into original dataframe
+#     df.iloc[samples_in_study] = study_df
+#     return nan_neighbor_counts
 
 def impute_missing_values(df, accessions, k):
     accession_set = np.unique(accessions)
-    nan_neighbor_counts = []
+    #nan_neighbor_counts = []
     for accn in accession_set:
         samples_in_study = accessions == accn
-        study_nan_neighbor_counts = impute_for_study(df, samples_in_study, k)
-        nan_neighbor_counts.extend(study_nan_neighbor_counts)
+        impute_for_study(df, samples_in_study, k)
     assert(df.isnull().values.any() == False)
-    plt.figure()
-    plt.hist(nan_neighbor_counts, bins=np.arange(k+1))
-    plt.title('Frequencies of number of NaN nearest neighbors for a missing value')
-    plt.xlabel('# k nearest neighbor genes that are NaN in the cell')
-    plt.ylabel('frequency')
-    plt.savefig('imputation_num_nan_neighbors_hist.png')
-    plt.close()
 
 
 if __name__ == '__main__':
