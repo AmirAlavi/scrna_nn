@@ -11,6 +11,7 @@ from keras import backend as K
 from .sparse_layer import Sparse
 from .util import ScrnaException
 from . import autoencoders as ae
+from . import losses_and_metrics
 
 
 # def load_model_weights_from_pickle(model, path):
@@ -27,8 +28,15 @@ from . import autoencoders as ae
 def save_trained_nn(model, path):
     model.save(path)
 
-def load_trained_nn(path):
-    return load_model(path, custom_objects={'Sparse': Sparse})
+def load_trained_nn(path, triplet_loss_batch_size=-1, siamese=False):
+    custom_objects={'Sparse': Sparse}
+    if triplet_loss_batch_size >= 0:
+        custom_objects['triplet_batch_hard_loss'] = losses_and_metrics.get_triplet_batch_hard_loss(triplet_loss_batch_size)
+        custom_objects['frac_active_triplet_metric'] = losses_and_metrics.get_frac_active_triplet_metric(triplet_loss_batch_size)
+    if siamese:
+        custom_objects['flexible_contrastive_loss'] = flexible_contrastive_loss
+    print(custom_objects)
+    return load_model(path, custom_objects=custom_objects)
 
 def get_pretrained_weights(pretrained_model_file):
     pretrained_model = load_trained_nn(pretrained_model_file)
@@ -98,9 +106,9 @@ def get_siamese(base_network, input_dim, is_frozen, requires_norm=False):
         print("Adding L2 Norm layer to nework prior to euclidean distance (for Siamese)")
         features = base_network.layers[-2].output
         normed_features = Lambda(lambda x: K.l2_normalize(x, axis=1), output_shape=lambda input_shape: input_shape, name="l2_norm")(features)
-        base_model = Model(input=base_network.layers[0].input, output=normed_features, name="BaseNetwork")
+        base_model = Model(inputs=base_network.layers[0].input, outputs=normed_features, name="BaseNetwork")
     else:
-        base_model = Model(input=base_network.layers[0].input, output=base_network.layers[-2].output, name="BaseNetwork")
+        base_model = Model(inputs=base_network.layers[0].input, outputs=base_network.layers[-2].output, name="BaseNetwork")
 
     input_a = Input(shape=(input_dim,))
     input_b = Input(shape=(input_dim,))
@@ -118,6 +126,10 @@ def get_siamese(base_network, input_dim, is_frozen, requires_norm=False):
             layer.trainable = False
     return model
 # *** END SIAMESE NEURAL NETWORK CODE
+
+def get_triplet(base_network):
+    embedding = base_network.layers[-2].output
+    return Model(name="TripletNet", inputs=base_network.layers[0].input, outputs=embedding)
 
 def get_dense(hidden_layer_sizes, input_dim, activation_fcn='tanh', dropout=0.0):
     inputs = Input(shape=(input_dim,))

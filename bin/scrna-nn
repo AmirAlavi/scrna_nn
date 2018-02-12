@@ -63,6 +63,7 @@ Options:
                               that sample.
     --gn                      Subtract the mean and divide by standard deviation
                               within each gene.
+    --loss_history            Keep track of and plot loss history while training neural net
 
     **ARCHITECTURE-RELATED-OPTIONS**
     --nn=<nn_architecture>    Train an instance of a nn_architecture neural network.
@@ -99,7 +100,7 @@ Options:
     --opt=<optimizer>         Optimizer to use. [default: sgd]
                               Available: 'sgd', 'rmsp'
                               TODO: Maybe make rmsp the default if it performs well?
-    --sgd_lr=<lr>             Learning rate for SGD. [default: 0.1]
+    --sgd_lr=<lr>             Learning rate for SGD. [default: 0.01]
     --sgd_step_decay=<epochs> Drop the learning rate by half every <epochs> epochs. Shouldn't use '--sgd_d' at the same time as this.
     --sgd_d=<decay>           Decay rate for SGD. [default: 1e-6]
     --sgd_m=<momentum>        Momentum for SGD. [default: 0.9]
@@ -108,9 +109,13 @@ Options:
     --rmsp_rho=<rho>          Rho param for RMSprop. [default: 0.9]
     --rmsp_eps=<eps>          Fuzz factor for RMSprop. [default: 1e-08]
     --rmsp_decay=<decay>      Learning rate decay over each update for RMSprop. [default: 0.0]
-    --early_stop              Using early stopping in training (stop when validation loss no longer
-                              decreases).
-
+    --early_stop=<metric>     Using early stopping in training by monitoring the specified metric
+                              [default: val_loss]
+    --early_stop_pat=<n>      Negative patience means no early stopping. [default: -1]
+    --early_stop_at=<metric>  Stop training when the specified metric reaches below or equal to a target value.
+                              [default: val_loss]
+    --early_stop_at_val=<n>   Negative target value means no early stopping. [default: -1.0]
+    --checkpoints             Save best model (one with lowest validation loss)
 
     **SIAMESE-RELATED-OPTIONS**
     --siamese                 Uses a siamese neural network architecture, using
@@ -146,6 +151,14 @@ Options:
                               considered to be 0. Only used for --flexibleLoss=ontology. [default: 4]
     --online_train=<n>        Dynamically generate hard pairs after n epochs for
                               siamese neural network training.
+    **TRIPLET-RELATED-OPTIONS**
+    --triplet                 Uses "batch-hard" triplet loss to train a triplet network, using <nn_architecture>
+                              as the base network.
+    --batch_hard_P=<P>        "P" parameter in "batch-hard" triplet loss (number of classes to pick)
+                              [default: 18]
+    --batch_hard_K=<K>        "K" parameter in "batch-hard" triplet loss (number of samples from each class to pick)
+                              [default: 4]
+    --num_batches=<n>         Number of batches to be drawn in an epoch. [default: 1000]
 
     --viz                     Visualize the data in the embedding space.
 

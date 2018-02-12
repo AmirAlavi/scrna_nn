@@ -1,3 +1,4 @@
+# import pdb; pdb.set_trace()
 import json
 import pickle
 from os import makedirs, remove
@@ -42,11 +43,23 @@ def reduce(args):
     X = data_container.get_expression_mat()
     model_base_path = args['<trained_model_folder>']
     if training_args['--nn']:
-        model = nn.load_trained_nn(join(model_base_path, "model.h5"))
+        if '--triplet' in training_args and training_args['--triplet']:
+            triplet_batch_size = int(training_args['--batch_hard_P'])*int(training_args['--batch_hard_K'])
+            model = nn.load_trained_nn(join(model_base_path, "model.h5"), triplet_batch_size)
+        elif training_args['--siamese']:
+            model = nn.load_trained_nn(join(model_base_path, "model.h5"), siamese=True)
+            if training_args['--checkpoints']:
+                # HACK, TODO: account for this beforehand
+                model = model.layers[2]
+        else:
+            model = nn.load_trained_nn(join(model_base_path, "model.h5"))
         print(model.summary())
         # use the last hidden layer of the model as a lower-dimensional representation:
         if training_args['--siamese']:
             print("Model was trained in a siamese architecture")
+            last_hidden_layer = model.layers[-1]
+        elif '--triplet' in training_args and training_args['--triplet']:
+            print("Model was trained in a triplet architecture")
             last_hidden_layer = model.layers[-1]
         else:
             last_hidden_layer = model.layers[-2]

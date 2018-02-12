@@ -6,12 +6,11 @@ import matplotlib.pyplot as plt
 from sklearn.decomposition import PCA
 
 from .data_container import DataContainer
-from .util import create_working_directory
-from .train import build_indices_master_list
+from . import util
 
 
 def visualize(args):
-    working_dir_path = create_working_directory(args['--out'], "visualizations/")
+    working_dir_path = util.create_working_directory(args['--out'], "visualizations/")
     # Load the reduced data
     data = DataContainer(args['<reduced_data_file>'])
     X = data.get_expression_mat()
@@ -32,7 +31,7 @@ def visualize(args):
     # Pre-set pyplot's color cycler
     ax.set_color_cycle([colormap(1.*i/num_colors) for i in range(num_colors)])
 
-    indices_lists = build_indices_master_list(X, y) # dict<label, list of indices of samples>
+    indices_lists = util.build_indices_master_list(X, y) # dict<label, list of indices of samples>
     labels_and_counts = [(label, len(samples)) for label, samples in indices_lists.items()]
     labels_and_counts.sort(key=lambda x: x[1], reverse=True)
     

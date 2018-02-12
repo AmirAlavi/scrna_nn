@@ -1,6 +1,7 @@
 import time
 from os.path import exists, join
 from os import makedirs
+from collections import defaultdict
 
 class ScrnaException(Exception):
     pass
@@ -12,3 +13,10 @@ def create_working_directory(out_path, parent, suffix=""):
     if not exists(out_path):
         makedirs(out_path)
     return out_path
+
+def build_indices_master_list(X, y):
+    indices_lists = defaultdict(list) # dictionary of lists
+    print(X.shape[0], "examples in dataset")
+    for sample_idx in range(X.shape[0]):
+        indices_lists[y[sample_idx]].append(sample_idx)
+    return indices_lists

@@ -19,17 +19,20 @@ from sklearn.manifold import TSNE
 from sklearn.metrics.pairwise import euclidean_distances
 from sklearn.utils import shuffle
 from keras.utils import plot_model, np_utils, multi_gpu_model
-from keras.callbacks import Callback, LearningRateScheduler, EarlyStopping
+from keras.callbacks import Callback, LearningRateScheduler, EarlyStopping, ModelCheckpoint
 from keras.optimizers import SGD
 from keras import backend as K
 
 from .data_container import DataContainer
-from .util import create_working_directory, ScrnaException
+from . import util
 from . import neural_nets as nn
 from . import distances
 from .bio_knowledge import get_adj_mat_from_groupings
 from . import siamese
+from . import triplet
 from . import unsupervised_pt as pt
+from . import callbacks
+from . import losses_and_metrics
 
 CACHE_ROOT = "_cache"
 SIAM_CACHE = "siam_data"
@@ -38,35 +41,6 @@ def pretty_tdelta(tdelta):
     hours, rem = divmod(tdelta.seconds, 3600)
     mins, secs = divmod(rem, 60)
     return "{:2d} hours {:2d} mins {:2d} secs".format(hours, mins, secs)
-
-
-class StepLRHistory(Callback):
-    """Adapted from Suki Lau's blog post:
-           'Learning Rate Schedules and Adaptive Learning Rate Methods for Deep Learning'
-           https://medium.com/towards-data-science/learning-rate-schedules-and-adaptive-learning-rate-methods-for-deep-learning-2c8f433990d1
-    """
-    def __init__(self, initial_lr, epochs_drop):
-        self.initial_lr = initial_lr
-        self.epochs_drop = epochs_drop
-        self.step_decay_fcn = self.get_step_decay_fcn()
-
-    def get_step_decay_fcn(self):
-        def step_decay(epoch):
-            drop = 0.5
-            lr = self.initial_lr * math.pow(drop, math.floor((epoch)/float(self.epochs_drop)))
-            return lr
-        return step_decay
-
-    def on_train_begin(self, logs={}):
-        self.losses = []
-        self.val_losses = []
-        self.lr = []
-
-    def on_epoch_end(self, batch, logs={}):
-        zero_indexed_epoch_num = len(self.losses)
-        self.losses.append(logs.get('loss'))
-        self.val_losses.append(logs.get('val_loss'))
-        self.lr.append(self.step_decay_fcn(zero_indexed_epoch_num))
 
 def get_model_architecture(working_dir_path, args, input_dim, output_dim, gene_names):
     base_model = get_base_model_architecture(args, input_dim, output_dim, gene_names)
@@ -80,11 +54,12 @@ def get_model_architecture(working_dir_path, args, input_dim, output_dim, gene_n
     if args['--siamese']:
         model = nn.get_siamese(base_model, input_dim, args['--freeze'], args['--gn'])
         #plot_model(model, to_file=join(working_dir_path, 'siamese_architecture.png'), show_shapes=True)
+    elif args['--triplet']:
+        model = nn.get_triplet(base_model)
     else:
         model = base_model
     return model
 
-        
 def get_base_model_architecture(args, input_dim, output_dim, gene_names):
     """Possible options for neural network architectures are outlined in the '--help' command
 
@@ -122,8 +97,6 @@ def get_base_model_architecture(args, input_dim, output_dim, gene_names):
         if args['--nn'] == 'GO':
             print("For GO autoencoder, doing 1st layer")
             adj_mat = go_first_level_adj_mat
-            
-            
         
     return nn.get_nn_model(args['--nn'], hidden_layer_sizes, input_dim, args['--ae'], args['--act'], output_dim, adj_mat, go_first_level_adj_mat, go_other_levels_adj_mats, flatGO_ppitf_adj_mats, int(args['--with_dense']), float(args['--dropout']))
 
@@ -143,7 +116,7 @@ def get_optimizer(args):
         decay = float(args['--rmsp_decay'])
         return SparseRMSprop(lr=lr, rho=rho, epsilon=fuzz, decay=decay)
     else:
-        raise ScrnaException("Not a valid optimizer!")
+        raise util.ScrnaException("Not a valid optimizer!")
 
 def compile_model(model, args, optimizer):
     loss = None
@@ -157,17 +130,15 @@ def compile_model(model, args, optimizer):
         else:
             print("Using contrastive loss")
             loss = nn.contrastive_loss
+    elif args['--triplet']:
+        batch_size = int(args['--batch_hard_P'])*int(args['--batch_hard_K'])
+        loss = losses_and_metrics.get_triplet_batch_hard_loss(batch_size)
+        frac_active_triplets = losses_and_metrics.get_frac_active_triplet_metric(batch_size)
+        metrics = [frac_active_triplets]
     else:
         loss = 'categorical_crossentropy'
         metrics = ['accuracy']
     model.compile(loss=loss, optimizer=optimizer, metrics=metrics)
-
-def build_indices_master_list(X, y):
-    indices_lists = defaultdict(list) # dictionary of lists
-    print(X.shape[0], "examples in dataset")
-    for sample_idx in range(X.shape[0]):
-        indices_lists[y[sample_idx]].append(sample_idx)
-    return indices_lists
 
 def get_hard_pairs(X, indices_lists, same_lim, ratio_hard_negatives, siamese_model=None):
     t0 = time.time()
@@ -221,7 +192,7 @@ def get_hard_pairs(X, indices_lists, same_lim, ratio_hard_negatives, siamese_mod
 
 def online_siamese_training(model, data_container, epochs, n, same_lim, ratio_hard_negatives):
     X_orig, y_orig, label_strings_lookup = data_container.get_data()
-    indices_lists = build_indices_master_list(X_orig, y_orig)
+    indices_lists = util.build_indices_master_list(X_orig, y_orig)
     pairs = []
     labels = []
     # Initially generate pairs by going through each cell type, generate all same pairs, and
@@ -406,7 +377,7 @@ def get_data_for_siamese(data_container, args):
     true_ids = data_container.get_true_ids()
     print("bincount")
     print(np.bincount(y))
-    indices_lists = build_indices_master_list(X, y)
+    indices_lists = util.build_indices_master_list(X, y)
     # # Try with dataset-aware pair creation
     # dataset_IDs = data_container.get_dataset_IDs()
     # print("num samples: ", len(y))
@@ -433,29 +404,6 @@ def plot_accuracy_history(history, path):
     plt.ylabel('accuracy')
     plt.xlabel('epoch')
     plt.legend(['train', 'valid'], loc='upper left')
-    plt.savefig(path)
-    plt.close()
-
-def plot_training_history(history, path):
-    plt.figure()
-    plt.plot(history.history['loss'])
-    plt.plot(history.history['val_loss'])
-    plt.title('Model loss')
-    plt.ylabel('loss')
-    plt.xlabel('epoch')
-    plt.legend(['train', 'valid'], loc='upper left')
-    plt.savefig(path)
-    plt.close()
-
-def plot_lr_steps(lr_step_history, path):
-    plt.figure()
-    epochs = np.arange(1, len(lr_step_history.losses)+1)
-    plt.plot(epochs, lr_step_history.losses)
-    plt.plot(epochs, lr_step_history.val_losses)
-    plt.plot(epochs, lr_step_history.lr, marker='o', linestyle='None')
-    plt.title('Learning Rate & Loss History')
-    plt.xlabel('epoch')
-    plt.legend(['train', 'valid', 'lr'], loc='upper right')
     plt.savefig(path)
     plt.close()
     
@@ -508,7 +456,9 @@ def get_data_for_training(data_container, args):
         print("Supervised training")
         X, y, label_strings_lookup = data_container.get_data()
         output_dim = max(y) + 1
-        y = np_utils.to_categorical(y, output_dim)
+        if not args['--triplet']: # triplet net code needs labels that aren't 1-hot encoded
+            print("One-hot enocoding")
+            y = np_utils.to_categorical(y, output_dim)
     input_dim = X.shape[1]
     print("Input dim: ", input_dim)
     print("Output dim: ", output_dim)
@@ -536,14 +486,53 @@ def train_siamese_neural_net(model, args, data_container, callbacks_list):
         history = model.fit(X, y, batch_size=int(args['--batch_size']), epochs=int(args['--epochs']), verbose=1, validation_split=float(args['--valid']), callbacks=callbacks_list)
     return history
 
+def train_triplet_neural_net(model, args, X, y, callbacks_list):
+    print(model.summary())
+    train_frac = 1.0 - float(args['--valid'])
+    split_idx = math.ceil(X.shape[0] * train_frac)
+    embedding_dim = model.layers[-1].output_shape[1]
+    P = int(args['--batch_hard_P'])
+    K = int(args['--batch_hard_K'])
+    num_batches = int(args['--num_batches'])
+    train_data = triplet.TripletSequence(X[0:split_idx], y[0:split_idx], embedding_dim, P, K, num_batches)
+    valid_data = triplet.TripletSequence(X[split_idx:], y[split_idx:], embedding_dim, P, K, num_batches)
+    history = model.fit_generator(train_data, epochs=int(args['--epochs']), verbose=1, callbacks=callbacks_list, validation_data=valid_data)
+    return history
+
 def save_neural_net(working_dir_path, args, model):
     print("saving model to folder: " + working_dir_path)
-    path = join(working_dir_path, "model.h5")
+    if args['--checkpoints']:
+        path = join(working_dir_path, "last_model.h5")
+    else:
+        path = join(working_dir_path, "model.h5")
     if args['--siamese']:
         # For siamese nets, we only care about saving the subnetwork, not the whole siamese net
         model = model.layers[2] # For now, seems safe to assume index 2 corresponds to base net
+    print("Model saved:\n\n\n")
+    print(model.summary())
     nn.save_trained_nn(model, path)
 
+def get_callbacks_list(working_dir_path, args):
+    callbacks_list = []
+    if args['--sgd_step_decay']:
+        print("Using SGD Step Decay")
+        lr_history = callbacks.StepLRHistory(float(args['--sgd_lr']), int(args['--sgd_step_decay']))
+        lrate_sched = LearningRateScheduler(lr_history.get_step_decay_fcn())
+        callbacks_list.extend([lr_history, lrate_sched])
+    if int(args['--early_stop_pat']) >= 0:
+        callbacks_list.append(EarlyStopping(monitor=args['--early_stop'], patience=int(args['--early_stop_pat']), verbose=1, mode='min'))
+    if float(args['--early_stop_at_val']) >= 0:
+        callbacks_list.append(callbacks.EarlyStoppingAtValue(monitor=args['--early_stop_at'], target=float(args['--early_stop_at_val']), verbose=1))
+    if args['--checkpoints']:
+        # checkpoints_folder = join(working_dir_path, 'checkpoints')
+        # if not exists(checkpoints_folder):
+        #     makedirs(checkpoints_folder)
+        # callbacks_list.append(ModelCheckpoint(checkpoints_folder+"/model_{epoch:03d}-{val_loss:06.3f}.h5", monitor='val_loss', verbose=1, save_best_only=True))
+        callbacks_list.append(ModelCheckpoint(working_dir_path+"/model.h5", monitor='val_loss', verbose=1, save_best_only=True))
+    if args['--loss_history']:
+        callbacks_list.append(callbacks.LossHistory(working_dir_path))
+    return callbacks_list
+    
 def train_neural_net(working_dir_path, args, data_container):
     print("Training a Neural Network model...")
     X, y, input_dim, output_dim, label_strings_lookup, gene_names = get_data_for_training(data_container, args)
@@ -557,16 +546,29 @@ def train_neural_net(working_dir_path, args, data_container):
             elif hidden_layer_sizes == [1136, 500, 100]:
                 pt.pretrain_dense_1136_500_100_model(input_dim, opt, X, working_dir_path, args)
             else:
-                raise ScrnaException("Layerwise pretraining not implemented for this architecture")
+                raise util.ScrnaException("Layerwise pretraining not implemented for this architecture")
         elif args['--nn'] == 'sparse' and int(args['--with_dense']) == 100:
-            if hidden_layer_sizes == [100]:
-                _, _, adj_mat = get_adj_mat_from_groupings(args['--sparse_groupings'], gene_names)
-                pt.pretrain_ppitf_1136_100_model(input_dim, adj_mat, opt, X, working_dir_path, args)
-            elif hidden_layer_sizes == [500, 100]:
-                _, _, adj_mat = get_adj_mat_from_groupings(args['--sparse_groupings'], gene_names)
-                pt.pretrain_ppitf_1136_500_100_model(input_dim, adj_mat, opt, X, working_dir_path, args)
+            if 'flat' in args['--sparse_groupings']:
+                print('Using pretrained weights for FlatGO')
+                if hidden_layer_sizes == [100]:
+                    _, _, adj_mat = get_adj_mat_from_groupings(args['--sparse_groupings'], gene_names)
+                    pt.pretrain_flatGO_400_100_model(input_dim, adj_mat, opt, X, working_dir_path, args)
+                elif hidden_layer_sizes == [200, 100]:
+                    _, _, adj_mat = get_adj_mat_from_groupings(args['--sparse_groupings'], gene_names)
+                    pt.pretrain_flatGO_400_200_100_model(input_dim, adj_mat, opt, X, working_dir_path, args)
+                else:
+                    raise util.ScrnaException("Layerwise pretraining not implemented for this architecture")
             else:
-                raise ScrnaException("Layerwise pretraining not implemented for this architecture")
+                print("Using pretrained weights for PPITF")
+                if hidden_layer_sizes == [100]:
+                    _, _, adj_mat = get_adj_mat_from_groupings(args['--sparse_groupings'], gene_names)
+                    pt.pretrain_ppitf_1136_100_model(input_dim, adj_mat, opt, X, working_dir_path, args)
+                elif hidden_layer_sizes == [500, 100]:
+                    _, _, adj_mat = get_adj_mat_from_groupings(args['--sparse_groupings'], gene_names)
+                    pt.pretrain_ppitf_1136_500_100_model(input_dim, adj_mat, opt, X, working_dir_path, args)
+                else:
+                    raise util.ScrnaException("Layerwise pretraining not implemented for this architecture")
+
         elif args['--nn'] == 'GO' and int(args['--with_dense']) == 31:
             go_first_level_groupings_file = join(args['--go_arch'], 'GO_arch_first_level_groupings.txt')
             _, _, go_first_level_adj_mat = get_adj_mat_from_groupings(go_first_level_groupings_file, gene_names)
@@ -575,7 +577,7 @@ def train_neural_net(working_dir_path, args, data_container):
                 go_other_levels_adj_mats = pickle.load(fp)
             pt.pretrain_GOlvls_model(input_dim, go_first_level_adj_mat, go_other_levels_adj_mats[0], go_other_levels_adj_mats[1], opt, X, working_dir_path, args)
         else:
-            raise ScrnaException("Layerwise pretraining not implemented for this architecture")
+            raise util.ScrnaException("Layerwise pretraining not implemented for this architecture")
     
     ngpus = int(args['--ngpus'])
     if ngpus > 1:
@@ -590,19 +592,21 @@ def train_neural_net(working_dir_path, args, data_container):
     compile_model(model, args, opt)
     print("model compiled and ready for training")
     # Prep callbacks
-    callbacks_list = []
-    if args['--sgd_step_decay']:
-        print("Using SGD Step Decay")
-        lr_history = StepLRHistory(float(args['--sgd_lr']), int(args['--sgd_step_decay']))
-        lrate_sched = LearningRateScheduler(lr_history.get_step_decay_fcn())
-        callbacks_list.extend([lr_history, lrate_sched])
-    if args['--early_stop']:
-        callbacks_list.append(EarlyStopping(monitor='val_loss', patience=3))
+    callbacks_list = get_callbacks_list(working_dir_path, args)
     print("training model...")
     t0 = datetime.datetime.now()
     if args['--siamese']:
         # Specially routines for training siamese models
         history = train_siamese_neural_net(model, args, data_container, callbacks_list)
+    elif args['--triplet']:
+        history = train_triplet_neural_net(model, args, X, y, callbacks_list)
+        plt.figure()
+        plt.semilogy(history.history['frac_active_triplet_metric'])
+        plt.title('Fraction of active triplets per epoch')
+        plt.ylabel('% active triplets')
+        plt.xlabel('epoch')
+        plt.savefig(join(working_dir_path, 'frac_active_triplets.png'))
+        plt.close()
     else:
         history = model.fit(X, y, batch_size=int(args['--batch_size']), epochs=int(args['--epochs']), verbose=1, validation_split=float(args['--valid']), callbacks=callbacks_list)
     t1 = datetime.datetime.now()
@@ -610,11 +614,8 @@ def train_neural_net(working_dir_path, args, data_container):
     print("Training neural net took " + time_str)
     with open(join(working_dir_path, "timing.txt"), 'w') as f:
         f.write(time_str + "\n")
-    plot_training_history(history, join(working_dir_path, "loss.png"))
-    if not args['--ae'] and not args['--siamese']:
+    if not args['--ae'] and not args['--siamese'] and not args['--triplet']:
         plot_accuracy_history(history, join(working_dir_path, "accuracy.png"))
-    if args['--sgd_step_decay']:
-        plot_lr_steps(lr_history, join(working_dir_path, "lr_history.png"))
     save_neural_net(working_dir_path, args, template_model)
     # This code is an artifact, only works with an old dataset.
     # Needs some attention to make it work for the newer datasets.
@@ -633,7 +634,7 @@ def train_neural_net(working_dir_path, args, data_container):
 def train(args):
     model_type = args['--nn'] if args['--nn'] is not None else "pca"
     # create a unique working directory for this model
-    working_dir_path = create_working_directory(args['--out'], "models/", model_type)
+    working_dir_path = util.create_working_directory(args['--out'], "models/", model_type)
     with open(join(working_dir_path, "command_line_args.json"), 'w') as fp:
         json.dump(args, fp)
     print("loading data and setting up model...")
