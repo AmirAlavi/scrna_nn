@@ -23,10 +23,11 @@ Options:
 """
 
 import json
-# import pdb; pdb.set_trace()
+#import pdb; pdb.set_trace()
 from collections import defaultdict, namedtuple
 from typing import List, Tuple
 import sys
+sys.setrecursionlimit(5000)
 
 import mygene
 import numpy as np
@@ -81,6 +82,8 @@ def assign_unique_terms(mappings, rpkm_df):
         if len(value) == 1:
             selected_cells.append(key)
             selected_labels.append(value[0])
+    #rpkm_df.drop_duplicates(inplace=True)
+
     expression_vectors = rpkm_df.loc[selected_cells].values
     index = rpkm_df.loc[selected_cells].index
     true_id_index = index
@@ -115,7 +118,7 @@ def build_mapping_mat(cells, concise_mappings: dict) -> Tuple[np.ndarray, List[s
     mapping_mat = np.zeros((num_cells, num_terms), dtype=np.bool_)
     for i in range(num_cells):
         for j in range(num_terms):
-            if terms[j] in concise_mappings[cells[i]]:
+            if cells[i] in concise_mappings and terms[j] in concise_mappings[cells[i]]:
                 mapping_mat[i, j] = 1
     return mapping_mat, terms
 
@@ -124,6 +127,9 @@ def load_cell_to_ontology_mapping(cells, ontology_mapping):
     empty_count = 0
     mappings = {}
     for cell in cells:
+        if cell not in ontology_mapping:
+            empty_count += 1
+            continue
         terms_for_cell = ontology_mapping[cell]
         if len(terms_for_cell) == 0:
             empty_count += 1
@@ -209,6 +215,8 @@ if __name__ == '__main__':
     rpkm_df = h5_store['rpkm']
     h5_store.close()
     print(rpkm_df.shape)
+    rpkm_df.drop('GSE61300_GSM1501785', inplace=True) # hack because drop_duplicates doesn't work
+    rpkm_df.drop('GSE61300_GSM1501786', inplace=True)
     rpkm_df.fillna(0, inplace=True)
     with open(args['<ontology_mappings_json>'], 'r') as f:
         cell_to_terms = json.load(f)

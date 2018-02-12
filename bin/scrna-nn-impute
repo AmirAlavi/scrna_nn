@@ -2,7 +2,7 @@
 """Impute missing data
 
 Usage:
-    impute.py <expression_h5> [--threshold=<thresh> -k=<k>]
+    impute.py <expression_h5> [--threshold=<thresh> -k=<k> --consistency_check --database=<file>]
     impute.py (-h | --help)
     impute.py --version
 
@@ -15,23 +15,27 @@ Options:
                                       [default: 0.25]
     -k <k>                            Num neighbors for kNN-impute.
                                       [default: 10]
-
+    -c --consistency_check            Determine if within a study there are
+                                      genes that are not all NaNs. First,
+                                      coerce the zeros in such columns to NaN.
+    -d <file> --database=<file>       Database to use to calculate a global
+                                      nearest neighbor distance matrix. If not
+                                      specified, then the distance matrix is
+                                      calculated for each study separately.
 """
-
-#import json
 #import pdb; pdb.set_trace()
 import time
-#from collections import defaultdict, namedtuple
-#from typing import List, Tuple
+import multiprocessing
+from itertools import repeat
 
-#import mygene
 import numpy as np
 import pandas as pd
 from docopt import docopt
-from scipy.spatial.distance import cdist, pdist, squareform
-import matplotlib
-matplotlib.use('Agg')
-import matplotlib.pyplot as plt
+from scipy.spatial.distance import pdist, squareform
+
+
+def worker_print(worker_id, message):
+    print("worker_id {:3d}: {}".format(worker_id, message), end='', flush=True)
 
 def get_accessions_from_accessionSeries(accessionSeries_list):
     accessions = []
@@ -40,33 +44,21 @@ def get_accessions_from_accessionSeries(accessionSeries_list):
         accessions.append(accession)
     return np.array(accessions)
 
+def load_data_from_h5(name):
+    store = pd.HDFStore(name)
+    df = store['rpkm']
+    store.close()
+    return df
 
-def write_data_to_h5(name, df, labels, true_cell_ids=None, gene_symbols=None):
-    print(df.shape)
-    if not gene_symbols:
-        gene_symbols = convert_entrez_to_symbol(df.columns)
-    # Add these as Datasets in the hdf5 file
-    gene_symbols_series = pd.Series(data=gene_symbols, index=df.columns)
-    accessions = get_accessions_from_accessionSeries(df.index)
-    accessions_series = pd.Series(data=accessions, index=df.index)
-    labels_series = pd.Series(data=labels, index=df.index)
-
-    new_h5_store = pd.HDFStore(name)
-    new_h5_store['accessions'] = accessions_series
-    new_h5_store['gene_symbols'] = gene_symbols_series
-    new_h5_store['rpkm'] = df
-    new_h5_store['labels'] = labels_series
-
-    if true_cell_ids is not None:
-        new_h5_store['true_ids'] = pd.Series(data=true_cell_ids, index=df.index)
-    new_h5_store.close()
-
-    return gene_symbols
-
+def write_data_to_h5(name, df):
+    store = pd.HDFStore(name)
+    store['rpkm'] = df
+    store.close()
 
 def filter_cells(df, missing_threshold):
     """Remove cells that have more than a given threshold percentage of missing values
     """
+    #df = df.drop_duplicates()
     nans = df.isnull().values
     print(nans.shape)
     num_genes = nans.shape[1]
@@ -85,217 +77,95 @@ def fill_with_median_expression(mat):
     mat[nan_inds] = np.take(cell_medians, indices=nan_inds[0])
     #return mat
 
-def get_kNNs_for_gene(df, gene_idx, k):
-    cur_gene = np.reshape(df.iloc[:,gene_idx].transpose(), (1, -1))
-    other_genes = df.drop(df.columns[[gene_idx]], axis=1).transpose()
-    other_genes_idx = np.arange(df.shape[1])
-    other_genes_idx = np.delete(other_genes_idx, [gene_idx])
-    # Get kNN genes
-    distances = cdist(cur_gene, other_genes).flatten()
-    k_nearest = np.argsort(distances)[:k]
-    k_nearest_distances = distances[k_nearest]
-    k_nearest_idx = other_genes_idx[k_nearest]
-    return k_nearest_idx, k_nearest_distances
-
-def get_kNNs(df, k):
-    """Input is (n, g) sample matrix. Return two matrices:
-    kNN          (g, k)
-    kNN_weights  (g, k)
-    For each gene (g genes), contains the k nearest neighbors (either their
-    indices or their weights (inverse distances))
-    """
+def impute_for_study(study_df, worker_id, k, dist_mat=None):
+    #global GLOBAL_DF
     t0 = time.time()
-    knn = np.zeros((df.shape[1], k))
-    knn_weights = np.zeros((df.shape[1], k))
-    for gene in range(df.shape[1]):
-        if gene % 1000 == 0:
-            print(gene)
-        cur_knn, cur_distances = get_kNNs_for_gene(df, gene, k)
-        cur_weights = 1 / (cur_distances + np.finfo(float).eps)
-        knn[gene, :] = cur_knn
-        knn_weights[gene, :] = cur_weights
-    print("kNN took: ", time.time()-t0)
-    return knn, knn_weights
+    #study_df = GLOBAL_DF.iloc[samples_in_study]
+    worker_print(worker_id, "Shape of study subset: {}\n".format(study_df.shape))
+    study_mat = study_df.values
+    if dist_mat == None:
+        study_filled = study_mat.copy()
+        fill_with_median_expression(study_filled)
+        dist_mat = squareform(pdist(study_filled.T))
 
-def get_kNNs2(df, k):
-    """Input is (n, g) sample matrix. Return two matrices:
-    kNN          (g, k)
-    kNN_weights  (g, k)
-    For each gene (g genes), contains the k nearest neighbors (either their
-    indices or their weights (inverse distances))
-    """
+    # modify dist_mat to have nans in columns of nan_genes
+    nan_cols = np.unique(np.where(np.isnan(study_mat))[1])
+    dist_mat[:, nan_cols] = np.nan
+    nearest_genes = np.argsort(dist_mat, axis=1)
+    dist_mat = np.sort(dist_mat, axis=1)
+    nearest_genes = nearest_genes[:, :k]
+    dist_mat = dist_mat[:, :k]
+
+    for nan_col in nan_cols:
+        study_mat[:, nan_col] = np.average(study_mat[:, nearest_genes[nan_col]], axis=1)
+    study_df.iloc[:,:] = study_mat
+    #assert(GLOBAL_DF.iloc[samples_in_study].isnull().values.any() == False)
+    worker_print(worker_id, "impute for study took: {}\n".format(time.time()-t0))
+    return study_df
+
+def impute_missing_values(df, k, knn_data, ncpus):
     t0 = time.time()
-    #knn = np.zeros((df.shape[1], k))
-    #knn_weights = np.zeros((df.shape[1], k))
-    g = df.shape[1]
-    print('calculating dist mat...')
-    mat = df.values.astype('float32')
-    print(mat.dtype)
-    dist_mat = squareform(pdist(mat.T))
-    print('dist_mat: ', type(dist_mat))
-    print('dist_mat: ', dist_mat.shape)
-    print('dist_mat: ', dist_mat.dtype)
-    dist_mat = dist_mat.astype('float32')
-    print('dist_mat: ', dist_mat.dtype)
-    print('done')
-    sort_t0 = time.time()
-    knn = np.argsort(dist_mat, axis=1)
-    #knn_distances = dist_mat[knn]
-    print('argsort took: ', time.time()-sort_t0)
-    sort_t0 = time.time()
-    knn_distances = np.sort(dist_mat, axis=1)
-    print('sort took: ', time.time()-sort_t0)
-    print('argsorted')
-    to_delete_t0 = time.time()
-    to_delete = knn == np.arange(g)[:, None]
-    print('to_delete took: ', time.time()-to_delete_t0)
-    print('got boolean vec')
-    where_t0 = time.time()
-    _, del_ind = np.where(to_delete)
-    print('where took: ', time.time()-where_t0)
-    print('done where')
-    mask_t0 = time.time()
-    mask = np.ones((g,g), dtype=bool)
-    mask[range(g), del_ind] = False
-    knn = knn[mask].reshape(g, g-1)
-    knn_distances = knn_distances[mask].reshape(g, g-1)
-    print('masking took: ', time.time()-mask_t0)
-
-    knn = knn[:, :k]
-    knn_distances = knn_distances[:, :k]
-    knn_weights = 1 / (knn_distances + np.finfo(float).eps)
-    
-    print("kNN took: ", time.time()-t0)
-    return knn, knn_weights
-
-def get_kNN_tensors(data, k):
-    t0 = time.time()
-    n, g = data.shape
-
-    dist_mat = squareform(pdist(data.T)) # calculate the distance matrix
-    print("time to calc dist_mat: ", time.time()-t0)
-    t0 = time.time()
-    dist_mat = dist_mat.astype('float16')
-    dist_mat = np.repeat(dist_mat[np.newaxis, :, :], n, axis=0) # make it a tensor
-    print("time to do np.repeat: ", time.time()-t0)
-    print('dist_mat: ', type(dist_mat))
-    print('dist_mat: ', dist_mat.shape)
-    print('dist_mat: ', dist_mat.dtype)
-    print(dist_mat.nbytes/(1e9))
-    nan_indices = np.where(np.isnan(data))
-    dist_mat[nan_indices[0], :, nan_indices[1]] = np.nan
-    dist_mat = dist_mat.astype('float16')
-    print('dist_mat: ', dist_mat.dtype)
-    # At this point, we have an (n x g x g) tensor that has for each
-    # of the n cells, for each of their genes, their distances (or nan)
-    # to all of the other genes.
-
-    # Key point: because nans get moved to the end of an array when sorted,
-    # we can ensure that the closest neighbor genes for each cell are only
-    # those that are not nan. We can also assume the the closes gene will
-    # be the gene itself, so we can get rid of the first column in the sorted
-    # distance matrix, and then only keep the first k columns
-    sort_t0 = time.time()
-    knn = np.argsort(dist_mat, axis=-1)
-    print('argsort took: ', time.time()-sort_t0)
-    sort_t0 = time.time()
-    knn_distances = np.sort(dist_mat, axis=-1)
-    print('sort took: ', time.time()-sort_t0)
-    knn = knn[:, :, 1:k+1]
-    knn_distances = knn_distances[:, :, 1:k+1]
-    knn_weights = knn_distances / (1 + np.finfo(float).eps)
-    return knn_distances, knn_weights
-
-def impute_for_study(df, samples_in_study, k):
-    study_df = df.iloc[samples_in_study]
-    n, g = study_df.shape
-    study_mat = study_df.values.astype('float32')
-    study_filled = study_mat.copy()
-    fill_with_median_expression(study_filled)
-    knn_selection_tensor, knn_weights_tensor = get_kNN_tensors(study_filled, k)
-    knn_expressions = np.take(study_mat, indices=knn_selection_vector, axis=-1)
-    imputed = np.average(knn_expressions, axis=-1, weights=knn_weights_tensor)
-    nan_inds = np.where(np.isnan(study_mat))
-    study_mat[nan_inds] = imputed[nan_inds]
-    assert(np.isnan(study_mat).any() == False)
-    df.iloc[samples_in_study] = study_mat
-    
-    
-
-# def impute_for_study_naive(df, samples_in_study, k):
-#     study_df = df.iloc[samples_in_study]
-#     print("Shape of study subset: ", study_df.shape)
-#     n, g = study_df.shape
-#     study_nans = study_df.isnull().values
-#     study_filled = fill_with_median_expression(study_df)
-#     assert(study_filled.isnull().values.any() == False)
-#     knn, knn_weights = get_kNNs2(study_filled, k)
-#     print(knn.shape)
-#     print(knn_weights.shape)
-#     print("done with knn")
-#     print("imputing")
-#     impute_t0 = time.time()
-#     knn_tensor = np.take(study_filled.values, indices=knn, axis=1)
-#     nan_knn_counts = np.sum(np.isnan(knn_tensor), axis=-1)[study_nans]
-
-#     imputed = np.average(knn_tensor, axis=-1, weights=np.broadcast_to(knn_weights, shape=(n, g, k)))
-#     print("done imputing")
-#     print("imputing took: ", time.time()-impute_t0)
-#     #study_df = study_df + study_nans.astype(int) * imputed
-#     np_study = study_df.values
-#     #np_study[study_nans] = imputed
-#     inds = np.where(np.isnan(np_study))
-#     np_study[inds] = imputed[inds]
-
-#     df.iloc[samples_in_study] = np_study
-#     return nan_knn_counts
-
-# def impute_for_study_old(df, samples_in_study, k):
-#     study_df = df.iloc[samples_in_study]
-#     print("Shape of study subset: ", study_df.shape)
-#     study_nans = study_df.isnull()
-#     gene_has_nans = study_nans.sum(axis=0) > 0
-#     study_filled = fill_with_median_expression(study_df)
-#     assert(study_filled.isnull().values.any() == False)
-#     nan_neighbor_counts = []
-#     for gene in range(study_df.shape[1]):
-#         if not gene_has_nans[gene]:
-#             continue
-#         print("imputing for gene: ", gene)
-#         k_nearest_idx, k_nearest_distances = get_kNNs(study_filled, gene, k)
-#         t0 = time.time()
-#         for cell in range(study_df.shape[0]):
-#             if np.isnan(study_df.iloc[cell, gene]):
-#                 nan_neighbor_counts.append(np.sum(study_nans.iloc[cell, k_nearest_idx]))
-#                 imputed = np.average(study_filled.iloc[cell, k_nearest_idx], weights=1/(k_nearest_distances + np.finfo(float).eps))
-#                 study_df.iloc[cell, gene] = imputed
-#         print("cell for loop took: ", time.time()-t0)
-#     # Incorporate imputed data into original dataframe
-#     df.iloc[samples_in_study] = study_df
-#     return nan_neighbor_counts
-
-def impute_missing_values(df, accessions, k):
+    accessions = get_accessions_from_accessionSeries(df.index)
     accession_set = np.unique(accessions)
-    #nan_neighbor_counts = []
-    for accn in accession_set:
-        samples_in_study = accessions == accn
-        impute_for_study(df, samples_in_study, k)
-    assert(df.isnull().values.any() == False)
+    print(str(len(accession_set)) + " studies to process.")
+    study_indices = [accessions == accn for accn in accession_set]
+    study_dfs = [df.iloc[study_idx] for study_idx in study_indices]
+    worker_ids = list(range(len(accession_set)))
+    with multiprocessing.Pool(processes=ncpus) as pool:
+        # dispatch jobs
+        print("Dispatching worker processes...")
+        results = pool.starmap(impute_for_study, zip(study_dfs, worker_ids, repeat(k), repeat(knn_data)))
+    imputed_df = pd.concat(results)
+    assert(imputed_df.isnull().values.any() == False)
+    print("Total impute time: ", time.time()-t0)
+    return imputed_df
 
-
+def make_nans_consistent(df, accn, samples_in_study):
+    # Coerce any zeros in a column that has NaNs to also be NaNs
+    study_df = df.iloc[samples_in_study]
+    nan_genes = study_df.columns[study_df.isna().any()].tolist()
+    df.loc[samples_in_study, nan_genes] = df.loc[samples_in_study, nan_genes].replace(0, np.nan)
+    
+def check_study_uniformity(df, accn, samples_in_study):
+    study_df = df.iloc[samples_in_study]
+    nan_genes = study_df.columns[study_df.isna().any()].tolist()
+    inconsistent_genes = []
+    for gene in nan_genes:
+        if study_df[gene].isnull().sum() != study_df.shape[0]:
+            inconsistent_genes.append(gene)
+    if len(inconsistent_genes) > 0:
+        print("Accn {} has {} cells, {} genes with nans, {} inconsistent genes!".format(accn, study_df.shape[0], len(nan_genes), len(inconsistent_genes)))
+        #print(study_df[inconsistent_genes])
+    else:
+        print("Accn {} has {} cells, {} genes with nans".format(accn, study_df.shape[0], len(nan_genes)))
+    
+def consistency_check(df):
+    accessions = get_accessions_from_accessionSeries(rpkm_df.index)
+    for accn in np.unique(accessions):
+        study_indicies = accessions==accn
+        make_nans_consistent(df, accn, study_indicies)
+        check_study_uniformity(df, accn, study_indicies)
+        
 if __name__ == '__main__':
     args = docopt(__doc__)
-
-    h5_store = pd.HDFStore(args['<expression_h5>'])
-    print("loaded h5 file")
-    rpkm_df = h5_store['rpkm']
-    h5_store.close()
-
+    ncpus = multiprocessing.cpu_count()-1
+    print("Using " + str(ncpus) + " CPUs")
+    
+    rpkm_df = load_data_from_h5(args['<expression_h5>'])
     print(rpkm_df.shape)
 
     rpkm_df = filter_cells(rpkm_df, float(args['--threshold']))
-    accessions = get_accessions_from_accessionSeries(rpkm_df.index)
-    t0 = time.time()
-    impute_missing_values(rpkm_df, accessions, int(args['-k']))
-    print("imputation took: ", time.time()-t0)
+    #accessions = get_accessions_from_accessionSeries(rpkm_df.index)
+
+    if args['--consistency_check']:
+        consistency_check(rpkm_df)
     
+    t0 = time.time()
+    knn_data = None
+    if args['--database'] is not None:
+        knn_data = args['--database']
+    imputed = impute_missing_values(rpkm_df, int(args['-k']), knn_data, ncpus)
+    assert(imputed.isnull().values.any() == False)
+    print(imputed.shape)
+    print("imputation took: ", time.time()-t0)
+    write_data_to_h5("imputed.h5", imputed)
