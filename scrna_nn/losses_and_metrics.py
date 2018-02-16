@@ -2,13 +2,27 @@ from keras import backend as K
 from theano import tensor as T
 
 # LOSSES (used for parameter updates)
+def get_dynamic_contrastive_loss(margin=1):
+    def dynamic_contrastive_loss(y_true, y_pred):
+        """y_true is a float between 0 and 1.0, instead of binary.
+        (it acts as a way to dynamically (for each sample) modify the margin in 
+        penalty, depending on how different the two samples in the pair actually are)
+        """
+        if y_true == 1:
+            # Means that the distance in the ontology for this point was 0, exact same
+            print("y_true == 1")
+            return 0.5*K.square(y_pred)
+        else:
+            return 0.5*K.square(K.maximum((1-y_true)*margin - y_pred, 0))
+    return dynamic_contrastive_loss
+
 def get_triplet_batch_hard_loss(batch_size):
     def triplet_batch_hard_loss(y_true, y_pred):
         # y_pred is the embedding, y_true is the IDs (labels) of the samples (not 1-hot encoded)
         # They are mini-batched. If batch_size is B, and embedding dimension is D, shapes are:
         #   y_true: (B,)
         #   y_pred: (B,D)
-        margin = 0.1
+        margin = 0.2
     
         # Get all-pairs distances
         y_true = K.sum(y_true, axis=1)

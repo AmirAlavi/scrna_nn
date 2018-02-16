@@ -124,9 +124,9 @@ def compile_model(model, args, optimizer):
     if args['--ae']:
         loss = 'mean_squared_error'
     elif args['--siamese']:
-        if args['--flexibleLoss']:
-            print("Using flexible contrastive loss")
-            loss = nn.flexible_contrastive_loss
+        if args['--dynMarginLoss']:
+            print("Using dynamic-margin contrastive loss")
+            loss = losses_and_metrics.get_dynamic_contrastive_loss(float(args['--dynMargin']))
         else:
             print("Using contrastive loss")
             loss = nn.contrastive_loss
@@ -385,7 +385,7 @@ def get_data_for_siamese(data_container, args):
     # assert(len(dataset_IDs) == len(y))
     # X_siamese, y_siamese = create_data_pairs_diff_datasets(X, y, dataset_IDs, indices_lists, same_lim)
     same_lim = int(args['--same_lim'])
-    if args['--flexibleLoss']:
+    if args['--dynMarginLoss']:
         X_siamese, y_siamese = siamese.create_flexible_data_pairs(X, y, true_ids, indices_lists, same_lim, label_strings_lookup, args)
     else:
         X_siamese, y_siamese = create_data_pairs(X, y, true_ids, indices_lists, same_lim, args)

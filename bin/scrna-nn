@@ -78,7 +78,7 @@ Options:
     --go_arch=<path>          Path to folder containing files that define a GO-based architecture.
                               [default: data/GO_lvls_arch_2_to_4]
     --with_dense=<num_units>  (For 'sparse' architecture) Number of Dense units to add in the same
-                              layer as the Sparse layer. [default: 100]
+                              layer as the Sparse layer. [default: 0]
     --pt=<pt_model_file>      Use initial weights from a pretrained model file.
     --unsup_pt=<model_folder> Use initial weights from layer-wise unusupervised pretraining.
     --ae                      Use an unsupervised autoencoder architecture.
@@ -129,7 +129,7 @@ Options:
                               were generated, generate (diff_multiplier * same_count) pairs of different points.
                               [default: 2]
     --freeze                  Freeze all but the last layer of a Siamese network (for fine tuning)
-    --flexibleLoss=<type>     Use a flexible Contrastive Loss for the Siamese training which takes into account
+    --dynMarginLoss=<type>    Use a dynamic-margin Contrastive Loss for the Siamese training which takes into account
                               distances between cell-types (rather than just binary, 0=different, 1=same). Different types of
                               distances are available, specified by the <type> required argument:
                                   ontology: distances are based on distances between nodes in the Cell Ontology DAG (graph based).
@@ -137,18 +137,19 @@ Options:
                                       normalized using the --max_ont_dist option.
                                   text-mined: distances are based on co-occurance of terms in PubMed articles. These distances
                                       are already normalized between 0 and 1.
+    --dynMargin=<m>           Base margin value to use in contrastive loss. [default: 1]
     --dist_mat_file=<path>    A pickled, double-keyed dictionary of cell types whose values are distances (this file provides the actual
-                              distances that the user will use, must agree with the type of distance specified in --flexibleLoss.
+                              distances that the user will use, must agree with the type of distance specified in --dynMarginLoss.
     --trnsfm_fcn=<fcn>        The type of transform function to use on top of raw similarity values between cell types. A similarity
                               of zero will always be transformed to 0, and one will always be transformed to 1. Available transforms:
                                   linear:      linear decay from 1 to 0
                                   exponential: exponential growth from 0 to 1 (lower bound to linear)
                                   sigmoidal:   sigmoidal (or tanh)-like function from 0 to 1 (upper bound to linear)
-                                  binary:      same pairs are 1, different pairs are all 0 (will not use a flexible contrastive loss metric)
+                                  binary:      same pairs are 1, different pairs are all 0 (will not use a dynamic-margin contrastive loss metric)
                               [default: linear]
     --trnsfm_fcn_param=<n>    A numerical constant necessary for some transform functions, allows you to tune their shape. [default: 1]
     --max_ont_dist=<d>        The maximum distance allowed between nodes in the ontology before their similarity is
-                              considered to be 0. Only used for --flexibleLoss=ontology. [default: 4]
+                              considered to be 0. Only used for --dynMarginLoss=ontology. [default: 4]
     --online_train=<n>        Dynamically generate hard pairs after n epochs for
                               siamese neural network training.
     **TRIPLET-RELATED-OPTIONS**
@@ -177,7 +178,7 @@ Options:
 "retrieval" specific command options:
     --dist_metric=<metric>    Distance metric to use for nearest neighbors
                               retrieval [default: euclidean].
-    --similarity_type=<type>  Same as --flexibleLoss from train command.
+    --similarity_type=<type>  Same as --dynMarginLoss from train command.
                               [default: text-mined]
     --sim_mat_file=<path>     Same as --dist_mat_file from train command.
     --sim_trnsfm_fcn=<fcn>    Same as --trnsfm_fcn from train command.

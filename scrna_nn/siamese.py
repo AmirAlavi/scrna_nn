@@ -91,7 +91,7 @@ def create_flexible_data_pairs(X, y, true_ids, indices_lists, same_lim, label_st
         normalization = "sn"
     elif args['--gn']:
         normalization = "gn"
-    config_string = '_'.join([args['--data'], normalization, args['--flexibleLoss'], args['--dist_mat_file'], args['--trnsfm_fcn'], args['--trnsfm_fcn_param'], args['--unif_diff'], args['--same_lim'], args['--diff_multiplier']])
+    config_string = '_'.join([args['--data'], normalization, args['--dynMarginLoss'], args['--dist_mat_file'], args['--trnsfm_fcn'], args['--trnsfm_fcn_param'], args['--unif_diff'], args['--same_lim'], args['--diff_multiplier']])
     cache_path = join(join(CACHE_ROOT, SIAM_CACHE), config_string)
     if exists(cache_path):
         print("Loading siamese data from cache...")
@@ -99,19 +99,19 @@ def create_flexible_data_pairs(X, y, true_ids, indices_lists, same_lim, label_st
         labels = np.load(join(cache_path, "siam_y.npy"))
         return pairs, labels
 
-    if args['--flexibleLoss'] == 'ontology':
+    if args['--dynMarginLoss'] == 'ontology':
         print("ontology-based similarities")
         similarity_fcn = distances.OntologyBasedPairSimilarity(max_ontology_distance=int(args['--max_ont_dist']),
                                                                distance_mat_file=args['--dist_mat_file'],
                                                                transform=args['--trnsfm_fcn'],
                                                                transform_param=int(args['--trnsfm_fcn_param']))
-    elif args['--flexibleLoss'] == 'text-mined':
+    elif args['--dynMarginLoss'] == 'text-mined':
         print("text-mined similarities")
         similarity_fcn = distances.TextMinedPairSimilarity(distance_mat_file=args['--dist_mat_file'],
                                                            transform=args['--trnsfm_fcn'],
                                                            transform_param=int(args['--trnsfm_fcn_param']))
     else:
-        raise ScrnaException("Not a valid flexibleLoss type!")
+        raise ScrnaException("Not a valid dynMarginLoss type!")
 
     print("Generating 'Flexible' pairs for siamese")
     pairs = []
