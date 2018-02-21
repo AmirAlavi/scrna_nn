@@ -45,9 +45,12 @@ def reduce(args):
     if training_args['--nn']:
         if '--triplet' in training_args and training_args['--triplet']:
             triplet_batch_size = int(training_args['--batch_hard_P'])*int(training_args['--batch_hard_K'])
-            model = nn.load_trained_nn(join(model_base_path, "model.h5"), triplet_batch_size)
+            model = nn.load_trained_nn(join(model_base_path, "model.h5"), triplet_loss_batch_size=triplet_batch_size)
         elif training_args['--siamese']:
-            model = nn.load_trained_nn(join(model_base_path, "model.h5"), siamese=True)
+            dynamic_margin=-1
+            if '--dynMargin' in training_args:
+                dynamic_margin = float(training_args['--dynMargin'])
+            model = nn.load_trained_nn(join(model_base_path, "model.h5"), dynamic_margin=dynamic_margin, siamese=True)
             if training_args['--checkpoints']:
                 # HACK, TODO: account for this beforehand
                 model = model.layers[2]

@@ -105,17 +105,13 @@ Options:
     --sgd_d=<decay>           Decay rate for SGD. [default: 1e-6]
     --sgd_m=<momentum>        Momentum for SGD. [default: 0.9]
     --sgd_nesterov            Use Nesterov momentum for SGD.
-    --rmsp_lr=<lr>            Learning rate for RMSprop. [default: 0.001]
-    --rmsp_rho=<rho>          Rho param for RMSprop. [default: 0.9]
-    --rmsp_eps=<eps>          Fuzz factor for RMSprop. [default: 1e-08]
-    --rmsp_decay=<decay>      Learning rate decay over each update for RMSprop. [default: 0.0]
     --early_stop=<metric>     Using early stopping in training by monitoring the specified metric
                               [default: val_loss]
     --early_stop_pat=<n>      Negative patience means no early stopping. [default: -1]
     --early_stop_at=<metric>  Stop training when the specified metric reaches below or equal to a target value.
                               [default: val_loss]
     --early_stop_at_val=<n>   Negative target value means no early stopping. [default: -1.0]
-    --checkpoints             Save best model (one with lowest validation loss)
+    --checkpoints=<metric>    Save best model (one with lowest score of specified metric)
 
     **SIAMESE-RELATED-OPTIONS**
     --siamese                 Uses a siamese neural network architecture, using

@@ -107,14 +107,6 @@ def get_optimizer(args):
         decay = float(args['--sgd_d'])
         momentum = float(args['--sgd_m'])
         return SGD(lr=lr, decay=decay, momentum=momentum, nesterov=args['--sgd_nesterov'])
-    elif args['--opt'] == 'rmsp':
-        # Note: not currently functional
-        print("Using RMSprop optimizer")
-        lr = float(args['--rmsp_lr'])
-        rho = float(args['--rmsp_rho'])
-        fuzz = float(args['--rmsp_eps'])
-        decay = float(args['--rmsp_decay'])
-        return SparseRMSprop(lr=lr, rho=rho, epsilon=fuzz, decay=decay)
     else:
         raise util.ScrnaException("Not a valid optimizer!")
 
@@ -258,7 +250,7 @@ def create_data_pairs(X, y, true_ids, indices_lists, same_lim, args):
     print("Distribution of different and same pairs: ", np.bincount(labels))
     pairs_np = np.array(pairs)
     labels_np = np.array(labels)
-    makedirs(cache_path)
+    makedirs(cache_path, exist_ok=True)
     np.save(join(cache_path, "siam_X"), pairs_np)
     np.save(join(cache_path, "siam_y"), labels_np)
     return pairs_np, labels_np
@@ -528,7 +520,7 @@ def get_callbacks_list(working_dir_path, args):
         # if not exists(checkpoints_folder):
         #     makedirs(checkpoints_folder)
         # callbacks_list.append(ModelCheckpoint(checkpoints_folder+"/model_{epoch:03d}-{val_loss:06.3f}.h5", monitor='val_loss', verbose=1, save_best_only=True))
-        callbacks_list.append(ModelCheckpoint(working_dir_path+"/model.h5", monitor='val_loss', verbose=1, save_best_only=True))
+        callbacks_list.append(ModelCheckpoint(working_dir_path+"/model.h5", monitor=args['--checkpoints'], verbose=1, save_best_only=True))
     if args['--loss_history']:
         callbacks_list.append(callbacks.LossHistory(working_dir_path))
     return callbacks_list

@@ -28,13 +28,15 @@ from . import losses_and_metrics
 def save_trained_nn(model, path):
     model.save(path)
 
-def load_trained_nn(path, triplet_loss_batch_size=-1, siamese=False):
+def load_trained_nn(path, triplet_loss_batch_size=-1, dynamic_margin=-1, siamese=False):
     custom_objects={'Sparse': Sparse}
     if triplet_loss_batch_size >= 0:
         custom_objects['triplet_batch_hard_loss'] = losses_and_metrics.get_triplet_batch_hard_loss(triplet_loss_batch_size)
         custom_objects['frac_active_triplet_metric'] = losses_and_metrics.get_frac_active_triplet_metric(triplet_loss_batch_size)
     if siamese:
-        custom_objects['flexible_contrastive_loss'] = flexible_contrastive_loss
+        if dynamic_margin == -1:
+            dynamic_margin=1
+        custom_objects['dynamic_contrastive_loss'] = losses_and_metrics.get_dynamic_contrastive_loss(dynamic_margin)
     print(custom_objects)
     return load_model(path, custom_objects=custom_objects)
 
