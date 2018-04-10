@@ -20,10 +20,13 @@ class DataContainer(object):
         self.accessions_series = h5_store['accessions'] if 'accessions' in h5_store else None
         self.true_ids_series = h5_store['true_ids'] if 'true_ids' in h5_store else None
         h5_store.close()
+        self.rpkm_df.fillna(0, inplace=True) # Worries me that we have to do this...
         self.mean = feature_mean
         self.std = feature_std
         # Convert numeric to float32 for deep learning libraries
         self.rpkm_df = self.rpkm_df.apply(pd.to_numeric, errors='ignore', downcast='float')
+        # Ensure the column names are stored as strings for campatability
+        self.rpkm_df.columns = self.rpkm_df.columns.astype(str)
         print("converted to float32")
         eps = np.finfo(np.float32).eps
         if sample_normalize:
@@ -61,6 +64,9 @@ class DataContainer(object):
 
     def get_expression_mat(self):
         return self.rpkm_df.values
+
+    def get_cell_ids(self):
+        return self.rpkm_df.index.values
 
     def save_about_data(self, folder_to_save_in):
         """Save some descriptive info about this data to a text file.

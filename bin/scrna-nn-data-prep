@@ -215,8 +215,10 @@ if __name__ == '__main__':
     rpkm_df = h5_store['rpkm']
     h5_store.close()
     print(rpkm_df.shape)
-    rpkm_df.drop('GSE61300_GSM1501785', inplace=True) # hack because drop_duplicates doesn't work
-    rpkm_df.drop('GSE61300_GSM1501786', inplace=True)
+    if 'GSE61300_GSM1501785' in rpkm_df.index:
+        rpkm_df.drop('GSE61300_GSM1501785', inplace=True) # hack because drop_duplicates doesn't work
+    if 'GSE61300_GSM1501786' in rpkm_df.index:
+        rpkm_df.drop('GSE61300_GSM1501786', inplace=True)
     rpkm_df.fillna(0, inplace=True)
     with open(args['<ontology_mappings_json>'], 'r') as f:
         cell_to_terms = json.load(f)
