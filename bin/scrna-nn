@@ -7,6 +7,7 @@ Usage:
     scrna-nn reduce <trained_model_folder> [--out=<path> --data=<path> --save_meta]
     scrna-nn visualize <reduced_data_file> [--out=<path> --ntypes=<ntypes> --nsamples=<nsamples> --title=<title>]
     scrna-nn retrieval <query_data_file> <database_data_file> [--dist_metric=<metric> --out=<path> --similarity_type=<type> --sim_trnsfm_fcn=<fcn> --sim_trnsfm_param=<n> --max_ont_path_len=<d> --asymm_dist] --sim_mat_file=<path>
+    scrna-nn analyze <trained_model_folder> <query> <database> [--out=<path>]
     scrna-nn (-h | --help)
     scrna-nn --version
 
@@ -202,6 +203,7 @@ if __name__ == '__main__':
     from scrna_nn.reduce import reduce
     from scrna_nn.visualize import visualize
     from scrna_nn.retrieval_test import retrieval_test
+    from scrna_nn.analyze import analyze
     from scrna_nn.util import ScrnaException
     
     try:
@@ -213,6 +215,8 @@ if __name__ == '__main__':
             visualize(args)
         elif args['retrieval']:
             retrieval_test(args)
+        elif args['analyze']:
+            analyze(args)
     except ScrnaException as e:
         msg = e.args[0]
         print("scrna exception: ", msg)
