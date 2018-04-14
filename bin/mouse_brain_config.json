@@ -1,0 +1,22 @@
+{
+    "classes": ["control_3m", "control_3m_1w","control_3m_2w", "control_4m_2w", "disease_3m", "disease_3m_1w", "disease_3m_2w", "disease_4m_2w"],
+    "color_map": {
+	"control_3m": "#66ffff",
+        "control_3m_1w": "#6699ff",
+        "control_3m_2w": "#6600ff",
+        "control_4m_2w": "#ff00cc",
+        "disease_3m": "#33ff00",
+        "disease_3m_1w": "#ffff00",
+        "disease_3m_2w": "#ff9900",
+        "disease_4m_2w": "#ff0000"
+    },
+    "groups": ["control", "disease"],
+    "group_names": {
+	"control": "healthy",
+	"disease": "disease"
+    },
+    "group_color_map": {
+	"control": "blue",
+	"disease": "red"
+    }
+}
