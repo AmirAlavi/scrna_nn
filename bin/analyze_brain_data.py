@@ -14,6 +14,7 @@ from os import makedirs, remove
 from collections import defaultdict, Counter
 import json
 from itertools import groupby as g
+import math
 
 import pandas as pd
 import numpy as np
@@ -28,6 +29,7 @@ import matplotlib.patches as mpatches
 import seaborn
 seaborn.set()
 import FisherExact
+from scipy.stats import binom_test
 
 from scrna_nn.data_container import DataContainer
 from scrna_nn.reduce import _reduce_helper
@@ -300,13 +302,21 @@ def make_classification_histograms(overall_classifications, classifications, wor
         control_counts = control_counts[labels_sort_idx]
         merged_db_types = [' '.join(name.split()[1:]) for name in merged_db_types]
         merged_db_types = np.array(merged_db_types)
-        plt.bar(x_locations, control_fracs, width, color='b', label='control')
-        plt.bar(x_locations + width, disease_fracs, width, color='r', label='disease')
+        rects1 = plt.bar(x_locations, control_fracs, width, color='b', label='control')
+        rects2 = plt.bar(x_locations + width, disease_fracs, width, color='r', label='disease')
         #plt.bar(np.arange(1, len(merged_db_types)+1), disease_counts, tick_label=merged_db_types, color='r', label='disease')
         plt.xticks(x_locations + width / 2, merged_db_types, rotation='vertical', fontsize=8)
         plt.ylabel('Fraction of query cells')
         plt.legend()
         plt.title("Portion of query cells classified as each cell type")
+        # add p-vals
+        for rect1, rect2 in zip(rects1, rects2):
+                height1 = rect1.get_height()
+                height2 = rect2.get_height()
+                count1 = math.floor(1000*height1)
+                count2 = math.floor(1000*height2)
+                pval = binom_test(count1, count1+count2, p=0.5)
+                plt.gca().text(rect1.get_x(), 1.05*max(height1,height2), '{:.2e}'.format(pval), ha='left', va='bottom', fontsize=7)
         plt.savefig(join(working_dir, "grouped_bar.pdf"), bbox_inches="tight")
         plt.savefig(join(working_dir, "grouped_bar.png"), bbox_inches="tight")
         plt.close()
@@ -316,10 +326,6 @@ def make_classification_histograms(overall_classifications, classifications, wor
         np.savetxt('contingency_table.csv', contingency_table, delimiter=',')
         print(contingency_table.shape)
         
-        # print(FisherExact.fisher_exact(contingency_table), simulate_pval=True)
-        # print(FisherExact.fisher_exact(contingency_table.T), simulate_pval=True)
-        # print(FisherExact.fisher_exact(contingency_table), simulate_pval=True, replicate=1e7)
-        # print(FisherExact.fisher_exact(contingency_table.T), simulate_pval=True, replicate=1e7)
 
         keep = [i for i in range(contingency_table.shape[1]) if 0 not in contingency_table[:, i]]
         merged_db_types = merged_db_types[keep]
@@ -330,25 +336,25 @@ def make_classification_histograms(overall_classifications, classifications, wor
         contingency_table = np.stack((control_counts, disease_counts), axis=0)
         x_locations = np.arange(1, len(merged_db_types)+1)
         plt.figure()
-        plt.bar(x_locations, control_fracs, width, color='b', label='control')
-        plt.bar(x_locations + width, disease_fracs, width, color='r', label='disease')
+        rects1 = plt.bar(x_locations, control_fracs, width, color='b', label='control')
+        rects2 = plt.bar(x_locations + width, disease_fracs, width, color='r', label='disease')
         plt.xticks(x_locations + width / 2, merged_db_types, rotation='vertical', fontsize=8)
         plt.ylabel('Fraction of query cells')
         plt.legend()
         plt.title("Portion of query cells classified as each cell type")
+        for rect1, rect2 in zip(rects1, rects2):
+                height1 = rect1.get_height()
+                height2 = rect2.get_height()
+                count1 = math.floor(1000*height1)
+                count2 = math.floor(1000*height2)
+                pval = binom_test(count1, count1+count2, p=0.5)
+                plt.gca().text(rect1.get_x(), 1.05*max(height1,height2), '{:.2e}'.format(pval), ha='left', va='bottom', fontsize=7)
         plt.savefig(join(working_dir, "grouped_bar_non_zero.pdf"), bbox_inches="tight")
         plt.savefig(join(working_dir, "grouped_bar_non_zero.png"), bbox_inches="tight")
         plt.close()
         np.save('contingency_table2', contingency_table)
         np.savetxt('contingency_table_no_zeros.csv', contingency_table, delimiter=',')
         print(contingency_table.shape)
-        
-        print(FisherExact.fisher_exact(contingency_table), simulate_pval=True)
-        print(FisherExact.fisher_exact(contingency_table.T), simulate_pval=True)
-        print(FisherExact.fisher_exact(contingency_table), simulate_pval=True, replicate=1e7)
-        print(FisherExact.fisher_exact(contingency_table.T), simulate_pval=True, replicate=1e7)
-        
-
 
                 
 def enriched_brain_cortex_plot_and_data(count_list, top_5_nearest_cells_d, threshold, working_dir):
