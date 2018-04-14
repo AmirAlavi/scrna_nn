@@ -13,6 +13,7 @@ from os.path import join, basename, normpath, exists
 from os import makedirs, remove
 from collections import defaultdict, Counter
 import json
+from itertools import groupby as g
 
 import pandas as pd
 import numpy as np
@@ -24,6 +25,9 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
+import seaborn
+seaborn.set()
+import FisherExact
 
 from scrna_nn.data_container import DataContainer
 from scrna_nn.reduce import _reduce_helper
@@ -78,15 +82,36 @@ def plot(X, name, working_dir, labels):
         plt.ylabel("component 2")
         plt.legend(legend_circles, classes_ordered, ncol=2, bbox_to_anchor=(1.04, 0.5), loc='center left')
         plt.savefig(join(working_dir, name+".pdf"), bbox_inches="tight")
+        plt.savefig(join(working_dir, name+".png"), bbox_inches="tight")
         plt.close()
 
+def plot_consolidated_labels(X, name, working_dir, labels):
+        colors = []
+        for l in labels:
+                if 'control' in l:
+                        colors.append('b')
+                elif 'disease' in l:
+                        colors.append('r')
+        circles = [mpatches.Circle((0,0), 1, fc='b'), mpatches.Circle((0,0), 1, fc='r')]
+        plt.figure()
+        plt.scatter(X[:, 0], X[:, 1], c=colors, alpha=0.65)
+        plt.title(name)
+        plt.xlabel("component 1")
+        plt.ylabel("component 2")
+        plt.legend(circles, ['control', 'disease'], ncol=2, bbox_to_anchor=(1.04, 0.5), loc='center left')
+        plt.savefig(join(working_dir, name+"_consolidated.pdf"), bbox_inches="tight")
+        plt.savefig(join(working_dir, name+"_consolidated.png"), bbox_inches="tight")
+        plt.close()
+        
 def visualize(data, name, working_dir, labels):
         pca = PCA(n_components=2)
         x = pca.fit_transform(data)
         plot(x, name+"_PCA", working_dir, labels)
+        plot_consolidated_labels(x, name+"_PCA", working_dir, labels)
         tsne = TSNE(n_components=2)
         x = tsne.fit_transform(data)
         plot(x, name+"_TSNE", working_dir, labels)
+        plot_consolidated_labels(x, name+"_TSNE", working_dir, labels)
 
 def load_data(args):
         query_data = DataContainer(args['<query_data>'])
@@ -153,6 +178,7 @@ def make_nearest_dist_per_db_type_plots(d, working_dir):
                 plt.xticks(rotation='vertical', fontsize=8)
                 plt.title("Avg of nearest distances to each DB type")
                 plt.savefig(join(working_dir, query_type+".pdf"), bbox_inches="tight")
+                plt.savefig(join(working_dir, query_type+".png"), bbox_inches="tight")
                 plt.close()
                 
 
@@ -170,6 +196,7 @@ def make_top_5_labels_plots(d, working_dir):
                 plt.xticks(rotation='vertical', fontsize=8)
                 plt.title("# of times each DB type appeared in top 5 results")
                 plt.savefig(join(working_dir, query_type+".pdf"), bbox_inches="tight")
+                plt.savefig(join(working_dir, query_type+".png"), bbox_inches="tight")
                 plt.close()
 
 def make_5_nearest_distances_plots(d, working_dir):
@@ -181,14 +208,156 @@ def make_5_nearest_distances_plots(d, working_dir):
                 plt.hist(avg_nearest_distances, bins='auto')
                 plt.title("Hist, avg top 5 nearest distances, mean={}".format(np.mean(avg_nearest_distances)))
                 plt.savefig(join(working_dir, query_type+".pdf"), bbox_inches="tight")
+                plt.savefig(join(working_dir, query_type+".png"), bbox_inches="tight")
                 plt.close()
 
+def make_classification_histograms(overall_classifications, classifications, working_dir):
+        working_dir = join(working_dir, "D_classification_histograms")
+        if not exists(working_dir):
+                makedirs(working_dir)
+        db_types, counts = np.unique(overall_classifications, return_counts=True)
+        sort_idx = np.argsort(counts)[::-1]
+        db_types = db_types[sort_idx]
+        counts = counts[sort_idx]
+        plt.figure()
+        plt.bar(np.arange(1, len(db_types)+1), counts, tick_label=db_types)
+        plt.xticks(rotation='vertical', fontsize=8)
+        plt.title("# of query cells that are classified as each cell type")
+        plt.savefig(join(working_dir, "overall.pdf"), bbox_inches="tight")
+        plt.savefig(join(working_dir, "overall.png"), bbox_inches="tight")
+        plt.close()
+        control_clfs = []
+        disease_clfs = []
+        for query_type, clfs in classifications.items():
+                db_types, counts = np.unique(clfs, return_counts=True)
+                sort_idx = np.argsort(counts)[::-1]
+                db_types = db_types[sort_idx]
+                counts = counts[sort_idx]
+                plt.figure()
+                plt.bar(np.arange(1, len(db_types)+1), counts, tick_label=db_types)
+                plt.xticks(rotation='vertical', fontsize=8)
+                plt.title("# of query cells that are classified as each cell type")
+                plt.savefig(join(working_dir, query_type+".pdf"), bbox_inches="tight")
+                plt.savefig(join(working_dir, query_type+".png"), bbox_inches="tight")
+                plt.close()
+                if 'control' in query_type:
+                        control_clfs.extend(clfs)
+                elif 'disease' in query_type:
+                        disease_clfs.extend(clfs)
+        db_types_control, counts_control = np.unique(control_clfs, return_counts=True)
+        sort_idx = np.argsort(counts_control)[::-1]
+        db_types_control = db_types_control[sort_idx]
+        counts_control = counts_control[sort_idx]
+        plt.figure()
+        plt.bar(np.arange(1, len(db_types_control)+1), counts_control, tick_label=db_types_control)
+        plt.xticks(rotation='vertical', fontsize=8)
+        plt.title("# of query cells that are classified as each cell type")
+        plt.savefig(join(working_dir, "control_all.pdf"), bbox_inches="tight")
+        plt.savefig(join(working_dir, "control_all.png"), bbox_inches="tight")
+        plt.close()
+        db_types_disease, counts_disease = np.unique(disease_clfs, return_counts=True)
+        sort_idx = np.argsort(counts_disease)[::-1]
+        db_types_disease = db_types_disease[sort_idx]
+        counts_disease = counts_disease[sort_idx]
+        plt.figure()
+        plt.bar(np.arange(1, len(db_types_disease)+1), counts_disease, tick_label=db_types_disease)
+        plt.xticks(rotation='vertical', fontsize=8)
+        plt.title("# of query cells that are classified as each cell type")
+        plt.savefig(join(working_dir, "disease_all.pdf"), bbox_inches="tight")
+        plt.savefig(join(working_dir, "disease_all.png"), bbox_inches="tight")
+        plt.close()
+
+        # merge the cases
+        merged_db_types = np.union1d(db_types_control, db_types_disease)
+        control_counts = []
+        for label in merged_db_types:
+                count = 0
+                for c in control_clfs:
+                        if c == label:
+                                count += 1
+                control_counts.append(count)
+        control_counts = np.array(control_counts, dtype=float)
+        print(control_counts)
+        control_fracs = control_counts / len(control_clfs)
+        disease_counts = []
+        for label in merged_db_types:
+                count = 0
+                for c in disease_clfs:
+                        if c == label:
+                                count += 1
+                disease_counts.append(count)
+        disease_counts = np.array(disease_counts, dtype=float)
+        print(disease_counts)
+        disease_fracs = disease_counts / len(disease_clfs)
+        plt.figure()
+        x_locations = np.arange(1, len(merged_db_types)+1)
+        width = 0.35
+        labels_sort_idx = np.argsort(control_fracs)[::-1]
+        merged_db_types = merged_db_types[labels_sort_idx]
+        disease_fracs = disease_fracs[labels_sort_idx]
+        disease_counts = disease_counts[labels_sort_idx]
+        control_fracs = control_fracs[labels_sort_idx]
+        control_counts = control_counts[labels_sort_idx]
+        merged_db_types = [' '.join(name.split()[1:]) for name in merged_db_types]
+        merged_db_types = np.array(merged_db_types)
+        plt.bar(x_locations, control_fracs, width, color='b', label='control')
+        plt.bar(x_locations + width, disease_fracs, width, color='r', label='disease')
+        #plt.bar(np.arange(1, len(merged_db_types)+1), disease_counts, tick_label=merged_db_types, color='r', label='disease')
+        plt.xticks(x_locations + width / 2, merged_db_types, rotation='vertical', fontsize=8)
+        plt.ylabel('Fraction of query cells')
+        plt.legend()
+        plt.title("Portion of query cells classified as each cell type")
+        plt.savefig(join(working_dir, "grouped_bar.pdf"), bbox_inches="tight")
+        plt.savefig(join(working_dir, "grouped_bar.png"), bbox_inches="tight")
+        plt.close()
+        # Fisher's test comparing the two (control vs disease)
+        contingency_table = np.stack((control_counts, disease_counts), axis=0)
+        np.save('contingency_table', contingency_table)
+        np.savetxt('contingency_table.csv', contingency_table, delimiter=',')
+        print(contingency_table.shape)
+        
+        # print(FisherExact.fisher_exact(contingency_table), simulate_pval=True)
+        # print(FisherExact.fisher_exact(contingency_table.T), simulate_pval=True)
+        # print(FisherExact.fisher_exact(contingency_table), simulate_pval=True, replicate=1e7)
+        # print(FisherExact.fisher_exact(contingency_table.T), simulate_pval=True, replicate=1e7)
+
+        keep = [i for i in range(contingency_table.shape[1]) if 0 not in contingency_table[:, i]]
+        merged_db_types = merged_db_types[keep]
+        control_counts = control_counts[keep]
+        control_fracs = control_counts / np.sum(control_counts)
+        disease_counts = disease_counts[keep]
+        disease_fracs = disease_counts / np.sum(disease_counts)
+        contingency_table = np.stack((control_counts, disease_counts), axis=0)
+        x_locations = np.arange(1, len(merged_db_types)+1)
+        plt.figure()
+        plt.bar(x_locations, control_fracs, width, color='b', label='control')
+        plt.bar(x_locations + width, disease_fracs, width, color='r', label='disease')
+        plt.xticks(x_locations + width / 2, merged_db_types, rotation='vertical', fontsize=8)
+        plt.ylabel('Fraction of query cells')
+        plt.legend()
+        plt.title("Portion of query cells classified as each cell type")
+        plt.savefig(join(working_dir, "grouped_bar_non_zero.pdf"), bbox_inches="tight")
+        plt.savefig(join(working_dir, "grouped_bar_non_zero.png"), bbox_inches="tight")
+        plt.close()
+        np.save('contingency_table2', contingency_table)
+        np.savetxt('contingency_table_no_zeros.csv', contingency_table, delimiter=',')
+        print(contingency_table.shape)
+        
+        print(FisherExact.fisher_exact(contingency_table), simulate_pval=True)
+        print(FisherExact.fisher_exact(contingency_table.T), simulate_pval=True)
+        print(FisherExact.fisher_exact(contingency_table), simulate_pval=True, replicate=1e7)
+        print(FisherExact.fisher_exact(contingency_table.T), simulate_pval=True, replicate=1e7)
+        
+
+
+                
 def enriched_brain_cortex_plot_and_data(count_list, top_5_nearest_cells_d, threshold, working_dir):
         counts = [x[1] for x in count_list]
         plt.figure()
         plt.hist(counts, bins='auto')
         plt.title("Hist, counts of brain/cortex in 100 nearest neighbors for each query")
         plt.savefig(join(working_dir, "brain_cortex_histogram.pdf"), bbox_inches="tight")
+        plt.savefig(join(working_dir, "brain_cortex_histogram.png"), bbox_inches="tight")
         plt.close()
 
         keep = []
@@ -201,7 +370,11 @@ def enriched_brain_cortex_plot_and_data(count_list, top_5_nearest_cells_d, thres
                                 f.write("{}:\n".format(item[0]))
                                 f.write("\t{}\n\t{}\n\t{}\n\t{}\n\t{}\n".format(top_5_nearest_cells_d[item[0]][0], top_5_nearest_cells_d[item[0]][1],top_5_nearest_cells_d[item[0]][2],top_5_nearest_cells_d[item[0]][3],top_5_nearest_cells_d[item[0]][4]))
         return keep
-        
+
+def classify(sorted_neighbors):
+        # Adapted from https://stackoverflow.com/a/1520716
+        sorted_neighbors = sorted_neighbors.tolist()
+        return max(g(sorted(sorted_neighbors)), key=lambda xv:(len(list(xv[1])),-sorted_neighbors.index(xv[0])))[0]
         
 
 def main(args):
@@ -226,6 +399,9 @@ def main(args):
         nearest_dist_per_type_dict = defaultdict(lambda: defaultdict(list))
         top_5_types_dict = defaultdict(list)
         avg_nearest_5_distances_dict = defaultdict(list)
+        classifications = defaultdict(list)
+        overall_classifications = []
+        
         dist_model = distance.cdist(query_model, db_model, metric='euclidean')
         for index, distances_to_query in enumerate(dist_model):
                 query_label = query_labels[index]
@@ -260,15 +436,21 @@ def main(args):
 
                 avg_top_5_distances = np.mean(sorted_distances[:5])
                 avg_nearest_5_distances_dict[query_label].append(avg_top_5_distances)
+
+                classified_label = classify(sorted_labels[:100])
+                overall_classifications.append(classified_label)
+                classifications[query_label].append(classified_label)
+                
         make_nearest_dist_per_db_type_plots(nearest_dist_per_type_dict, working_dir)
         make_top_5_labels_plots(top_5_types_dict, working_dir)
         make_5_nearest_distances_plots(avg_nearest_5_distances_dict, working_dir)
+        make_classification_histograms(overall_classifications, classifications, working_dir)
         enriched = enriched_brain_cortex_plot_and_data(brain_cortex_counts, top_5_nearest_cells, 70, working_dir)
 
-        write_enriched_data(query_data_container.rpkm_df, brain_cortex_in_top_100, join(working_dir, 'brain_cortex_in_top_100.hdf5'))
-        write_enriched_data(query_data_container.rpkm_df, brain_cortex_in_top_10, join(working_dir, 'brain_cortex_in_top_10.hdf5'))
-        write_enriched_data(query_data_container.rpkm_df, brain_cortex_in_top_5, join(working_dir, 'brain_cortex_in_top_5.hdf5'))
-        write_enriched_data(query_data_container.rpkm_df, brain_cortex_in_top_1, join(working_dir, 'brain_cortex_in_top_1.hdf5'))
+        # write_enriched_data(query_data_container.rpkm_df, brain_cortex_in_top_100, join(working_dir, 'brain_cortex_in_top_100.hdf5'))
+        # write_enriched_data(query_data_container.rpkm_df, brain_cortex_in_top_10, join(working_dir, 'brain_cortex_in_top_10.hdf5'))
+        # write_enriched_data(query_data_container.rpkm_df, brain_cortex_in_top_5, join(working_dir, 'brain_cortex_in_top_5.hdf5'))
+        # write_enriched_data(query_data_container.rpkm_df, brain_cortex_in_top_1, join(working_dir, 'brain_cortex_in_top_1.hdf5'))
         write_enriched_data(query_data_container.rpkm_df, enriched, join(working_dir, 'brain_cortex_threshold_70_out_of_100.hdf5'))
 
         
