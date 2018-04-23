@@ -1,0 +1,23 @@
+{
+    "classes": ["healthy_cluster_0", "healthy_cluster_1","healthy_cluster_2", "healthy_cluster_3", "healthy_cluster_4", "copd_cluster_0", "copd_cluster_1", "copd_cluster_2", "copd_cluster_3"],
+    "color_map": {
+	"healthy_cluster_0": "#66ffff",
+        "healthy_cluster_1": "#6699ff",
+        "healthy_cluster_2": "#6600ff",
+        "healthy_cluster_3": "#ff00cc",
+	"healthy_cluster_4": "#6f6f6f",
+        "copd_cluster_0": "#33ff00",
+        "copd_cluster_1": "#ffff00",
+        "copd_cluster_2": "#ff9900",
+        "copd_cluster_3": "#ff0000"
+    },
+    "groups": ["healthy", "copd"],
+    "group_names": {
+	"healthy": "healthy",
+	"copd": "copd"
+    },
+    "group_color_map": {
+	"healthy": "blue",
+	"copd": "red"
+    }
+}

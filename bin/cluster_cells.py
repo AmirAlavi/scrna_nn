@@ -1,7 +1,7 @@
 """Cluster cells
 
 Usage:
-    cluster_cells.py <data> <model> (--view|--explore=<k_range>|--assign=<k>) [ --out=<path> ]
+    cluster_cells.py <data> <model> (--view|--explore=<k_range>|--assign=<k>) [--prefix=<prefix> --out=<path>]
 
 Options:
     -h --help                         Show this screen.
@@ -13,6 +13,7 @@ Options:
                                       are required.
     -a <k> --assign=<k>               Perform clustering with k-means with specified number of clusters k,
                                       and save these cluster annotations with each sample.
+    -p <prefix> --prefix=<prefix>     String prefix to prepend to all cells in their labels and filenames.
 """
 # import pdb; pdb.set_trace()
 from os.path import join, basename, normpath, exists
@@ -28,27 +29,20 @@ from scipy.spatial import distance
 from docopt import docopt
 from sklearn.decomposition import PCA
 from sklearn.manifold import TSNE
+from sklearn.cluster import MiniBatchKMeans
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
-import seaborn
-seaborn.set()
+from mpl_toolkits.mplot3d import Axes3D
+#import seaborn
+#seaborn.set()
 import FisherExact
 from scipy.stats import binom_test
 
 from scrna_nn.data_container import DataContainer
 from scrna_nn.reduce import _reduce_helper
 from scrna_nn import util
-
-
-def create_legend_markers(ordered_classes, color_map):
-        legend_circles = []
-        for cls in ordered_classes:
-                color = color_map[cls]
-                circ = mpatches.Circle((0,0), 1, fc=color)
-                legend_circles.append(circ)
-        return legend_circles
         
 
 def plot(X, name, working_dir, labels, config):
@@ -65,22 +59,31 @@ def plot(X, name, working_dir, labels, config):
         plt.savefig(join(working_dir, name+".png"), bbox_inches="tight")
         plt.close()
 
-def plot_groups(X, name, working_dir, labels, config):
-        colors = []
-        for l in labels:
-                for group, color in config['group_color_map'].items():
-                        if group in l:
-                                colors.append(color)
-        circles = create_legend_markers(config['groups'], config['group_color_map'])
+def plot_clustering(X, name, working_dir, labels, title=None):
         plt.figure()
-        plt.scatter(X[:, 0], X[:, 1], c=colors, alpha=0.65)
-        plt.title(name)
+        plt.scatter(X[:, 0], X[:, 1], c=labels, alpha=0.7)
+        if title is not None:
+                plt.title(title)
+        else:
+                plt.title(name)
         plt.xlabel("component 1")
         plt.ylabel("component 2")
-        plt.legend(circles, config['groups'], ncol=2, bbox_to_anchor=(1.04, 0.5), loc='center left')
-        plt.savefig(join(working_dir, name+"_groups.pdf"), bbox_inches="tight")
-        plt.savefig(join(working_dir, name+"_groups.png"), bbox_inches="tight")
+        plt.savefig(join(working_dir, name+".pdf"), bbox_inches="tight")
+        plt.savefig(join(working_dir, name+".png"), bbox_inches="tight")
         plt.close()
+        fig = plt.figure()
+        ax = fig.add_subplot(111, projection='3d')
+        ax.scatter(X[:,0], X[:,1], X[:,2], c=labels, alpha=0.7)
+        ax.set_xlabel('component 1')
+        ax.set_ylabel('component 2')
+        ax.set_zlabel('component 3')
+        if title is not None:
+                ax.set_title(title)
+        else:
+                ax.set_title(name)
+        plt.savefig(join(working_dir, name+"_3d.pdf"), bbox_inches="tight")
+        plt.savefig(join(working_dir, name+"_3d.png"), bbox_inches="tight")
+        
         
 def visualize(data, name, working_dir, labels, config):
         pca = PCA(n_components=2)
@@ -93,59 +96,64 @@ def visualize(data, name, working_dir, labels, config):
                 plot_groups(x_pca, name+"_PCA", working_dir, labels, config)
                 plot_groups(x_tsne, name+"_TSNE", working_dir, labels, config)
 
+
+def view(args, data):
+        pass
+
+def explore(args, data, working_dir):
+        k_range = args['--explore'].split(',')
+        min_k, max_k = int(k_range[0]), int(k_range[1])
+        #seaborn.set_palette("Set1", n_colors=max_k)
+        scores = []
+        for i in range(min_k, max_k):
+                mkb = MiniBatchKMeans(n_clusters=i)
+                mkb.fit(data)
+                scores.append(mkb.score(data))
+                y = mkb.predict(data)
+                pca = PCA(n_components=3)
+                x_pca = pca.fit_transform(data)
+                plot_clustering(x_pca, "explore_{}_means".format(i), working_dir, y, "{}-means clustering of embedding + PCA".format(i))
+        plt.figure()
+        plt.plot(np.arange(min_k, max_k), scores)
+        plt.title("Objective score vs k")
+        plt.xlabel("k")
+        plt.ylabel("-Objective score")
+        plt.savefig(join(working_dir, "explore_scores.pdf"), bbox_inches="tight")
+        plt.savefig(join(working_dir, "explore_scores.png"), bbox_inches="tight")
+        plt.close()
+
+def assign(args, data):
+        k = int(args['--assign'])
+        mkb = MiniBatchKMeans(n_clusters=k)
+        mkb.fit(data)
+        clusters = mkb.predict(data)
+        labels = ['cluster_{}'.format(c) for c in clusters]
+        # Get original DataFrame:
+        store = pd.HDFStore(args['<data>'])
+        df = store['rpkm']
+        store.close()
+        # Write out to an h5 file:
+        filename = args['<data>'].split('.')
+        filename = '.'.join(filename[:-1]) + "_labeled.hdf5"
+        store = pd.HDFStore(filename)
+        store['rpkm'] = df
+        store['labels'] = pd.Series(data=labels, index=df.index)
+        store.close()
+        
 def reduce_dimensions(args):
     reduced_by_model, _ = _reduce_helper(args['<model>'], args['<data>'])
     return reduced_by_model
 
 def main(args):
         working_dir = util.create_working_directory(args['--out'], 'cluster_cells/')
-        #model_name = basename(normpath(args['<model>']))
-        #baseline_name = basename(normpath(args['<baseline>']))
-        #raw_query, query_labels, raw_db, db_labels, db_cell_ids, query_data_container = load_data(args)
-        reduced_data = reduce_dimensions(args)
-        # 1, visualize the data using 2D PCA and 2D t-SNE
-        visualize(data['original_query'], "original_query_data", working_dir, data['query_labels'], config)
-        # 2, reduce dimensions of data using the trained models, visualize using 2D PCA and 2D t-sne
-        query_model, db_model, query_baseline, db_baseline = reduce_dimensions(args)
-        visualize(query_baseline, baseline_name+"_reduced", working_dir, data['query_labels'], config)
-        visualize(query_model, model_name+"_reduced", working_dir, data['query_labels'], config)
+        embedded_data = reduce_dimensions(args)
 
-        top_5_nearest_cells = defaultdict(list)
-        
-        nearest_dist_per_type_dict = defaultdict(lambda: defaultdict(list))
-        top_5_types_dict = defaultdict(list)
-        avg_nearest_5_distances_dict = defaultdict(list)
-        classifications = defaultdict(list)
-        overall_classifications = []
-        
-        dist_model = distance.cdist(query_model, db_model, metric='euclidean')
-        for index, distances_to_query in enumerate(dist_model):
-                query_label = data['query_labels'][index]
-                sorted_distances_indices = np.argsort(distances_to_query)
-                sorted_distances = distances_to_query[sorted_distances_indices]
-                sorted_labels = data['db_labels'][sorted_distances_indices]
-                sorted_cell_ids = data['db_cell_ids'][sorted_distances_indices]
-
-                top_5_nearest_cells[data['query_datacontainer'].rpkm_df.index[index]] = sorted_cell_ids[:5]
-                
-                min_distances = nearest_dist_to_each_type(sorted_distances, sorted_labels)
-                for db_type, min_dist in min_distances.items():
-                        nearest_dist_per_type_dict[query_label][db_type].append(min_dist)
-
-                top_5_types = sorted_labels[:5]
-                top_5_types_dict[query_label].extend(top_5_types)
-
-                avg_top_5_distances = np.mean(sorted_distances[:5])
-                avg_nearest_5_distances_dict[query_label].append(avg_top_5_distances)
-
-                classified_label = classify(sorted_labels[:100])
-                overall_classifications.append(classified_label)
-                classifications[query_label].append(classified_label)
-                
-        make_nearest_dist_per_db_type_plots(nearest_dist_per_type_dict, working_dir)
-        make_top_5_labels_plots(top_5_types_dict, working_dir)
-        make_5_nearest_distances_plots(avg_nearest_5_distances_dict, working_dir)
-        make_classification_histograms(classifications, working_dir, config)
+        if args['--view']:
+                pass
+        elif args['--explore']:
+                explore(args, embedded_data, working_dir)
+        elif args['--assign']:
+                assign(args, embedded_data)
 
 if __name__ == "__main__":
         args = docopt(__doc__)

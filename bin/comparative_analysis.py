@@ -252,6 +252,18 @@ def make_classification_histograms_for_groups(classifications, working_dir, conf
         if len(config['groups']) == 2:
                 plot_classification_histograms_two_group(group_clfs, working_dir, "groups", config, ignore_zero=False)
                 plot_classification_histograms_two_group(group_clfs, working_dir, "groups_nonzero", config, ignore_zero=True)
+
+def tmp_make_classification_histograms_for_groups(classifications, working_dir, config):
+        # outer loop over time points:
+        time_points = ["3m", "3m_1w", "3m_2w", "4m_2w"]
+        for t in time_points:
+                group_clfs = defaultdict(list)
+                for query_type, clfs in classifications.items():
+                        for group in config['groups']:
+                                if query_type == group + "_" + t:
+                                        group_clfs[group].extend(clfs)
+                plot_classification_histograms_two_group(group_clfs, working_dir, t + "_groups", config, ignore_zero=False)
+                plot_classification_histograms_two_group(group_clfs, working_dir, t + "_groups_nonzero", config, ignore_zero=True)
         
 def make_classification_histograms(classifications, working_dir, config):
         working_dir = join(working_dir, "D_classification_histograms")
@@ -273,8 +285,13 @@ def make_classification_histograms(classifications, working_dir, config):
                 db_types = db_types[sort_idx]
                 counts = counts[sort_idx]
                 plot_classification_histograms_single_group(db_types, counts, query_type, working_dir)
+
         if 'groups' in config:
                 make_classification_histograms_for_groups(classifications, working_dir, config)
+                # TEMPORARY HACK, only for mouse-brain data
+                # Make classification plots for each time point between the two groups
+                #tmp_make_classification_histograms_for_groups(classifications, working_dir, config)
+                
 
 def classify(sorted_neighbors):
         # Adapted from https://stackoverflow.com/a/1520716
