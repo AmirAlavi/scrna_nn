@@ -330,6 +330,8 @@ def main(args):
         avg_nearest_5_distances_dict = defaultdict(list)
         classifications = defaultdict(list)
         overall_classifications = []
+
+        top_fibroblast = []
         
         dist_model = distance.cdist(query_model, db_model, metric='euclidean')
         for index, distances_to_query in enumerate(dist_model):
@@ -352,6 +354,10 @@ def main(args):
                 avg_nearest_5_distances_dict[query_label].append(avg_top_5_distances)
 
                 classified_label = classify(sorted_labels[:100])
+                if 'fibroblast' in classified_label:
+                        for i in range(100):
+                                if 'fibroblast' in sorted_labels[i]:
+                                        top_fibroblast.append(sorted_cell_ids[i])
                 overall_classifications.append(classified_label)
                 classifications[query_label].append(classified_label)
                 
@@ -359,6 +365,12 @@ def main(args):
         make_top_5_labels_plots(top_5_types_dict, working_dir)
         make_5_nearest_distances_plots(avg_nearest_5_distances_dict, working_dir)
         make_classification_histograms(classifications, working_dir, config)
+        top_fibroblast = sorted(set(top_fibroblast))
+        for f in top_fibroblast:
+                print(f)
+        with open('fibroblast_hits.txt', 'w') as f:
+                for cell in top_fibroblast:
+                        f.write("{}\n".format(cell))
 
 if __name__ == "__main__":
         args = docopt(__doc__)

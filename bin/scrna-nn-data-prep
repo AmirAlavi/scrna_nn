@@ -23,7 +23,7 @@ Options:
 """
 
 import json
-#import pdb; pdb.set_trace()
+# import pdb; pdb.set_trace()
 from collections import defaultdict, namedtuple
 from typing import List, Tuple
 import sys
@@ -61,6 +61,9 @@ def assign_all_terms(all_terms: List[str],
     labels = []
     for term_idx in range(mapping_mat.shape[1]):
         term_str = all_terms[term_idx].split()[0]
+        if term_str == 'CL:0000000':
+            print("skipping 'cell' category")
+            continue # This category is way too general, it's never appropriate
         cell_selection_vector = mapping_mat[:, term_idx]
         num_to_add = np.sum(cell_selection_vector)
         old_index_values = rpkm_df.index[cell_selection_vector]
