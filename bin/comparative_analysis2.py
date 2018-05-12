@@ -238,13 +238,13 @@ def plot_classification_histograms_two_group(group_data, working_dir, name, conf
         plt.legend()
         plt.title("Portion of query cells classified as each cell type")
         # add p-vals
-        for rect1, rect2 in zip(rects[0], rects[1]):
-                height1 = rect1.get_height()
-                height2 = rect2.get_height()
-                count1 = math.floor(1e6*height1)
-                count2 = math.floor(1e6*height2)
-                pval = binom_test(count1, count1+count2, p=0.5)
-                plt.gca().text(rect1.get_x(), 1.05*max(height1,height2), '{:.2e}'.format(pval), ha='left', va='bottom', rotation='vertical', fontsize=6)
+        # for rect1, rect2 in zip(rects[0], rects[1]):
+        #         height1 = rect1.get_height()
+        #         height2 = rect2.get_height()
+        #         count1 = math.floor(1e6*height1)
+        #         count2 = math.floor(1e6*height2)
+        #         pval = binom_test(count1, count1+count2, p=0.5)
+        #         plt.gca().text(rect1.get_x(), 1.05*max(height1,height2), '{:.2e}'.format(pval), ha='left', va='bottom', rotation='vertical', fontsize=6)
         plt.savefig(join(working_dir, name + ".pdf"), bbox_inches="tight")
         plt.savefig(join(working_dir, name + ".png"), bbox_inches="tight")
         plt.close()
@@ -394,6 +394,47 @@ def plot_marker_heatmap(data, classifications, macrophage_enz, macrophage_sym, m
         fig.savefig(join(working_dir, "marker_heatmap.png"), bbox_inches="tight")
         plt.close()
 
+def plot_marker_heatmap2(data, classifications, macrophage_enz, macrophage_sym, microglia_enz, microglia_sym, working_dir):
+        # clean up classification strings
+        classifications = [' '.join(clf.split(' ')[1:]) for clf in classifications]
+        classifications = np.array(classifications)
+
+        uniq_classes = np.unique(classifications)
+        uniq_classes = set()
+        for cls in classifications:
+                if 'myeloid' in cls or 'macrophage' in cls or 'microglia' in cls:
+                        uniq_classes.add(cls)
+        uniq_classes = np.array(list(uniq_classes))
+
+        rows = []
+        for mac_sym in macrophage_sym:
+                rows.append("Mphag "+mac_sym)
+        for mglia_sym in microglia_sym:
+                rows.append("Mglia "+mglia_sym)
+        heatmap = pd.DataFrame(columns=uniq_classes, index=rows)
+        log2data = (data + np.finfo(np.float32).eps).apply(np.log2)
+        mac_data = log2data[macrophage_enz]
+        mglia_data = log2data[microglia_enz]
+        marker_data = pd.concat((mac_data, mglia_data), axis=1)
+        assert marker_data.shape[1] == len(rows)
+        for i, cls in enumerate(uniq_classes):
+                indices = np.argwhere(classifications == cls).squeeze()
+                indices = indices.reshape((-1,))
+                class_markers = marker_data.iloc[indices, :].mean(axis=0).values
+                heatmap[cls] = class_markers
+
+        ax = seaborn.heatmap(heatmap)
+        plt.setp(ax.yaxis.get_majorticklabels(), ha='left')
+        #ax.set_yticklabels(rows, ha='left')
+        yax = ax.get_yaxis()
+        pad = max(T.label.get_window_extent().width for T in yax.majorTicks)
+        yax.set_tick_params(pad=pad)
+        fig = ax.get_figure()
+        fig.savefig(join(working_dir, "marker_heatmap2.pdf"), bbox_inches="tight")
+        fig.savefig(join(working_dir, "marker_heatmap2.png"), bbox_inches="tight")
+        plt.close()
+
+        
 def investigate_macrophage(data, reduced_query, macrophage_indices, macrophage_labels, working_dir, classifications):
         #import pdb; pdb.set_trace()
         print("in investigate_macrophage")
@@ -423,6 +464,7 @@ def investigate_macrophage(data, reduced_query, macrophage_indices, macrophage_l
         hits_df = data.iloc[macrophage_indices,:]
         plot_macrophage_two_axis(hits_df, macrophage_labels, macrophage_enz, microglia_enz, working_dir)
         plot_marker_heatmap(data, classifications, macrophage_enz, macrophage_sym, microglia_enz, microglia_sym, working_dir)
+        plot_marker_heatmap2(data, classifications, macrophage_enz, macrophage_sym, microglia_enz, microglia_sym, working_dir)
 
 def main(args):
         config = load_config(args)
