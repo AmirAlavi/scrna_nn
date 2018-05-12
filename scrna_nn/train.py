@@ -421,6 +421,23 @@ def visualize_embedding(X, labels, path):
     plt.scatter(embedding[:,0], embedding[:,1], c=colors)
     plt.savefig(path)
 
+def get_data_for_testing(args, train_datacontainer, label_to_int_map):
+    test_datacontainer = None
+    if args['--gn']:
+        test_datacontainer = DataContainer(args['--test_data'], sample_normalize=False, feature_normalize=True, feature_mean=train_datacontainer.mean, feature_std=train_datacontainer.std)
+    else:
+        test_datacontainer = DataContainer(args['--test_data'], sample_normalize=args['--sn'], feature_normalize=False)
+    X = test_datacontainer.get_expression_mat()
+    y_strings = test_datacontainer.get_labels()
+    # Need to encode these labels with the same numbers as when we trained the model
+    y = []
+    for label_string in y_strings:
+        y.append(np.expand_dims(label_to_int_map[label_string], 0))
+    print(y[0].shape)
+    y = np.concatenate(y, axis=0)
+    print(y.shape)
+    return X, y
+
 def get_data_for_training(data_container, args):
     #print("Cleaning up the data first...")
     #preprocess_data(data)
@@ -443,6 +460,7 @@ def get_data_for_training(data_container, args):
         y = X
         output_dim = X.shape[1]
         label_strings_lookup = None
+        label_to_int_map = None
     else:
         # Supervised training:
         print("Supervised training")
@@ -451,10 +469,13 @@ def get_data_for_training(data_container, args):
         if not args['--triplet']: # triplet net code needs labels that aren't 1-hot encoded
             print("One-hot enocoding")
             y = np_utils.to_categorical(y, output_dim)
+        label_to_int_map = {}
+        for i, label_string in enumerate(data_container.get_labels()):
+            label_to_int_map[label_string] = y[i]
     input_dim = X.shape[1]
     print("Input dim: ", input_dim)
     print("Output dim: ", output_dim)
-    return X, y, input_dim, output_dim, label_strings_lookup, gene_names
+    return X, y, input_dim, output_dim, label_strings_lookup, gene_names, label_to_int_map
 
 def train_pca_model(working_dir_path, args, data_container):
     print("Training a PCA model...")
@@ -527,7 +548,7 @@ def get_callbacks_list(working_dir_path, args):
     
 def train_neural_net(working_dir_path, args, data_container):
     print("Training a Neural Network model...")
-    X, y, input_dim, output_dim, label_strings_lookup, gene_names = get_data_for_training(data_container, args)
+    X, y, input_dim, output_dim, label_strings_lookup, gene_names, label_to_int_map = get_data_for_training(data_container, args)
     X, y = shuffle(X, y) # Shuffle so that Keras's naive selection of validation data doesn't get all same class
     opt = get_optimizer(args)
     if args['--layerwise_pt']:
@@ -608,6 +629,18 @@ def train_neural_net(working_dir_path, args, data_container):
         f.write(time_str + "\n")
     if not args['--ae'] and not args['--siamese'] and not args['--triplet']:
         plot_accuracy_history(history, join(working_dir_path, "accuracy.png"))
+    if args['--test_data']:
+        X_test, y_test = get_data_for_testing(args, data_container, label_to_int_map)
+        print("Evaluating")
+        eval_results = model.evaluate(x=X_test, y=y_test)
+        with open(join(working_dir_path, "evaluation.txt"), 'w') as f:
+            try:
+                for metric, res in zip(model.metrics_names, eval_results):
+                    print("{}\t{}".format(metric, res))
+                    f.write("{}\t{}\n".format(metric, res))
+            except TypeError:
+                print(eval_results)
+                f.write("{}\t{}\n".format(model.metrics_names, eval_results))
     save_neural_net(working_dir_path, args, template_model)
     # This code is an artifact, only works with an old dataset.
     # Needs some attention to make it work for the newer datasets.

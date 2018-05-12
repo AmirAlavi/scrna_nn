@@ -3,7 +3,7 @@
 (Includes commands to assess the learned embedding: visualize, retrieval)
 
 Usage:
-    scrna-nn train (--nn=<nn_architecture> | --pca=<n_comp>) [<hidden_layer_sizes>...] [--out=<path> --data=<path>] [options]
+    scrna-nn train (--nn=<nn_architecture> | --pca=<n_comp>) [<hidden_layer_sizes>...] [--out=<path> --data=<path> --test_data=<path>] [options]
     scrna-nn reduce <trained_model_folder> [--out=<path> --data=<path> --save_meta]
     scrna-nn visualize <reduced_data_file> [--out=<path> --ntypes=<ntypes> --nsamples=<nsamples> --title=<title>]
     scrna-nn retrieval <query_data_file> <database_data_file> [--dist_metric=<metric> --out=<path> --similarity_type=<type> --sim_trnsfm_fcn=<fcn> --sim_trnsfm_param=<n> --max_ont_path_len=<d> --asymm_dist] --sim_mat_file=<path>
@@ -65,6 +65,7 @@ Options:
     --gn                      Subtract the mean and divide by standard deviation
                               within each gene.
     --loss_history            Keep track of and plot loss history while training neural net
+    --test_data=<path>        Path to test data (held_out) file.
 
     **ARCHITECTURE-RELATED-OPTIONS**
     --nn=<nn_architecture>    Train an instance of a nn_architecture neural network.
