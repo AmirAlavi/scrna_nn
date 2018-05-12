@@ -172,7 +172,7 @@ if __name__ == '__main__':
     write_list_to_file(args['commands_list'], train_commands_filename)
     write_list_to_file(args['model_output_locations'], os.path.join(args['<output_root>'], 'model_output_locations.list'))
     num_jobs = len(args['commands_list']) - 1
-    gres = "--gres=gpu:1" if args['<partition>'] == 'gpu' else ""
+    gres = "--gres=gpu:1" if 'gpu' in args['<partition>'] else ""
     job_name = "train-{}".format("-".join(args['<model_types>']))
     slurm_out = os.path.join(args['<output_root>'], 'scrna_train_array_%A_%a.out')
     slurm_err = os.path.join(args['<output_root>'], 'scrna_train_array_%A_%a.err')
