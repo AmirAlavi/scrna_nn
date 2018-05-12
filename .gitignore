@@ -1,9 +1,10 @@
+cluster_cells/
 temporary_scripts/
 comparative_analysis/
 mouse_brain_analysis/
 commands_lists/
 models_lists/
-tfl_env/
+tfl_venv/
 trash/
 data/
 models/
