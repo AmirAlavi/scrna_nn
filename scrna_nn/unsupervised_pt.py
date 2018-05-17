@@ -14,7 +14,7 @@ from .util import ScrnaException
 
 NOISE_LEVEL = 0.1
 
-def pretrain_dense_1136_100_model(input_dim, opt, X_orig, working_dir, args):
+def pretrain_dense_1136_100_model(model, input_dim, opt, X_orig, working_dir, args):
     print("Pretraining Dense 1136 100 architecture")
     callbacks_list = []
     if args['--early_stop']:
@@ -52,13 +52,10 @@ def pretrain_dense_1136_100_model(input_dim, opt, X_orig, working_dir, args):
     h2.compile(loss='mean_squared_error', optimizer=opt)
     h2.fit(X, y, batch_size=int(args['--batch_size']), epochs=int(args['--epochs']), verbose=1, validation_split=float(args['--valid']), callbacks=callbacks_list)
 
-    # finally, write out the pretrained weights
-    pretrained_layers = [h1.layers[1].get_weights()[1:], h2.layers[1].get_weights()[1:]]
-    with open(join(working_dir, "pretrained_layers.p"), 'wb') as f:
-        pickle.dump(pretrained_layers, f)
+    model.save_weights(join(working_dir, 'pretrained_layer_weights.h5'))
     sys.exit()
 
-def pretrain_dense_1136_500_100_model(input_dim, opt, X_orig, working_dir, args):
+def pretrain_dense_1136_500_100_model(model, input_dim, opt, X_orig, working_dir, args):
     print("Pretraining Dense 1136 500 100 architecture")
     callbacks_list = []
     if args['--early_stop']:
@@ -120,13 +117,11 @@ def pretrain_dense_1136_500_100_model(input_dim, opt, X_orig, working_dir, args)
     h3.fit(X, y, batch_size=int(args['--batch_size']), epochs=int(args['--epochs']), verbose=1, validation_split=float(args['--valid']), callbacks=callbacks_list)
 
     # finally, write out the pretrained weights
-    pretrained_layers = [h1.layers[1].get_weights()[1:], h2.layers[1].get_weights()[1:], h3.layers[1].get_weights()[1:]]
-    with open(join(working_dir, "pretrained_layers.p"), 'wb') as f:
-        pickle.dump(pretrained_layers, f)
+    model.save_weights(join(working_dir, 'pretrained_layer_weights.h5'))
     sys.exit()
 
 
-def pretrain_ppitf_1136_100_model(input_dim, adj_mat, opt, X_orig, working_dir, args):
+def pretrain_ppitf_1136_100_model(model, input_dim, adj_mat, opt, X_orig, working_dir, args):
     print("Pretraining PPITF 1136 100 architecture")        
     callbacks_list = []
     if args['--early_stop']:
@@ -175,12 +170,10 @@ def pretrain_ppitf_1136_100_model(input_dim, adj_mat, opt, X_orig, working_dir, 
     h2.fit(X, y, batch_size=int(args['--batch_size']), epochs=int(args['--epochs']), verbose=1, validation_split=float(args['--valid']), callbacks=callbacks_list)
 
     # finally, write out the pretrained weights
-    pretrained_layers = [sparse.layers[1].get_weights()[1:], dense.layers[1].get_weights()[1:], h2.layers[1].get_weights()[1:]]
-    with open(join(working_dir, "pretrained_layers.p"), 'wb') as f:
-        pickle.dump(pretrained_layers, f)
+    model.save_weights(join(working_dir, 'pretrained_layer_weights.h5'))
     sys.exit()
 
-def pretrain_ppitf_1136_500_100_model(input_dim, adj_mat, opt, X_orig, working_dir, args):
+def pretrain_ppitf_1136_500_100_model(model, input_dim, adj_mat, opt, X_orig, working_dir, args):
     print("Pretraining PPITF 1136 500 100 architecture")
     callbacks_list = []
     if args['--early_stop']:
@@ -256,12 +249,10 @@ def pretrain_ppitf_1136_500_100_model(input_dim, adj_mat, opt, X_orig, working_d
     h3.fit(X, y, batch_size=int(args['--batch_size']), epochs=int(args['--epochs']), verbose=1, validation_split=float(args['--valid']), callbacks=callbacks_list)
 
     # finally, write out the pretrained weights
-    pretrained_layers = [sparse.layers[1].get_weights()[1:], dense.layers[1].get_weights()[1:], h2.layers[1].get_weights()[1:], h3.layers[1].get_weights()[1:]]
-    with open(join(working_dir, "pretrained_layers.p"), 'wb') as f:
-        pickle.dump(pretrained_layers, f)
+    model.save_weights(join(working_dir, 'pretrained_layer_weights.h5'))
     sys.exit()
 
-def pretrain_flatGO_400_100_model(input_dim, adj_mat, opt, X_orig, working_dir, args):
+def pretrain_flatGO_400_100_model(model, input_dim, adj_mat, opt, X_orig, working_dir, args):
     print("Pretraining FlatGO 400 100 architecture")        
     callbacks_list = []
     if args['--early_stop']:
@@ -310,12 +301,10 @@ def pretrain_flatGO_400_100_model(input_dim, adj_mat, opt, X_orig, working_dir, 
     h2.fit(X, y, batch_size=int(args['--batch_size']), epochs=int(args['--epochs']), verbose=1, validation_split=float(args['--valid']), callbacks=callbacks_list)
 
     # finally, write out the pretrained weights
-    pretrained_layers = [sparse.layers[1].get_weights()[1:], dense.layers[1].get_weights()[1:], h2.layers[1].get_weights()[1:]]
-    with open(join(working_dir, "pretrained_layers.p"), 'wb') as f:
-        pickle.dump(pretrained_layers, f)
+    model.save_weights(join(working_dir, 'pretrained_layer_weights.h5'))
     sys.exit()
 
-def pretrain_flatGO_400_200_100_model(input_dim, adj_mat, opt, X_orig, working_dir, args):
+def pretrain_flatGO_400_200_100_model(model, input_dim, adj_mat, opt, X_orig, working_dir, args):
     print("Pretraining FlatGO 400 200 100 architecture")
     callbacks_list = []
     if args['--early_stop']:
@@ -391,13 +380,11 @@ def pretrain_flatGO_400_200_100_model(input_dim, adj_mat, opt, X_orig, working_d
     h3.fit(X, y, batch_size=int(args['--batch_size']), epochs=int(args['--epochs']), verbose=1, validation_split=float(args['--valid']), callbacks=callbacks_list)
 
     # finally, write out the pretrained weights
-    pretrained_layers = [sparse.layers[1].get_weights()[1:], dense.layers[1].get_weights()[1:], h2.layers[1].get_weights()[1:], h3.layers[1].get_weights()[1:]]
-    with open(join(working_dir, "pretrained_layers.p"), 'wb') as f:
-        pickle.dump(pretrained_layers, f)
+    model.save_weights(join(working_dir, 'pretrained_layer_weights.h5'))
     sys.exit()
 
 
-def pretrain_GOlvls_model(input_dim, level1_adj_mat, level2_adj_mat, level3_adj_mat, opt, X_orig, working_dir, args):
+def pretrain_GOlvls_model(model, input_dim, level1_adj_mat, level2_adj_mat, level3_adj_mat, opt, X_orig, working_dir, args):
     # GO dimensions:
     # 20499
     #  5394
@@ -472,91 +459,5 @@ def pretrain_GOlvls_model(input_dim, level1_adj_mat, level2_adj_mat, level3_adj_
     dense.fit(X, y, batch_size=int(args['--batch_size']), epochs=int(args['--epochs']), verbose=1, validation_split=float(args['--valid']), callbacks=callbacks_list)
     
     # finally, write out the pretrained weights
-    pretrained_layers = [level1.layers[1].get_weights()[1:], level2.layers[1].get_weights()[1:], level3.layers[1].get_weights()[1:], dense.layers[1].get_weights()[1:]]
-    with open(join(working_dir, "pretrained_layers.p"), 'wb') as f:
-        pickle.dump(pretrained_layers, f)
+    model.save_weights(join(working_dir, 'pretrained_layer_weights.h5'))
     sys.exit()
-
-
-def set_dense_1136_100_weights(model, pretrained_folder):
-    with open(join(pretrained_folder, "pretrained_layers.p"), 'rb') as f:
-        pt_weights = pickle.load(f)
-    model.layers[1].set_weights(pt_weights[0])
-    model.layers[2].set_weights(pt_weights[1])
-
-def set_dense_1136_500_100_weights(model, pretrained_folder):
-    with open(join(pretrained_folder, "pretrained_layers.p"), 'rb') as f:
-        pt_weights = pickle.load(f)
-    model.layers[1].set_weights(pt_weights[0])
-    model.layers[2].set_weights(pt_weights[1])
-    model.layers[3].set_weights(pt_weights[2])
-
-def set_ppitf_1136_100_weights(model, pretrained_folder):
-    with open(join(pretrained_folder, "pretrained_layers.p"), 'rb') as f:
-        pt_weights = pickle.load(f)
-    model.layers[1].set_weights(pt_weights[0])
-    model.layers[2].set_weights(pt_weights[1])
-    model.layers[4].set_weights(pt_weights[2])
-
-def set_ppitf_1136_500_100_weights(model, pretrained_folder):
-    with open(join(pretrained_folder, "pretrained_layers.p"), 'rb') as f:
-        pt_weights = pickle.load(f)
-    model.layers[1].set_weights(pt_weights[0])
-    model.layers[2].set_weights(pt_weights[1])
-    model.layers[4].set_weights(pt_weights[2])
-    model.layers[5].set_weights(pt_weights[3])
-
-def set_flatGO_400_100_weights(model, pretrained_folder):
-    with open(join(pretrained_folder, "pretrained_layers.p"), 'rb') as f:
-        pt_weights = pickle.load(f)
-    model.layers[1].set_weights(pt_weights[0])
-    model.layers[2].set_weights(pt_weights[1])
-    model.layers[4].set_weights(pt_weights[2])
-
-def set_flatGO_400_200_100_weights(model, pretrained_folder):
-    with open(join(pretrained_folder, "pretrained_layers.p"), 'rb') as f:
-        pt_weights = pickle.load(f)
-    model.layers[1].set_weights(pt_weights[0])
-    model.layers[2].set_weights(pt_weights[1])
-    model.layers[4].set_weights(pt_weights[2])
-    model.layers[5].set_weights(pt_weights[3])
-
-def set_GOlvls_weights(model, pretrained_folder):
-    with open(join(pretrained_folder, "pretrained_layers.p"), 'rb') as f:
-        pt_weights = pickle.load(f)
-    model.layers[1].set_weights(pt_weights[0])
-    model.layers[2].set_weights(pt_weights[1])
-    model.layers[3].set_weights(pt_weights[2])
-    model.layers[4].set_weights(pt_weights[3])
-    
-def set_pretrained_weights(model, args, pretrained_folder):
-    print("Setting pretrained weights from unsupervised layer-wise pretraining of: ", pretrained_folder)
-    hidden_layer_sizes = [int(x) for x in args['<hidden_layer_sizes>']]
-    if args['--nn'] == 'dense':
-        if hidden_layer_sizes == [1136, 100]:
-            set_dense_1136_100_weights(model, pretrained_folder)
-        elif hidden_layer_sizes == [1136, 500, 100]:
-            set_dense_1136_500_100_weights(model, pretrained_folder)
-        else:
-            raise ScrnaException("Layerwise pretraining not implemented for this architecture")
-    elif args['--nn'] == 'sparse' and int(args['--with_dense']) == 100:
-        if 'flat' in args['--sparse_groupings']:
-            print('Using pretrained weights for FlatGO')
-            if hidden_layer_sizes == [100]:
-                set_flatGO_400_100_weights(model, pretrained_folder)
-            elif hidden_layer_sizes == [200, 100]:
-                set_flatGO_400_200_100_weights(model, pretrained_folder)
-            else:
-                raise ScrnaException("Layerwise pretraining not implemented for this architecture")
-        else:
-            print("Using pretrained weights for PPITF")
-            if hidden_layer_sizes == [100]:
-                set_ppitf_1136_100_weights(model, pretrained_folder)
-            elif hidden_layer_sizes == [500, 100]:
-                set_ppitf_1136_500_100_weights(model, pretrained_folder)
-            else:
-                raise ScrnaException("Layerwise pretraining not implemented for this architecture")
-    elif args['--nn'] == 'GO' and int(args['--with_dense']) == 31:
-        set_GOlvls_weights(model, pretrained_folder)
-    else:
-        raise ScrnaException("Layerwise pretraining not implemented for this architecture")

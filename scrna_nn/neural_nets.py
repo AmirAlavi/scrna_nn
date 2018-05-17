@@ -14,17 +14,6 @@ from . import autoencoders as ae
 from . import losses_and_metrics
 
 
-# def load_model_weights_from_pickle(model, path):
-#     with open(path, 'rb') as fp:
-#         weight_list = pickle.load(fp)
-#     for layer, weights in zip(model.layers, weight_list):
-#         layer.set_weights(weights)
-
-# def save_model_weights_to_pickle(model, path):
-#     weight_list = [layer.get_weights() for layer in model.layers]
-#     with open(path, 'wb') as fp:
-#         pickle.dump(weight_list, fp)
-
 def save_trained_nn(model, path):
     model.save(path)
 
@@ -40,21 +29,21 @@ def load_trained_nn(path, triplet_loss_batch_size=-1, dynamic_margin=-1, siamese
     print(custom_objects)
     return load_model(path, custom_objects=custom_objects)
 
-def get_pretrained_weights(pretrained_model_file):
-    pretrained_model = load_trained_nn(pretrained_model_file)
-    return [layer.get_weights() for layer in pretrained_model.layers]
+# def get_pretrained_weights(pretrained_model_file):
+#     pretrained_model = load_trained_nn(pretrained_model_file)
+#     return [layer.get_weights() for layer in pretrained_model.layers]
 
-def set_pretrained_weights(model, pretrained_model_file):
-    # Note: for now, it is assumed that for a siamese architectures, we will
-    # only want to load pretrained weights from the non-siamese version of that
-    # architecture. Pretraining a siamese net with another siamese net is not supported.
-    weight_list = get_pretrained_weights(pretrained_model_file)
-    if len(model.layers) != len(weight_list):
-        raise ScrnaException("Pretrained model weights do not match this architecture!")
-    # Don't take weights from last layer because typically we are taking weights from an unsupervised model
-    for layer, pt_weights in zip(model.layers[:-1], weight_list[:-1]):
-        layer.set_weights(pt_weights)
-    print("Loaded pre-trained weights from: ", pretrained_model_file)
+def set_pretrained_weights(model, pretrained_weights_file):
+    model.load_weights(pretrained_weights_file, by_name=True)
+    print("Loaded pre-trained weights from: ", pretrained_weights_file)
+
+def freeze_layers(model, n):
+    """Freeze all but the last n layers
+    """
+    if len(model.layers) > n:
+        for layer in model.layers[:-n]:
+            print("Freezing layer: ", layer)
+            layer.trainable = False
 
 # *** BEGIN SIAMESE NEURAL NETWORK CODE
 # Modified from https://github.com/fchollet/keras/blob/master/examples/mnist_siamese_graph.py
@@ -98,7 +87,7 @@ def contrastive_loss(y_true, y_pred):
 #     '''
 #     '''
 
-def get_siamese(base_network, input_dim, is_frozen, requires_norm=False):
+def get_siamese(base_network, input_dim, requires_norm=False):
     # Create a siamese neural network with the provided base_network as two conjoined twins.
     # Load pretrained weights before calling this function.
     # First, remove the last layer (output layer) from base_network
@@ -121,11 +110,11 @@ def get_siamese(base_network, input_dim, is_frozen, requires_norm=False):
     distance = Lambda(euclidean_distance, output_shape=eucl_dist_output_shape, name="Distance")([processed_a, processed_b])
 
     model = Model([input_a, input_b], distance)
-    if is_frozen and len(model.layers[2].layers) > 2:
-        # Freeze the layers prior to the final embedding layer of the base network
-        for layer in model.layers[2].layers[:-1]:
-            print("Freezing layer: ", layer)
-            layer.trainable = False
+    # if is_frozen and len(model.layers[2].layers) > 2:
+    #     # Freeze the layers prior to the final embedding layer of the base network
+    #     for layer in model.layers[2].layers[:-1]:
+    #         print("Freezing layer: ", layer)
+    #         layer.trainable = False
     return model
 # *** END SIAMESE NEURAL NETWORK CODE
 
@@ -219,12 +208,12 @@ def get_GO_ppitf(hidden_layer_sizes, input_dim, ppitf_adj_mat, go_first_level_ad
     return inputs, x
 
 def get_nn_model(model_name, hidden_layer_sizes, input_dim, is_autoencoder, activation_fcn='tanh', output_dim=None, adj_mat=None, go_first_level_adj_mat=None, go_other_levels_adj_mats=None, flatGO_ppitf_adj_mats=None, extra_dense_units=0, dropout=0.0):
-    if is_autoencoder:
-        # autoencoder architectures in a separate module for organizational purposes
-        latent_size = None
-        if hidden_layer_sizes is not None:
-            latent_size = hidden_layer_sizes[0]
-        return ae.get_ae_model(model_name, latent_size, input_dim, activation_fcn, adj_mat)
+    # if is_autoencoder:
+    #     # autoencoder architectures in a separate module for organizational purposes
+    #     latent_size = None
+    #     if hidden_layer_sizes is not None:
+    #         latent_size = hidden_layer_sizes[0]
+    #     return ae.get_ae_model(model_name, latent_size, input_dim, activation_fcn, adj_mat)
 
     print(hidden_layer_sizes)
     # First get the tensors from hidden layers

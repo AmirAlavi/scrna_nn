@@ -47,12 +47,12 @@ def get_model_architecture(working_dir_path, args, input_dim, output_dim, gene_n
     #plot_model(base_model, to_file=join(working_dir_path, 'base_architecture.png'), show_shapes=True)
     print(base_model.summary())
     # Set pretrained weights, if any, before making into siamese
-    if args['--pt']:
-        nn.set_pretrained_weights(base_model, args['--pt'])
-    if args['--unsup_pt']:
-        pt.set_pretrained_weights(base_model, args, args['--unsup_pt'])
+    if args['--init']:
+        nn.set_pretrained_weights(base_model, args['--init'])
+    if args['--freeze']:
+        nn.freeze_layers(base_model, int(args['--freeze']))
     if args['--siamese']:
-        model = nn.get_siamese(base_model, input_dim, args['--freeze'], args['--gn'])
+        model = nn.get_siamese(base_model, input_dim, args['--gn'])
         #plot_model(model, to_file=join(working_dir_path, 'siamese_architecture.png'), show_shapes=True)
     elif args['--triplet']:
         model = nn.get_triplet(base_model)
@@ -551,11 +551,23 @@ def train_neural_net(working_dir_path, args, data_container):
     X, y, input_dim, output_dim, label_strings_lookup, gene_names, label_to_int_map = get_data_for_training(data_container, args)
     X, y = shuffle(X, y) # Shuffle so that Keras's naive selection of validation data doesn't get all same class
     opt = get_optimizer(args)
+
+    
+    ngpus = int(args['--ngpus'])
+    if ngpus > 1:
+        import tensorflow as tf
+        with tf.device('/cpu:0'):
+            template_model = get_model_architecture(working_dir_path, args, input_dim, output_dim, gene_names)
+        model = multi_gpu_model(template_model, gpus=ngpus)
+    else:
+        template_model = get_model_architecture(working_dir_path, args, input_dim, output_dim, gene_names)
+        model = template_model
+
     if args['--layerwise_pt']:
         hidden_layer_sizes = [int(x) for x in args['<hidden_layer_sizes>']]
         if args['--nn'] == 'dense':
             if hidden_layer_sizes == [1136, 100]:
-                pt.pretrain_dense_1136_100_model(input_dim, opt, X, working_dir_path, args)
+                pt.pretrain_dense_1136_100_model(model, input_dim, opt, X, working_dir_path, args)
             elif hidden_layer_sizes == [1136, 500, 100]:
                 pt.pretrain_dense_1136_500_100_model(input_dim, opt, X, working_dir_path, args)
             else:
@@ -591,17 +603,7 @@ def train_neural_net(working_dir_path, args, data_container):
             pt.pretrain_GOlvls_model(input_dim, go_first_level_adj_mat, go_other_levels_adj_mats[0], go_other_levels_adj_mats[1], opt, X, working_dir_path, args)
         else:
             raise util.ScrnaException("Layerwise pretraining not implemented for this architecture")
-    
-    ngpus = int(args['--ngpus'])
-    if ngpus > 1:
-        import tensorflow as tf
-        with tf.device('/cpu:0'):
-            template_model = get_model_architecture(working_dir_path, args, input_dim, output_dim, gene_names)
-        model = multi_gpu_model(template_model, gpus=ngpus)
-    else:
-        template_model = get_model_architecture(working_dir_path, args, input_dim, output_dim, gene_names)
-        model = template_model
-
+        
     compile_model(model, args, opt)
     print("model compiled and ready for training")
     # Prep callbacks

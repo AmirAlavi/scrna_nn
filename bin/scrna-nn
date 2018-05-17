@@ -81,8 +81,8 @@ Options:
                               [default: data/GO_lvls_arch_2_to_4]
     --with_dense=<num_units>  (For 'sparse' architecture) Number of Dense units to add in the same
                               layer as the Sparse layer. [default: 0]
-    --pt=<pt_model_file>      Use initial weights from a pretrained model file.
-    --unsup_pt=<model_folder> Use initial weights from layer-wise unusupervised pretraining.
+    --init=<pt_weight_file>   Use initial weights from a pretrained weights file. If this flag is not specified,
+                              random initialization is used.
     --ae                      Use an unsupervised autoencoder architecture.
     --layerwise_pt            Use greedy layer-wise pretraining to pretrain the model with denoising
                               autoencoders
@@ -126,7 +126,7 @@ Options:
     --diff_multiplier=<n>     For Siamese pair selection, when selecting different pairs, if same_count pairs of "same" points
                               were generated, generate (diff_multiplier * same_count) pairs of different points.
                               [default: 2]
-    --freeze                  Freeze all but the last layer of a Siamese network (for fine tuning)
+    --freeze=<n>              Freeze all but the last n layers (for fine tuning)
     --dynMarginLoss=<type>    Use a dynamic-margin Contrastive Loss for the Siamese training which takes into account
                               distances between cell-types (rather than just binary, 0=different, 1=same). Different types of
                               distances are available, specified by the <type> required argument:
