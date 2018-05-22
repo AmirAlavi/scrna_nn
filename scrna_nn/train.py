@@ -516,14 +516,16 @@ def save_neural_net(working_dir_path, args, model):
     print("saving model to folder: " + working_dir_path)
     if args['--checkpoints']:
         path = join(working_dir_path, "last_model.h5")
+        path_weights = join(working_dir_path, "last_model_weights.h5")
     else:
         path = join(working_dir_path, "model.h5")
+        path_weights = join(working_dir_path, "model_weights.h5")
     if args['--siamese']:
         # For siamese nets, we only care about saving the subnetwork, not the whole siamese net
         model = model.layers[2] # For now, seems safe to assume index 2 corresponds to base net
     print("Model saved:\n\n\n")
     print(model.summary())
-    nn.save_trained_nn(model, path)
+    nn.save_trained_nn(model, path, path_weights)
 
 def get_callbacks_list(working_dir_path, args):
     callbacks_list = []
@@ -542,6 +544,7 @@ def get_callbacks_list(working_dir_path, args):
         #     makedirs(checkpoints_folder)
         # callbacks_list.append(ModelCheckpoint(checkpoints_folder+"/model_{epoch:03d}-{val_loss:06.3f}.h5", monitor='val_loss', verbose=1, save_best_only=True))
         callbacks_list.append(ModelCheckpoint(working_dir_path+"/model.h5", monitor=args['--checkpoints'], verbose=1, save_best_only=True))
+        callbacks_list.append(ModelCheckpoint(working_dir_path+"/model_weights.h5", monitor=args['--checkpoints'], verbose=1, save_best_only=True, save_weights_only=True))
     if args['--loss_history']:
         callbacks_list.append(callbacks.LossHistory(working_dir_path))
     return callbacks_list
@@ -549,6 +552,8 @@ def get_callbacks_list(working_dir_path, args):
 def train_neural_net(working_dir_path, args, data_container):
     print("Training a Neural Network model...")
     X, y, input_dim, output_dim, label_strings_lookup, gene_names, label_to_int_map = get_data_for_training(data_container, args)
+    print(X.shape)
+    print(y.shape)
     X, y = shuffle(X, y) # Shuffle so that Keras's naive selection of validation data doesn't get all same class
     opt = get_optimizer(args)
 
@@ -605,6 +610,7 @@ def train_neural_net(working_dir_path, args, data_container):
             raise util.ScrnaException("Layerwise pretraining not implemented for this architecture")
         
     compile_model(model, args, opt)
+    print(model.summary())
     print("model compiled and ready for training")
     # Prep callbacks
     callbacks_list = get_callbacks_list(working_dir_path, args)

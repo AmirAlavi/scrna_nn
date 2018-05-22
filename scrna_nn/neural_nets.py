@@ -14,8 +14,9 @@ from . import autoencoders as ae
 from . import losses_and_metrics
 
 
-def save_trained_nn(model, path):
-    model.save(path)
+def save_trained_nn(model, model_path, weights_path):
+    model.save(model_path)
+    model.save_weights(weights_path)
 
 def load_trained_nn(path, triplet_loss_batch_size=-1, dynamic_margin=-1, siamese=False):
     custom_objects={'Sparse': Sparse}
@@ -34,7 +35,7 @@ def load_trained_nn(path, triplet_loss_batch_size=-1, dynamic_margin=-1, siamese
 #     return [layer.get_weights() for layer in pretrained_model.layers]
 
 def set_pretrained_weights(model, pretrained_weights_file):
-    model.load_weights(pretrained_weights_file, by_name=True)
+    model.load_weights(pretrained_weights_file, by_name=True, skip_mismatch=True)
     print("Loaded pre-trained weights from: ", pretrained_weights_file)
 
 def freeze_layers(model, n):

@@ -52,6 +52,8 @@ def pretrain_dense_1136_100_model(model, input_dim, opt, X_orig, working_dir, ar
     h2.compile(loss='mean_squared_error', optimizer=opt)
     h2.fit(X, y, batch_size=int(args['--batch_size']), epochs=int(args['--epochs']), verbose=1, validation_split=float(args['--valid']), callbacks=callbacks_list)
 
+    model.layers[1].set_weights(h1.layers[1].get_weights()[1:])
+    model.layers[2].set_weights(h2.layers[1].get_weights()[1:])
     model.save_weights(join(working_dir, 'pretrained_layer_weights.h5'))
     sys.exit()
 
@@ -117,6 +119,9 @@ def pretrain_dense_1136_500_100_model(model, input_dim, opt, X_orig, working_dir
     h3.fit(X, y, batch_size=int(args['--batch_size']), epochs=int(args['--epochs']), verbose=1, validation_split=float(args['--valid']), callbacks=callbacks_list)
 
     # finally, write out the pretrained weights
+    model.layers[1].set_weights(h1.layers[1].get_weights()[1:])
+    model.layers[2].set_weights(h2.layers[1].get_weights()[1:])
+    model.layers[3].set_weights(h3.layers[1].get_weights()[1:])
     model.save_weights(join(working_dir, 'pretrained_layer_weights.h5'))
     sys.exit()
 
@@ -170,6 +175,9 @@ def pretrain_ppitf_1136_100_model(model, input_dim, adj_mat, opt, X_orig, workin
     h2.fit(X, y, batch_size=int(args['--batch_size']), epochs=int(args['--epochs']), verbose=1, validation_split=float(args['--valid']), callbacks=callbacks_list)
 
     # finally, write out the pretrained weights
+    model.layers[1].set_weights(sparse.layers[1].get_weights()[1:])
+    model.layers[2].set_weights(dense.layers[1].get_weights()[1:])
+    model.layers[4].set_weights(h2.layers[1].get_weights()[1:])
     model.save_weights(join(working_dir, 'pretrained_layer_weights.h5'))
     sys.exit()
 
@@ -249,6 +257,10 @@ def pretrain_ppitf_1136_500_100_model(model, input_dim, adj_mat, opt, X_orig, wo
     h3.fit(X, y, batch_size=int(args['--batch_size']), epochs=int(args['--epochs']), verbose=1, validation_split=float(args['--valid']), callbacks=callbacks_list)
 
     # finally, write out the pretrained weights
+    model.layers[1].set_weights(sparse.layers[1].get_weights()[1:])
+    model.layers[2].set_weights(dense.layers[1].get_weights()[1:])
+    model.layers[4].set_weights(h2.layers[1].get_weights()[1:])
+    model.layers[5].set_weights(h3.layers[1].get_weights()[1:])
     model.save_weights(join(working_dir, 'pretrained_layer_weights.h5'))
     sys.exit()
 
@@ -301,6 +313,9 @@ def pretrain_flatGO_400_100_model(model, input_dim, adj_mat, opt, X_orig, workin
     h2.fit(X, y, batch_size=int(args['--batch_size']), epochs=int(args['--epochs']), verbose=1, validation_split=float(args['--valid']), callbacks=callbacks_list)
 
     # finally, write out the pretrained weights
+    model.layers[1].set_weights(sparse.layers[1].get_weights()[1:])
+    model.layers[2].set_weights(dense.layers[1].get_weights()[1:])
+    model.layers[4].set_weights(h2.layers[1].get_weights()[1:])
     model.save_weights(join(working_dir, 'pretrained_layer_weights.h5'))
     sys.exit()
 
@@ -380,6 +395,10 @@ def pretrain_flatGO_400_200_100_model(model, input_dim, adj_mat, opt, X_orig, wo
     h3.fit(X, y, batch_size=int(args['--batch_size']), epochs=int(args['--epochs']), verbose=1, validation_split=float(args['--valid']), callbacks=callbacks_list)
 
     # finally, write out the pretrained weights
+    model.layers[1].set_weights(sparse.layers[1].get_weights()[1:])
+    model.layers[2].set_weights(dense.layers[1].get_weights()[1:])
+    model.layers[4].set_weights(h2.layers[1].get_weights()[1:])
+    model.layers[5].set_weights(h3.layers[1].get_weights()[1:])
     model.save_weights(join(working_dir, 'pretrained_layer_weights.h5'))
     sys.exit()
 
@@ -459,5 +478,9 @@ def pretrain_GOlvls_model(model, input_dim, level1_adj_mat, level2_adj_mat, leve
     dense.fit(X, y, batch_size=int(args['--batch_size']), epochs=int(args['--epochs']), verbose=1, validation_split=float(args['--valid']), callbacks=callbacks_list)
     
     # finally, write out the pretrained weights
+    model.layers[1].set_weights(level1.layers[1].get_weights()[1:])
+    model.layers[2].set_weights(level2.layers[1].get_weights()[1:])
+    model.layers[3].set_weights(level3.layers[1].get_weights()[1:])
+    model.layers[4].set_weights(dense.layers[1].get_weights()[1:])
     model.save_weights(join(working_dir, 'pretrained_layer_weights.h5'))
     sys.exit()
