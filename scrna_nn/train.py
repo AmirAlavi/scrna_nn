@@ -44,7 +44,7 @@ def pretty_tdelta(tdelta):
 
 def get_model_architecture(working_dir_path, args, input_dim, output_dim, gene_names):
     base_model = get_base_model_architecture(args, input_dim, output_dim, gene_names)
-    embedding_dim = base_model.layers[-1].input_shape[0]
+    embedding_dim = base_model.layers[-1].input_shape[1]
     #plot_model(base_model, to_file=join(working_dir_path, 'base_architecture.png'), show_shapes=True)
     print(base_model.summary())
     # Set pretrained weights, if any, before making into siamese
@@ -678,6 +678,7 @@ def report_config(args, training_report):
     # Rest of configuration space not relevant to PCA
     if training_report['cfg_type'] == 'pca':
         return
+
     training_report['cfg_epochs'] = int(args['--epochs'])
     training_report['cfg_batch_size'] = int(args['--batch_size'])
     training_report['cfg_activation'] = args['--act']
@@ -687,12 +688,15 @@ def report_config(args, training_report):
         training_report['cfg_with_dense'] = int(args['--with_dense'])
     if args['--freeze']:
         training_report['cfg_freeze_n'] = int(args['--freeze'])
+    training_report['cfg_init'] = 'random'
+    if args['--init']:
+        training_report['cfg_init'] = args['--init']
     # Optimizer
     if args['--opt'] == 'sgd':
         training_report['cfg_opt'] = 'sgd'
         training_report['cfg_lr'] = float(args['--sgd_lr'])
         training_report['cfg_decay'] = float(args['--sgd_d'])
-        training_report['cfg_momentum'] = float(args['sgd_m'])
+        training_report['cfg_momentum'] = float(args['--sgd_m'])
         training_report['cfg_nesterov?'] = 'Y' if args['--sgd_nesterov'] else 'N'
     if int(args['--early_stop_pat']) >= 0:
         training_report['cfg_early_stop_patience'] = int(args['--early_stop_pat'])
