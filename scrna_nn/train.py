@@ -44,6 +44,7 @@ def pretty_tdelta(tdelta):
 
 def get_model_architecture(working_dir_path, args, input_dim, output_dim, gene_names):
     base_model = get_base_model_architecture(args, input_dim, output_dim, gene_names)
+    embedding_dim = base_model.layers[-1].input_shape[0]
     #plot_model(base_model, to_file=join(working_dir_path, 'base_architecture.png'), show_shapes=True)
     print(base_model.summary())
     # Set pretrained weights, if any, before making into siamese
@@ -58,7 +59,7 @@ def get_model_architecture(working_dir_path, args, input_dim, output_dim, gene_n
         model = nn.get_triplet(base_model)
     else:
         model = base_model
-    return model
+    return model, embedding_dim
 
 def get_base_model_architecture(args, input_dim, output_dim, gene_names):
     """Possible options for neural network architectures are outlined in the '--help' command
@@ -549,7 +550,7 @@ def get_callbacks_list(working_dir_path, args):
         callbacks_list.append(callbacks.LossHistory(working_dir_path))
     return callbacks_list
     
-def train_neural_net(working_dir_path, args, data_container):
+def train_neural_net(working_dir_path, args, data_container, training_report):
     print("Training a Neural Network model...")
     X, y, input_dim, output_dim, label_strings_lookup, gene_names, label_to_int_map = get_data_for_training(data_container, args)
     print(X.shape)
@@ -562,12 +563,14 @@ def train_neural_net(working_dir_path, args, data_container):
     if ngpus > 1:
         import tensorflow as tf
         with tf.device('/cpu:0'):
-            template_model = get_model_architecture(working_dir_path, args, input_dim, output_dim, gene_names)
+            template_model, embed_dims = get_model_architecture(working_dir_path, args, input_dim, output_dim, gene_names)
         model = multi_gpu_model(template_model, gpus=ngpus)
     else:
-        template_model = get_model_architecture(working_dir_path, args, input_dim, output_dim, gene_names)
+        template_model, embed_dims = get_model_architecture(working_dir_path, args, input_dim, output_dim, gene_names)
         model = template_model
 
+    training_report['cfg_DIMS'] = embed_dims
+    
     if args['--layerwise_pt']:
         hidden_layer_sizes = [int(x) for x in args['<hidden_layer_sizes>']]
         if args['--nn'] == 'dense':
@@ -663,13 +666,66 @@ def train_neural_net(working_dir_path, args, data_container):
     #     get_activations = theano.function([model.layers[0].input], last_hidden_layer.output)
     #     X_embedded = get_activations(X)
     #     visualize_embedding(X_embedded, labels, join(working_dir_path, "tsne.png"))
-        
+
+def report_config(args, training_report):
+    # Data normalization
+    if args['--sn']:
+        training_report['cfg_normalization'] = 'sn'
+    elif args['--gn']:
+        training_report['cfg_normalization'] = 'gn'
+    else:
+        training_report['cfg_normalization'] = 'none'
+    # Rest of configuration space not relevant to PCA
+    if training_report['cfg_type'] == 'pca':
+        return
+    training_report['cfg_epochs'] = int(args['--epochs'])
+    training_report['cfg_batch_size'] = int(args['--batch_size'])
+    training_report['cfg_activation'] = args['--act']
+    if float(args['--dropout']) > 0:
+        training_report['cfg_dropout'] = float(args['--dropout'])
+    if int(args['--with_dense']) > 0:
+        training_report['cfg_with_dense'] = int(args['--with_dense'])
+    if args['--freeze']:
+        training_report['cfg_freeze_n'] = int(args['--freeze'])
+    # Optimizer
+    if args['--opt'] == 'sgd':
+        training_report['cfg_opt'] = 'sgd'
+        training_report['cfg_lr'] = float(args['--sgd_lr'])
+        training_report['cfg_decay'] = float(args['--sgd_d'])
+        training_report['cfg_momentum'] = float(args['sgd_m'])
+        training_report['cfg_nesterov?'] = 'Y' if args['--sgd_nesterov'] else 'N'
+    if int(args['--early_stop_pat']) >= 0:
+        training_report['cfg_early_stop_patience'] = int(args['--early_stop_pat'])
+        training_report['cfg_early_stop_metric'] = args['--early_stop']
+    if args['--checkpoints']:
+        training_report['cfg_checkpoints'] = args['--checkpoints']
+    # Siamese
+    if args['--siamese']:
+        training_report['cfg_siam?'] = 'Y'
+        training_report['cfg_siam_unif_diff'] = int(args['--unif_diff'])
+        training_report['cfg_siam_same_lim'] = int(args['--same_lim'])
+        training_report['cfg_siam_diff_multiplier'] = int(args['--diff_multiplier'])
+        if args['--dynMarginLoss']:
+            training_report['cfg_siam_pair_distances'] = args['--dynMarginLoss']
+            training_report['cfg_siam_contrastive_margin'] = float(args['--dynMargin'])
+            training_report['cfg_siam_distances_source'] = args['--dist_mat_file']
+            training_report['cfg_siam_distance_transform'] = args['--trnsfm_fcn']
+            training_report['cfg_siam_distance_transform_param'] = float(args['--trnsfm_fcn_param'])
+    # Triplet
+    if args['--triplet']:
+        training_report['cfg_triplet?'] = 'Y'
+        training_report['cfg_triplet_P'] = int(args['--batch_hard_P'])
+        training_report['cfg_triplet_K'] = int(args['--batch_hard_K'])
+        training_report['cfg_triplet_batches'] = int(args['--num_batches'])
+
 def train(args):
     model_type = args['--nn'] if args['--nn'] is not None else "pca"
     # create a unique working directory for this model
     working_dir_path = util.create_working_directory(args['--out'], "models/", model_type)
     with open(join(working_dir_path, "command_line_args.json"), 'w') as fp:
         json.dump(args, fp)
+    training_report = {'cfg_type': model_type, 'cfg_folder': working_dir_path}
+    report_config(args, training_report)
     print("loading data and setting up model...")
     data_container = DataContainer(args['--data'], sample_normalize=args['--sn'], feature_normalize=args['--gn'])
     if args['--gn']:
@@ -678,5 +734,18 @@ def train(args):
         data_container.std.to_pickle(join(working_dir_path, "std.p"))
     if args['--pca']:
         train_pca_model(working_dir_path, args, data_container)
+        training_report['cfg_DIMS'] = int(args['--pca'])
     else:
-        train_neural_net(working_dir_path, args, data_container)
+        train_neural_net(working_dir_path, args, data_container, training_report)
+    # Report the configuration and performance of the model
+    with open(join(working_dir_path, 'config_results.csv'), 'w') as f:
+        for i, col in enumerate(training_report.keys()):
+            if i == len(training_report) - 1:
+                f.write('{}\n'.format(col))
+            else:
+                f.write('{},'.format(col))
+        for i, val in enumerate(training_report.values()):
+            if i == len(training_report) - 1:
+                f.write('{}\n'.format(val))
+            else:
+                f.write('{},'.format(val))
