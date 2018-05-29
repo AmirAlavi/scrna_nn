@@ -40,7 +40,7 @@ SIAM_CACHE = "siam_data"
 def pretty_tdelta(tdelta):
     hours, rem = divmod(tdelta.seconds, 3600)
     mins, secs = divmod(rem, 60)
-    return "{:2d} hours {:2d} mins {:2d} secs".format(hours, mins, secs)
+    return "{:02d}:{:02d}:{:02d}".format(hours, mins, secs)
 
 def get_model_architecture(working_dir_path, args, input_dim, output_dim, gene_names):
     base_model = get_base_model_architecture(args, input_dim, output_dim, gene_names)
@@ -256,80 +256,6 @@ def create_data_pairs(X, y, true_ids, indices_lists, same_lim, args):
     np.save(join(cache_path, "siam_y"), labels_np)
     return pairs_np, labels_np
 
-def get_distance(dist_mat, label_strings_lookup, max_dist, a_label, b_label, dist_fcn):
-    a_str = label_strings_lookup[a_label]
-    b_str = label_strings_lookup[b_label]
-    dist = dist_mat[a_str][b_str]
-    thresholded_dist = dist_fcn(dist, max_dist)
-    return thresholded_dist
-
-# def create_flexible_data_pairs(X, y, true_ids, indices_lists, same_lim, label_strings_lookup, args):
-#     dist_mat_file = args['--distance_mat']
-#     max_dist = int(args['--max_ont_dist'])
-#     if args['--dist_fcn'] == 'linear':
-#         print("Using linear distance decay")
-#         dist_fcn = distances.linear_decay
-#     elif args['--dist_fcn'] == 'exponential':
-#         print("Using exponential distance decay")
-#         dist_fcn = distances.exponential_decay
-#     cache_path = join(join(CACHE_ROOT, SIAM_CACHE), args['--dist_fcn'])
-#     cache_path = join(cache_path, args['--data']) # To make sure that we change cache when we change the dataset
-#     if exists(cache_path):
-#         print("Loading siamese data from cache...")
-#         pairs = np.load(join(cache_path, "siam_X.npy"))
-#         labels = np.load(join(cache_path, "siam_y.npy"))
-#         return pairs, labels
-#     print("Generating 'Flexible' pairs for siamese")
-#     with open(dist_mat_file, 'rb') as f:
-#         dist_mat_by_strings = pickle.load(f)
-#     pairs = []
-#     labels = []
-
-#     for anchor_label, anchor_samples in indices_lists.items():
-#         same_count = 0
-#         combs = combinations(anchor_samples, 2)
-#         # TODO: should I shuffle the combs?
-#         for comb in combs:
-#             pairs += [[ X[comb[0]], X[comb[1]] ]]
-#             labels += [1]
-#             same_count += 1
-#             if same_count == same_lim:
-#                 break
-#         # create the different pairs
-#         diff_count = 0
-#         distance_lists = defaultdict(list)
-#         for diff_label, diff_samples in indices_lists.items():
-#             if diff_label == anchor_label:
-#                 continue
-#             dist = get_distance(dist_mat_by_strings, label_strings_lookup, max_dist, anchor_label, diff_label, dist_fcn)
-#             for s in diff_samples:
-#                 distance_lists[dist].append(s)
-#         for distance, samples in distance_lists.items():
-#             np.random.shuffle(samples)
-#             num_pairs = min(len(samples), int((2*same_count)/max_dist))
-#             for i in range(num_pairs):
-#                 # select a random anchor sample
-#                 anchor_idx = random.choice(anchor_samples)
-#                 diff_idx = samples[i]
-#                 while(true_ids[anchor_idx] == true_ids[diff_idx]):
-#                     # for the current different sample, be sure they aren't the same underlying sample
-#                     anchor_idx = random.choice(anchor_samples)
-#                 anchor_vec = X[anchor_idx]
-#                 diff_vec = X[diff_idx]
-#                 pairs += [[ anchor_vec, diff_vec ]]
-#                 labels += [distance]
-#     print("Generated ", len(pairs), " pairs")
-#     unique_labels, label_counts = np.unique(labels, return_counts=True)
-#     print("Distribution of pairs labels: ")
-#     print(unique_labels)
-#     print(label_counts)
-#     pairs_np = np.array(pairs)
-#     labels_np = np.array(labels)
-#     makedirs(cache_path)
-#     np.save(join(cache_path, "siam_X"), pairs_np)
-#     np.save(join(cache_path, "siam_y"), labels_np)
-#     return pairs_np, labels_np
-
 def create_data_pairs_diff_datasets(X, y, dataset_IDs, indices_lists, same_lim):
     pairs = []
     labels = []
@@ -366,6 +292,7 @@ def create_data_pairs_diff_datasets(X, y, dataset_IDs, indices_lists, same_lim):
     return np.array(pairs), np.array(labels)
 
 def get_data_for_siamese(data_container, args):
+    # TODO: this is broken, update to make it work with the new DataContainer
     X, y, label_strings_lookup = data_container.get_data()
     true_ids = data_container.get_true_ids()
     print("bincount")
@@ -440,48 +367,28 @@ def get_data_for_testing(args, train_datacontainer, label_to_int_map):
     return X, y
 
 def get_data_for_training(data_container, args):
-    #print("Cleaning up the data first...")
-    #preprocess_data(data)
     gene_names = data_container.get_gene_names()
+    
     output_dim = None
-    if args['--ae']:
-        # Autoencoder training is unsupervised, so we don't have to limit
-        # ourselves to labeled samples
-        #X_clean = data_container.get_expression_mat()
-        # Add noise to the data:
-        #noise_level = 0.1
-        #X = X_clean + noise_level * np.random.normal(loc=0, scale=1, size=X_clean.shape)
-        #X = np.clip(X, -1., 1.)
-        # For autoencoders, the input is a noisy sample, and the networks goal
-        # is to reconstruct the original sample, and so the output is the same
-        # shape as the input, and our label vector "y" is no longer labels, but
-        # is the uncorrupted samples
-        #y = X_clean
-        X = data_container.get_expression_mat()
-        y = X
-        output_dim = X.shape[1]
-        label_strings_lookup = None
-        label_to_int_map = None
-    else:
-        # Supervised training:
-        print("Supervised training")
-        X, y, label_strings_lookup = data_container.get_data()
-        output_dim = max(y) + 1
-        if not args['--triplet']: # triplet net code needs labels that aren't 1-hot encoded
-            print("One-hot enocoding")
-            y = np_utils.to_categorical(y, output_dim)
-        label_to_int_map = {}
-        for i, label_string in enumerate(data_container.get_labels()):
-            label_to_int_map[label_string] = y[i]
+    # Supervised training:
+    print("Supervised training")
+    X, y, label_strings_lookup = data_container.get_data()
+    output_dim = max(y) + 1
+    if not args['--triplet']: # triplet net code needs labels that aren't 1-hot encoded
+        print("One-hot enocoding")
+        y = np_utils.to_categorical(y, output_dim)
+    label_to_int_map = {}
+    for i, label_string in enumerate(data_container.get_labels()):
+        label_to_int_map[label_string] = y[i]
     input_dim = X.shape[1]
     print("Input dim: ", input_dim)
     print("Output dim: ", output_dim)
     return X, y, input_dim, output_dim, label_strings_lookup, gene_names, label_to_int_map
 
-def train_pca_model(working_dir_path, args, data_container):
+def train_pca_model(working_dir_path, args, data):
     print("Training a PCA model...")
     model = PCA(n_components=int(args['--pca']))
-    X = data_container.get_expression_mat()
+    X = data.get_expression_mat('train')
     model.fit(X)
     with open(join(working_dir_path, "pca.p"), 'wb') as f:
         pickle.dump(model, f)
@@ -550,14 +457,20 @@ def get_callbacks_list(working_dir_path, args):
         callbacks_list.append(callbacks.LossHistory(working_dir_path))
     return callbacks_list
     
-def train_neural_net(working_dir_path, args, data_container, training_report):
+def train_neural_net(working_dir_path, args, data, training_report):
     print("Training a Neural Network model...")
-    X, y, input_dim, output_dim, label_strings_lookup, gene_names, label_to_int_map = get_data_for_training(data_container, args)
-    print(X.shape)
-    print(y.shape)
-    X, y = shuffle(X, y) # Shuffle so that Keras's naive selection of validation data doesn't get all same class
+    #X, y, input_dim, output_dim, label_strings_lookup, gene_names, label_to_int_map = get_data_for_training(data_container, args)
+    X_train, y_train, input_dim, output_dim = data.get_data_for_neural_net('train', one_hot=not args['--triplet'])
+    X_valid, y_valid, _, _ = data.get_data_for_neural_net('valid', one_hot=not args['--triplet'])
+    gene_names = data.get_gene_names()
+    print("Train data shapes:")
+    print(X_train.shape)
+    print(y_train.shape)
+    print("Valid data shapes:")
+    print(X_valid.shape)
+    print(y_valid.shape)
+    #X, y = shuffle(X, y) # Shuffle so that Keras's naive selection of validation data doesn't get all same class
     opt = get_optimizer(args)
-
     
     ngpus = int(args['--ngpus'])
     if ngpus > 1:
@@ -632,26 +545,31 @@ def train_neural_net(working_dir_path, args, data_container, training_report):
         plt.savefig(join(working_dir_path, 'frac_active_triplets.png'))
         plt.close()
     else:
-        history = model.fit(X, y, batch_size=int(args['--batch_size']), epochs=int(args['--epochs']), verbose=1, validation_split=float(args['--valid']), callbacks=callbacks_list)
+        history = model.fit(X_train, y_train, batch_size=int(args['--batch_size']), epochs=int(args['--epochs']), verbose=1, validation_data=(X_valid, y_valid), callbacks=callbacks_list)
     t1 = datetime.datetime.now()
     time_str = pretty_tdelta(t1-t0)
     print("Training neural net took " + time_str)
+    training_report['res_train_time'] = time_str
     with open(join(working_dir_path, "timing.txt"), 'w') as f:
         f.write(time_str + "\n")
     if not args['--ae'] and not args['--siamese'] and not args['--triplet']:
         plot_accuracy_history(history, join(working_dir_path, "accuracy.png"))
-    if args['--test_data']:
-        X_test, y_test = get_data_for_testing(args, data_container, label_to_int_map)
-        print("Evaluating")
-        eval_results = model.evaluate(x=X_test, y=y_test)
-        with open(join(working_dir_path, "evaluation.txt"), 'w') as f:
-            try:
-                for metric, res in zip(model.metrics_names, eval_results):
-                    print("{}\t{}".format(metric, res))
-                    f.write("{}\t{}\n".format(metric, res))
-            except TypeError:
-                print(eval_results)
-                f.write("{}\t{}\n".format(model.metrics_names, eval_results))
+
+    X_test, y_test, _, _ = data.get_data_for_neural_net('test', one_hot=not args['--triplet'])
+    print("Test data shapes:")
+    print(X_test.shape)
+    print(y_test.shape)
+    print("Evaluating")
+    eval_results = model.evaluate(x=X_test, y=y_test)
+    with open(join(working_dir_path, "evaluation.txt"), 'w') as f:
+        try:
+            for metric, res in zip(model.metrics_names, eval_results):
+                training_report['res_test_{}'.format(metric)] = res
+                print("{}\t{}".format(metric, res))
+                f.write("{}\t{}\n".format(metric, res))
+        except TypeError:
+            print(eval_results)
+            f.write("{}\t{}\n".format(model.metrics_names, eval_results))
     save_neural_net(working_dir_path, args, template_model)
     # This code is an artifact, only works with an old dataset.
     # Needs some attention to make it work for the newer datasets.
@@ -722,6 +640,17 @@ def report_config(args, training_report):
         training_report['cfg_triplet_K'] = int(args['--batch_hard_K'])
         training_report['cfg_triplet_batches'] = int(args['--num_batches'])
 
+def load_data(args, working_dir):
+    data = DataContainer(join(args['--data'], 'train_data.h5'), sample_normalize=args['--sn'], feature_normalize=args['--gn'])
+    data.add_split(join(args['--data'], 'valid_data.h5'), 'valid')
+    data.add_split(join(args['--data'], 'test_data.h5'), 'test')
+    if args['--gn']:
+        # save the training data mean and std for later use with test data
+        data.mean.to_pickle(join(working_dir, "mean.p"))
+        data.std.to_pickle(join(working_dir, "std.p"))
+    return data
+        
+        
 def train(args):
     model_type = args['--nn'] if args['--nn'] is not None else "pca"
     # create a unique working directory for this model
@@ -731,16 +660,13 @@ def train(args):
     training_report = {'cfg_type': model_type, 'cfg_folder': working_dir_path}
     report_config(args, training_report)
     print("loading data and setting up model...")
-    data_container = DataContainer(args['--data'], sample_normalize=args['--sn'], feature_normalize=args['--gn'])
-    if args['--gn']:
-        # save the training data mean and std for later use with test data
-        data_container.mean.to_pickle(join(working_dir_path, "mean.p"))
-        data_container.std.to_pickle(join(working_dir_path, "std.p"))
+    data = load_data(args, working_dir_path)
     if args['--pca']:
-        train_pca_model(working_dir_path, args, data_container)
+        train_pca_model(working_dir_path, args, data)
         training_report['cfg_DIMS'] = int(args['--pca'])
     else:
-        train_neural_net(working_dir_path, args, data_container, training_report)
+        train_neural_net(working_dir_path, args, data, training_report)
+
     # Report the configuration and performance of the model
     with open(join(working_dir_path, 'config_results.csv'), 'w') as f:
         for i, col in enumerate(training_report.keys()):

@@ -1,9 +1,11 @@
 # import pdb; pdb.set_trace()
 import time
+from collections import defaultdict
 from os.path import join
 
 import pandas as pd
 import numpy as np
+from keras.utils import np_utils
 
 
 class DataContainer(object):
@@ -11,70 +13,97 @@ class DataContainer(object):
     and provides access to various aspects of it.
     """
     def __init__(self, filepath, sample_normalize=False, feature_normalize=False, feature_mean=None, feature_std=None):
-        self.filepath = filepath
-        print('Reading in data from ', filepath)
-        h5_store = pd.HDFStore(filepath)
-        self.rpkm_df = h5_store['rpkm']
-        self.labels_series = h5_store['labels'] if 'labels' in h5_store else None
-        self.gene_symbols_series = h5_store['gene_symbols'] if 'gene_symbols' in h5_store else None
-        self.accessions_series = h5_store['accessions'] if 'accessions' in h5_store else None
-        self.true_ids_series = h5_store['true_ids'] if 'true_ids' in h5_store else None
-        h5_store.close()
-        self.rpkm_df.fillna(0, inplace=True) # Worries me that we have to do this...
+        self.sample_normalize = sample_normalize
+        self.feature_normalize = feature_normalize
         self.mean = feature_mean
         self.std = feature_std
-        # Convert numeric to float32 for deep learning libraries
-        self.rpkm_df = self.rpkm_df.apply(pd.to_numeric, errors='ignore', downcast='float')
-        # Ensure the column names are stored as strings for campatability
-        self.rpkm_df.columns = self.rpkm_df.columns.astype(str)
-        print("converted to float32")
+        self.splits = defaultdict(dict)
+        self.add_split(filepath, 'train')
+        # Create a unique mapping of label string to integer, will be shared among all splits
+        label_strings = self.splits['train']['labels_series'].values
+        uniq_label_strings, y = np.unique(label_strings, return_inverse=True)
+        self.label_to_int_map = {}
+        for i, label_string in enumerate(label_strings):
+            self.label_to_int_map[label_string] = y[i]
+
+    def _normalize_split(self, split):
         eps = np.finfo(np.float32).eps
-        if sample_normalize:
+        if self.sample_normalize:
             print("sample normalizing...")
             t0 = time.time()
-
-            self.rpkm_df = self.rpkm_df.div(self.rpkm_df.sum(axis=1) + eps, axis=0)
+            self.splits[split]['rpkm_df'] = self.splits[split]['rpkm_df'].div(self.splits[split]['rpkm_df'].sum(axis=1) + eps, axis=0)
             print("time to normalize: ", time.time() - t0)
-        elif feature_normalize:
+        elif self.feature_normalize:
             print("feature normalizing...")
             t0 = time.time()
-            if self.mean is None and self.std is None:
-                self.mean = self.rpkm_df.mean()
-                self.std = self.rpkm_df.std(ddof=0)
-            self.rpkm_df = (self.rpkm_df - self.mean) / (self.std + eps)
+            if split == 'train' and self.mean is None and self.std is None: # stats should already be in place for valid/test splits
+                self.mean = self.splits[split]['rpkm_df'].mean()
+                self.std = self.splits[split]['rpkm_df'].std(ddof=0)
+            self.splits[split]['rpkm_df'] = (self.splits[split]['rpkm_df'] - self.mean) / (self.std + eps)
             print("time to normalize: ", time.time() - t0)
-
+            
+    def add_split(self, filepath, split):
+        print('Reading in data from ', filepath)
+        h5_store = pd.HDFStore(filepath)
+        self.splits[split]['rpkm_df'] = h5_store['rpkm']
+        self.splits[split]['labels_series'] = h5_store['labels'] if 'labels' in h5_store else None
+        self.splits[split]['gene_symbols_series'] = h5_store['gene_symbols'] if 'gene_symbols' in h5_store else None
+        if split != 'train':
+            assert (np.array_equal(self.splits['train']['gene_symbols_series'].values, self.splits[split]['gene_symbols_series'].values)), 'New split does not have same columns as rest of data!'
+        self.splits[split]['accessions_series'] = h5_store['accessions'] if 'accessions' in h5_store else None
+        self.splits[split]['true_ids_series'] = h5_store['true_ids'] if 'true_ids' in h5_store else None
+        h5_store.close()
+        self.splits[split]['rpkm_df'].fillna(0, inplace=True) # Worries me that we have to do this...
+        # Convert numeric to float32 for deep learning libraries
+        self.splits[split]['rpkm_df'] = self.splits[split]['rpkm_df'].apply(pd.to_numeric, errors='ignore', downcast='float')
+        print("converted to float32")
+        # Ensure the column names are stored as strings for campatability
+        self.splits[split]['rpkm_df'].columns = self.splits[split]['rpkm_df'].columns.astype(str)
+        self._normalize_split(split)
+    
     def get_gene_names(self):
-        return self.gene_symbols_series.values
+        return self.splits['train']['gene_symbols_series'].values
 
-    def get_dataset_IDs(self):
-        return self.accessions_series.values
+    def get_dataset_IDs(self, split):
+        return self.splits[split]['accessions_series'].values
 
-    def get_labels(self):
-        return self.labels_series.values
+    def get_labels(self, split):
+        return self.splits[split]['labels_series'].values
 
-    def get_true_ids(self):
-        return self.true_ids_series.values
+    def get_true_ids(self, split):
+        return self.splits[split]['true_ids_series'].values
 
-    def get_data(self):
-        expression_mat = self.rpkm_df.values
-        label_strings = self.labels_series.values
-        uniq_label_strings, labels_as_int = np.unique(label_strings, return_inverse=True)
-        return expression_mat, labels_as_int, uniq_label_strings
+    # def get_data(self):
+    #     expression_mat = self.rpkm_df.values
+    #     label_strings = self.labels_series.values
+    #     uniq_label_strings, labels_as_int = np.unique(label_strings, return_inverse=True)
+    #     return expression_mat, labels_as_int, uniq_label_strings
 
-    def get_expression_mat(self):
-        return self.rpkm_df.values
+    def get_expression_mat(self, split):
+        return self.splits[split]['rpkm_df'].values
 
-    def get_cell_ids(self):
-        return self.rpkm_df.index.values
+    def get_cell_ids(self, split):
+        return self.splits[split]['rpkm_df'].index.values
 
-    def save_about_data(self, folder_to_save_in):
-        """Save some descriptive info about this data to a text file.
-        """
-        with open(join(folder_to_save_in, 'about_data.txt'), 'w') as f:
-            f.write("Source file: " + self.filepath + "\n")
-            f.write("\nLabels present:\n")
-            uniq, counts = np.unique(self.get_labels(), return_counts=True)
-            f.write(str(uniq) + "\n")
-            f.write("\nCount for each label:\n")
-            f.write(str(counts) + "\n")
+    def get_data_for_neural_net(self, split, one_hot=True):
+        X = self.splits[split]['rpkm_df'].values
+        label_strings = self.splits[split]['labels_series'].values
+        y = []
+        for label in label_strings:
+            y.append(self.label_to_int_map[label])
+        output_dim = len(self.label_to_int_map)
+        input_dim = X.shape[1]
+        if one_hot:
+            y = np_utils.to_categorical(y, output_dim)
+        return X, y, input_dim, output_dim
+    
+    # def save_about_data(self, folder_to_save_in):
+    #     """Save some descriptive info about this data to a text file.
+    #     """
+    #     with open(join(folder_to_save_in, 'about_data.txt'), 'w') as f:
+    #         f.write("Source file: " + self.filepath + "\n")
+    #         f.write("\nLabels present:\n")
+    #         uniq, counts = np.unique(self.get_labels(), return_counts=True)
+    #         f.write(str(uniq) + "\n")
+    #         f.write("\nCount for each label:\n")
+    #         f.write(str(counts) + "\n")
