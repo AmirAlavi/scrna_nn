@@ -59,6 +59,60 @@ def average_precision(target, retrieved_list):
         avg_precision /= float(correct)
     return avg_precision
 
+def retrieval_test_all_in_memory(db, db_labels, query, query_labels):
+    similarity_fcn = distances.TextMinedPairSimilarity(distance_mat_file='dump_A_1.p',
+                                                       transform='linear',
+                                                       transform_param=1)
+    # Find out the number of results to return.
+    db_uniq, db_counts = np.unique(db_labels, return_counts=True)
+    query_uniq, query_counts = np.unique(query_labels, return_counts=True)
+    query_label_count_d = {label: count for (label, count) in zip(query_uniq, query_counts)}
+    db_label_count_d = {label: count for (label, count) in zip(db_uniq, db_counts)}
+
+    counts_in_db_for_query_labels = []
+    for query_label, query_count in zip(query_uniq, query_counts):
+        count_in_db = db_label_count_d[query_label]
+        counts_in_db_for_query_labels.append(count_in_db)
+    min_db_label_count = min(counts_in_db_for_query_labels)
+    num_results = min(100, min_db_label_count)
+
+    average_precisions_for_label = defaultdict(list)
+    average_flex_precisions_for_label = defaultdict(list)
+
+    distance_matrix = distance.cdist(query, db, metric='euclidean')
+    for index, distances_to_query in enumerate(distance_matrix): # Loop is over the set of query cells
+        query_label = query_labels[index]
+        sorted_distances_indices = np.argsort(distances_to_query)
+        retrieved_labels_sorted_by_distance = db_labels[sorted_distances_indices]
+        retrieved_labels = retrieved_labels_sorted_by_distance[:num_results]
+        avg_flex_precision = average_flex_precision(query_label, retrieved_labels, similarity_fcn, True)
+        avg_precision = average_precision(query_label, retrieved_labels)
+        average_precisions_for_label[query_label].append(avg_precision)
+        average_flex_precisions_for_label[query_label].append(avg_flex_precision)
+
+    retrieval_results_d = {"cell_types":{}}
+    maps = [] # mean average precisions
+    mafps = [] # mean average flex precisions
+    weights = []
+    for label in average_precisions_for_label.keys():
+        average_precisions = average_precisions_for_label[label]
+        average_flex_precisions = average_flex_precisions_for_label[label]
+        cur_map = np.mean(average_precisions)
+        maps.append(cur_map)
+        cur_mafp = np.mean(average_flex_precisions)
+        mafps.append(cur_mafp)
+        cur_weight = query_label_count_d[label]
+        weights.append(cur_weight)
+        retrieval_results_d["cell_types"][label] = {"#_in_query": cur_weight, "#_in_DB": db_label_count_d[label], "Mean_Average_Precision": cur_map, "Mean_Average_Flex_Precision": cur_mafp}
+
+    retrieval_results_d["average_map"] = np.mean(maps)
+    retrieval_results_d["weighted_average_map"] = np.average(maps, weights=weights)
+
+    retrieval_results_d["average_mafp"] = np.mean(mafps)
+    retrieval_results_d["weighted_average_mafp"] = np.average(mafps, weights=weights)
+
+    return retrieval_results_d["average_map"], retrieval_results_d["weighted_average_map"], retrieval_results_d["average_mafp"], retrieval_results_d["weighted_average_mafp"]
+    
 def retrieval_test(args):
     if args['--similarity_type'] == 'ontology':
         print("ontology-based similarities")

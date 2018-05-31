@@ -1,11 +1,14 @@
 # import pdb; pdb.set_trace()
 import time
 from collections import defaultdict
-from os.path import join
+from os import makedirs
+from os.path import join, exists
 
 import pandas as pd
 import numpy as np
 from keras.utils import np_utils
+
+from . import siamese
 
 
 class DataContainer(object):
@@ -67,10 +70,10 @@ class DataContainer(object):
     def get_dataset_IDs(self, split):
         return self.splits[split]['accessions_series'].values
 
-    def get_labels(self, split):
+    def get_labels(self, split='train'):
         return self.splits[split]['labels_series'].values
 
-    def get_true_ids(self, split):
+    def get_true_ids(self, split='train'):
         return self.splits[split]['true_ids_series'].values
 
     # def get_data(self):
@@ -79,10 +82,10 @@ class DataContainer(object):
     #     uniq_label_strings, labels_as_int = np.unique(label_strings, return_inverse=True)
     #     return expression_mat, labels_as_int, uniq_label_strings
 
-    def get_expression_mat(self, split):
+    def get_expression_mat(self, split='train'):
         return self.splits[split]['rpkm_df'].values
 
-    def get_cell_ids(self, split):
+    def get_cell_ids(self, split='train'):
         return self.splits[split]['rpkm_df'].index.values
 
     def get_data_for_neural_net(self, split, one_hot=True):
@@ -92,11 +95,12 @@ class DataContainer(object):
         for label in label_strings:
             y.append(self.label_to_int_map[label])
         output_dim = len(self.label_to_int_map)
-        input_dim = X.shape[1]
         if one_hot:
             y = np_utils.to_categorical(y, output_dim)
-        return X, y, input_dim, output_dim
-    
+        return X, y
+
+    def get_in_out_dims(self):
+        return self.splits['train']['rpkm_df'].shape[1], len(self.label_to_int_map)
     # def save_about_data(self, folder_to_save_in):
     #     """Save some descriptive info about this data to a text file.
     #     """
@@ -107,3 +111,39 @@ class DataContainer(object):
     #         f.write(str(uniq) + "\n")
     #         f.write("\nCount for each label:\n")
     #         f.write(str(counts) + "\n")
+
+    def _create_siamese_data_split(self, args, split):
+        CACHE_ROOT = '_cache'
+        SIAM_CACHE = 'siam_data'
+        # First check if we have already cached the siamese data for this configuration
+        # Build a configuration string (a string that uniquely identifies a configuration)
+        normalization = ""
+        if args['--sn']:
+            normalization = "sn"
+        elif args['--gn']:
+            normalization = "gn"
+        config_string = '_'.join([args['--data'], normalization, args['--dynMarginLoss'], args['--dist_mat_file'], args['--trnsfm_fcn'], args['--trnsfm_fcn_param'], args['--unif_diff'], args['--same_lim'], args['--diff_multiplier']])
+        cache_path = join(join(join(CACHE_ROOT, SIAM_CACHE), config_string), split)
+        if exists(cache_path):
+            print("Loading siamese data from cache...")
+            siam_X = np.load(join(cache_path, "siam_X.npy"))
+            print('Siamese X shape:')
+            print(siam_X.shape)
+            self.splits[split]['siam_X'] = [ siam_X[:, 0], siam_X[:, 1] ]
+            self.splits[split]['siam_y'] = np.load(join(cache_path, "siam_y.npy"))
+        else:
+            # If cached data doesn't exist, we have to make it
+            X = self.get_expression_mat(split)
+            uniq_label_strings, y = np.unique(self.splits[split]['labels_series'].values, return_inverse=True)
+            siam_X, siam_y = siamese.create_flexible_data_pairs(X, y, self.get_true_ids(split), uniq_label_strings, args)
+            print('Siamese X shape:')
+            print(siam_X.shape)
+            self.splits[split]['siam_X'] = [ siam_X[:, 0], siam_X[:, 1] ]
+            self.splits[split]['siam_y'] = siam_y
+            makedirs(cache_path)
+            np.save(join(cache_path, "siam_X"), siam_X)
+            np.save(join(cache_path, "siam_y"), siam_y)
+    
+    def create_siamese_data(self, args):
+        for split in self.splits.keys():
+            self._create_siamese_data_split(args, split)

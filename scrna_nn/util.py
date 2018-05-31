@@ -15,6 +15,9 @@ def create_working_directory(out_path, parent, suffix=""):
     return out_path
 
 def build_indices_master_list(X, y):
+    '''Builds a mapping of label (encoded as int) to a list
+    of indices of training examples that have that label.
+    '''
     indices_lists = defaultdict(list) # dictionary of lists
     print(X.shape[0], "examples in dataset")
     for sample_idx in range(X.shape[0]):

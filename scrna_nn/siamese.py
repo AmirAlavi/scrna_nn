@@ -6,6 +6,7 @@ from itertools import combinations
 import numpy as np
 
 from . import distances
+from . import util
 from .util import ScrnaException
 
 CACHE_ROOT = "_cache"
@@ -85,20 +86,21 @@ def select_diff_pairs(X, y, true_ids, label_strings_lookup, anchor_label, anchor
         pairs, labels = unconstrained_select_diff_pairs(similarity_to_anchor, X, y, true_ids, anchor_samples, same_count, int(args['--diff_multiplier']))
     return pairs, labels
 
-def create_flexible_data_pairs(X, y, true_ids, indices_lists, same_lim, label_strings_lookup, args):
-    normalization = ""
-    if args['--sn']:
-        normalization = "sn"
-    elif args['--gn']:
-        normalization = "gn"
-    config_string = '_'.join([args['--data'], normalization, args['--dynMarginLoss'], args['--dist_mat_file'], args['--trnsfm_fcn'], args['--trnsfm_fcn_param'], args['--unif_diff'], args['--same_lim'], args['--diff_multiplier']])
-    cache_path = join(join(CACHE_ROOT, SIAM_CACHE), config_string)
-    if exists(cache_path):
-        print("Loading siamese data from cache...")
-        pairs = np.load(join(cache_path, "siam_X.npy"))
-        labels = np.load(join(cache_path, "siam_y.npy"))
-        return pairs, labels
-
+#def create_flexible_data_pairs(X, y, true_ids, indices_lists, same_lim, label_strings_lookup, args):
+def create_flexible_data_pairs(X, y, true_ids, label_strings_lookup, args):
+    # normalization = ""
+    # if args['--sn']:
+    #     normalization = "sn"
+    # elif args['--gn']:
+    #     normalization = "gn"
+    # config_string = '_'.join([args['--data'], normalization, args['--dynMarginLoss'], args['--dist_mat_file'], args['--trnsfm_fcn'], args['--trnsfm_fcn_param'], args['--unif_diff'], args['--same_lim'], args['--diff_multiplier']])
+    # cache_path = join(join(CACHE_ROOT, SIAM_CACHE), config_string)
+    # if exists(cache_path):
+    #     print("Loading siamese data from cache...")
+    #     pairs = np.load(join(cache_path, "siam_X.npy"))
+    #     labels = np.load(join(cache_path, "siam_y.npy"))
+    #     return pairs, labels
+    same_lim = int(args['--same_lim'])
     if args['--dynMarginLoss'] == 'ontology':
         print("ontology-based similarities")
         similarity_fcn = distances.OntologyBasedPairSimilarity(max_ontology_distance=int(args['--max_ont_dist']),
@@ -116,6 +118,7 @@ def create_flexible_data_pairs(X, y, true_ids, indices_lists, same_lim, label_st
     print("Generating 'Flexible' pairs for siamese")
     pairs = []
     labels = []
+    indices_lists = util.build_indices_master_list(X, y)
 
     for anchor_label, anchor_samples in indices_lists.items():
         same_count = 0
@@ -139,7 +142,7 @@ def create_flexible_data_pairs(X, y, true_ids, indices_lists, same_lim, label_st
     print(label_counts)
     pairs_np = np.array(pairs)
     labels_np = np.array(labels)
-    makedirs(cache_path)
-    np.save(join(cache_path, "siam_X"), pairs_np)
-    np.save(join(cache_path, "siam_y"), labels_np)
+    # makedirs(cache_path)
+    # np.save(join(cache_path, "siam_X"), pairs_np)
+    # np.save(join(cache_path, "siam_y"), labels_np)
     return pairs_np, labels_np
