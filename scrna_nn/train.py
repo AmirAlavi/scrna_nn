@@ -28,19 +28,17 @@ from . import util
 from . import neural_nets as nn
 from . import distances
 from .bio_knowledge import get_adj_mat_from_groupings
-from . import siamese
+from .retrieval_test import retrieval_test_all_in_memory
 from . import triplet
 from . import unsupervised_pt as pt
 from . import callbacks
 from . import losses_and_metrics
 
-CACHE_ROOT = "_cache"
-SIAM_CACHE = "siam_data"
 
 def pretty_tdelta(tdelta):
     hours, rem = divmod(tdelta.seconds, 3600)
     mins, secs = divmod(rem, 60)
-    return "{:02d}:{:02d}:{:02d}".format(hours, mins, secs)
+    return '{:02d}:{:02d}:{:02d}'.format(hours, mins, secs)
 
 def get_model_architecture(working_dir_path, args, input_dim, output_dim, gene_names):
     base_model = get_base_model_architecture(args, input_dim, output_dim, gene_names)
@@ -62,27 +60,27 @@ def get_model_architecture(working_dir_path, args, input_dim, output_dim, gene_n
     return model, embedding_dim
 
 def get_base_model_architecture(args, input_dim, output_dim, gene_names):
-    """Possible options for neural network architectures are outlined in the '--help' command
+    '''Possible options for neural network architectures are outlined in the '--help' command
 
     This function parses the user's options to determine what kind of architecture to construct.
     This could be a typical dense (MLP) architecture, a sparse architecture, or some combination.
     Users must provide an adjacency matrix for sparsely connected layers.
-    """
+    '''
     adj_mat = None
     go_first_level_adj_mat = None
     go_other_levels_adj_mats = None
     flatGO_ppitf_adj_mats = None
     if args['--nn'] == 'sparse' or args['--nn'] == 'GO_ppitf':
         _, _, adj_mat = get_adj_mat_from_groupings(args['--sparse_groupings'], gene_names)
-        print("Sparse layer adjacency mat shape: ", adj_mat.shape)
+        print('Sparse layer adjacency mat shape: ', adj_mat.shape)
     if args['--nn'] == 'GO' or args['--nn'] == 'GO_ppitf':
         # For now, we expect these file names
         # TODO: decouple file naming
         go_first_level_groupings_file = join(args['--go_arch'], 'GO_arch_first_level_groupings.txt')
         t0 = time.time()
         _, _, go_first_level_adj_mat = get_adj_mat_from_groupings(go_first_level_groupings_file, gene_names)
-        print("get adj mat from groupings file took: ", time.time() - t0)
-        print("(GO first level) Sparse layer adjacency mat shape: ", go_first_level_adj_mat.shape)
+        print('get adj mat from groupings file took: ', time.time() - t0)
+        print('(GO first level) Sparse layer adjacency mat shape: ', go_first_level_adj_mat.shape)
         go_other_levels_adj_mats_file = join(args['--go_arch'], 'GO_arch_other_levels_adj_mats.pickle')
         with open(go_other_levels_adj_mats_file, 'rb') as fp:
             go_other_levels_adj_mats = pickle.load(fp)
@@ -94,34 +92,32 @@ def get_base_model_architecture(args, input_dim, output_dim, gene_names):
     #     _, _, adj_mat = get_adj_mat_from_groupings(args['--sparse_groupings'], gene_names)
         
     hidden_layer_sizes = [int(x) for x in args['<hidden_layer_sizes>']]
-    if args['--ae']:
-        if args['--nn'] == 'GO':
-            print("For GO autoencoder, doing 1st layer")
-            adj_mat = go_first_level_adj_mat
+    # if args['--ae']:
+    #     if args['--nn'] == 'GO':
+    #         print('For GO autoencoder, doing 1st layer')
+    #         adj_mat = go_first_level_adj_mat
         
-    return nn.get_nn_model(args['--nn'], hidden_layer_sizes, input_dim, args['--ae'], args['--act'], output_dim, adj_mat, go_first_level_adj_mat, go_other_levels_adj_mats, flatGO_ppitf_adj_mats, int(args['--with_dense']), float(args['--dropout']))
+    return nn.get_nn_model(args['--nn'], hidden_layer_sizes, input_dim, False, args['--act'], output_dim, adj_mat, go_first_level_adj_mat, go_other_levels_adj_mats, flatGO_ppitf_adj_mats, int(args['--with_dense']), float(args['--dropout']))
 
 def get_optimizer(args):
     if args['--opt'] == 'sgd':
-        print("Using SGD optimizer")
+        print('Using SGD optimizer')
         lr = float(args['--sgd_lr'])
         decay = float(args['--sgd_d'])
         momentum = float(args['--sgd_m'])
         return SGD(lr=lr, decay=decay, momentum=momentum, nesterov=args['--sgd_nesterov'])
     else:
-        raise util.ScrnaException("Not a valid optimizer!")
+        raise util.ScrnaException('Not a valid optimizer!')
 
 def compile_model(model, args, optimizer):
     loss = None
     metrics = None
-    if args['--ae']:
-        loss = 'mean_squared_error'
-    elif args['--siamese']:
+    if args['--siamese']:
         if args['--dynMarginLoss']:
-            print("Using dynamic-margin contrastive loss")
+            print('Using dynamic-margin contrastive loss')
             loss = losses_and_metrics.get_dynamic_contrastive_loss(float(args['--dynMargin']))
         else:
-            print("Using contrastive loss")
+            print('Using contrastive loss')
             loss = nn.contrastive_loss
     elif args['--triplet']:
         batch_size = int(args['--batch_hard_P'])*int(args['--batch_hard_K'])
@@ -133,189 +129,6 @@ def compile_model(model, args, optimizer):
         metrics = ['accuracy']
     model.compile(loss=loss, optimizer=optimizer, metrics=metrics)
 
-def get_hard_pairs(X, indices_lists, same_lim, ratio_hard_negatives, siamese_model=None):
-    t0 = time.time()
-    pairs = []
-    labels = []
-    if siamese_model:
-        base_net = siamese_model.layers[2]
-        get_embedding = K.function([base_net.layers[0].input], [base_net.layers[-1].output])
-    # Initially generate pairs by going through each cell type, generate all same pairs, and
-    # then list all the different samples sorted by their distance and choose the closest samples
-    for cell_type in range(len(indices_lists)):
-        # same pairs
-        same_count = 0
-        combs = list(combinations(indices_lists[cell_type], 2))
-        np.random.shuffle(combs)
-        #random.shuffle(combs)
-        for comb in combs:
-            pairs += [[ X[comb[0]], X[comb[1]] ]]
-            labels += [1]
-            same_count += 1
-            if same_count == same_lim:
-                break
-        # hard different pairs
-        # Pick a random representative of the current cell type
-        rep_idx = random.choice(indices_lists[cell_type])
-        rep  = X[rep_idx]
-        if siamese_model:
-            rep = get_embedding([rep])[0]
-        # Get a list of all of the samples with different label
-        all_different_indices = []
-        for diff_cell_type in [x for x in range(len(indices_lists)) if x != cell_type]:
-            all_different_indices += indices_lists[diff_cell_type]
-        all_different_indices = np.array(all_different_indices)
-        all_different = X[all_different_indices]
-        if siamese_model:
-            all_different = get_embedding([all_different])[0]
-        # Sort them by distance to the representative
-        distances = euclidean_distances(all_different, [rep])
-        #distances = np.linalg.norm(rep-all_different, axis=1) #slowest
-        #distances = distance.cdist([rep], all_different, 'euclidean') #slow
-        sorted_different_indices = all_different_indices[distances.argsort()]
-        # Select pairs from these
-        for i in range(same_count*ratio_hard_negatives):
-            pairs += [[ X[rep_idx], X[sorted_different_indices[i]][0] ]]
-            labels += [0]
-    pairs = np.array(pairs)
-    pairs = [ pairs[:, 0], pairs[:, 1] ]
-    labels = np.array(labels)
-    print("Picking new pairs took ", time.time()-t0, " seconds")
-    return pairs, labels
-
-def online_siamese_training(model, data_container, epochs, n, same_lim, ratio_hard_negatives):
-    X_orig, y_orig, label_strings_lookup = data_container.get_data()
-    indices_lists = util.build_indices_master_list(X_orig, y_orig)
-    pairs = []
-    labels = []
-    # Initially generate pairs by going through each cell type, generate all same pairs, and
-    # then list all the different samples sorted by their distance and choose the closest samples
-    # print("profiling...")
-    # cProfile.runctx('get_hard_pairs(X_orig, indices_lists, same_lim, ratio_hard_negatives)', globals={'get_hard_pairs':get_hard_pairs}, locals={'X_orig':X_orig, 'indices_lists':indices_lists, 'same_lim':same_lim, 'ratio_hard_negatives':ratio_hard_negatives}, filename='pairs_stats')
-    # print("done profiling")
-    X, y = get_hard_pairs(X_orig, indices_lists, same_lim, ratio_hard_negatives)
-    print("Generated ", len(X[0]), " pairs")
-    print("Distribution of different and same pairs: ", np.bincount(y))
-    loss_list = []
-    val_loss_list = []
-    for epoch in range(0, epochs):
-        print("Epoch ", epoch+1)
-        # TODO: allow user to set aside some for validation
-        epoch_hist = model.fit(X, y, epochs=1, verbose=1, validation_data=(X, y))
-        loss_list.append(epoch_hist.history['loss'])
-        val_loss_list.append(epoch_hist.history['val_loss'])
-        if epoch % n == 0:
-            # Get new pairs
-            X, y = get_hard_pairs(X_orig, indices_lists, same_lim, ratio_hard_negatives, model)
-    hist = {}
-    hist['loss'] = loss_list
-    hist['val_loss'] = val_loss_list
-    History = namedtuple('History', ['history'])
-    return History(history=hist)
-
-def create_data_pairs(X, y, true_ids, indices_lists, same_lim, args):
-    # cache_path = join(join(CACHE_ROOT, SIAM_CACHE), 'binary_200K')
-    cache_path = join(CACHE_ROOT, SIAM_CACHE)
-    cache_path = join(cache_path, args['--data']) # To make sure that we change cache when we change the dataset
-    if exists(cache_path):
-        print("Loading siamese data from cache...")
-        pairs = np.load(join(cache_path, "siam_X.npy"))
-        labels = np.load(join(cache_path, "siam_y.npy"))
-        return pairs, labels
-    pairs = []
-    labels = []
-    for label in range(len(indices_lists)):
-        same_count = 0
-        combs = combinations(indices_lists[label], 2)
-        # TODO: should I shuffle the combs?
-        for comb in combs:
-            pairs += [[ X[comb[0]], X[comb[1]] ]]
-            labels += [1]
-            same_count += 1
-            if same_count == same_lim:
-                break
-        # create the same number of different pairs
-        diff_count = 0
-        while diff_count < (2 * same_count):
-            # pair of points (a, b) where a and b have diff labels
-            a_idx = random.choice(indices_lists[label])
-            a = X[a_idx]
-            b_idx = random.randint(0, X.shape[0]-1)
-            while y[b_idx] == label or true_ids[a_idx] == true_ids[b_idx]:
-                b_idx = random.randint(0, X.shape[0]-1)
-            b = X[b_idx]
-            pairs += [[ a, b ]]
-            labels += [0]
-            diff_count += 1
-    print("Generated ", len(pairs), " pairs")
-    print("Distribution of different and same pairs: ", np.bincount(labels))
-    pairs_np = np.array(pairs)
-    labels_np = np.array(labels)
-    makedirs(cache_path, exist_ok=True)
-    np.save(join(cache_path, "siam_X"), pairs_np)
-    np.save(join(cache_path, "siam_y"), labels_np)
-    return pairs_np, labels_np
-
-def create_data_pairs_diff_datasets(X, y, dataset_IDs, indices_lists, same_lim):
-    pairs = []
-    labels = []
-    print("num labels: ", len(indices_lists))
-    for label in range(len(indices_lists)):
-        same_count = 0
-        combs = combinations(indices_lists[label], 2)
-        for comb in combs:
-            # only add this pair to the list if each sample comes from a different dataset
-            a_idx = comb[0]
-            b_idx = comb[1]
-            if dataset_IDs[a_idx] == dataset_IDs[b_idx]:
-                continue
-            pairs += [[ X[a_idx], X[b_idx] ]]
-            labels += [1]
-            same_count += 1
-            if same_count == same_lim:
-                break
-        # create the same number of different pairs
-        diff_count = 0
-        while diff_count < (2 * same_count):
-            a_idx = random.choice(indices_lists[label])
-            a = X[a_idx]
-            diff_idx = random.randint(0, X.shape[0]-1)
-            # Pick another sample that has a different label AND comes from a different dataset
-            while(y[diff_idx] == label or dataset_IDs[a_idx] == dataset_IDs[diff_idx]):
-                diff_idx = random.randint(0, X.shape[0]-1)
-            b = X[diff_idx]
-            pairs += [[ a, b ]]
-            labels += [0]
-            diff_count += 1
-    print("Generated ", len(pairs), " pairs")
-    print("Distribution of different and same pairs: ", np.bincount(labels))
-    return np.array(pairs), np.array(labels)
-
-def get_data_for_siamese(data_container, args):
-    # TODO: this is broken, update to make it work with the new DataContainer
-    X, y, label_strings_lookup = data_container.get_data()
-    true_ids = data_container.get_true_ids()
-    print("bincount")
-    print(np.bincount(y))
-    indices_lists = util.build_indices_master_list(X, y)
-    # # Try with dataset-aware pair creation
-    # dataset_IDs = data_container.get_dataset_IDs()
-    # print("num samples: ", len(y))
-    # print("len(dataset_IDs): ", len(dataset_IDs))
-    # assert(len(dataset_IDs) == len(y))
-    # X_siamese, y_siamese = create_data_pairs_diff_datasets(X, y, dataset_IDs, indices_lists, same_lim)
-    same_lim = int(args['--same_lim'])
-    if args['--dynMarginLoss']:
-        X_siamese, y_siamese = siamese.create_flexible_data_pairs(X, y, true_ids, indices_lists, same_lim, label_strings_lookup, args)
-    else:
-        X_siamese, y_siamese = create_data_pairs(X, y, true_ids, indices_lists, same_lim, args)
-    # Runs out of memory when trying to shuffle
-    #X_siamese, y_siamese = shuffle(X_siamese, y_siamese) # Shuffle so that Keras's naive selection of validation data doesn't get all same class
-    print("X shape: ", X_siamese.shape)
-    print("y shape: ", y_siamese.shape)
-    X_siamese = [ X_siamese[:, 0], X_siamese[:, 1] ]
-    return X_siamese, y_siamese
-
 def plot_accuracy_history(history, path):
     plt.figure()
     plt.plot(history.history['acc'])
@@ -326,119 +139,77 @@ def plot_accuracy_history(history, path):
     plt.legend(['train', 'valid'], loc='upper left')
     plt.savefig(path)
     plt.close()
-    
-def visualize_embedding(X, labels, path):
-    print(X.shape)
-    label_subset = {'HSC':'blue', '2cell':'green', 'spleen':'red', 'neuron':'cyan', 'ESC':'black'}
-    
-    # Only plot the subset of data
-    subset_idx = []
-    colors = []
-    for i in range(len(labels)):
-        if labels[i] in label_subset.keys():
-            subset_idx.append(i)
-            colors.append(label_subset[labels[i]])
-    print("subset")
-    print(len(subset_idx))
-    subset_points = X[subset_idx]
-    print(subset_points.shape)
-    subset_labels = labels[subset_idx]
-    tsne = TSNE(n_components=2, random_state=0)
-    embedding = tsne.fit_transform(subset_points)
-    plt.clf()
-    plt.scatter(embedding[:,0], embedding[:,1], c=colors)
-    plt.savefig(path)
-
-def get_data_for_testing(args, train_datacontainer, label_to_int_map):
-    test_datacontainer = None
-    if args['--gn']:
-        test_datacontainer = DataContainer(args['--test_data'], sample_normalize=False, feature_normalize=True, feature_mean=train_datacontainer.mean, feature_std=train_datacontainer.std)
-    else:
-        test_datacontainer = DataContainer(args['--test_data'], sample_normalize=args['--sn'], feature_normalize=False)
-    X = test_datacontainer.get_expression_mat()
-    y_strings = test_datacontainer.get_labels()
-    # Need to encode these labels with the same numbers as when we trained the model
-    y = []
-    for label_string in y_strings:
-        y.append(np.expand_dims(label_to_int_map[label_string], 0))
-    print(y[0].shape)
-    y = np.concatenate(y, axis=0)
-    print(y.shape)
-    return X, y
-
-def get_data_for_training(data_container, args):
-    gene_names = data_container.get_gene_names()
-    
-    output_dim = None
-    # Supervised training:
-    print("Supervised training")
-    X, y, label_strings_lookup = data_container.get_data()
-    output_dim = max(y) + 1
-    if not args['--triplet']: # triplet net code needs labels that aren't 1-hot encoded
-        print("One-hot enocoding")
-        y = np_utils.to_categorical(y, output_dim)
-    label_to_int_map = {}
-    for i, label_string in enumerate(data_container.get_labels()):
-        label_to_int_map[label_string] = y[i]
-    input_dim = X.shape[1]
-    print("Input dim: ", input_dim)
-    print("Output dim: ", output_dim)
-    return X, y, input_dim, output_dim, label_strings_lookup, gene_names, label_to_int_map
 
 def train_pca_model(working_dir_path, args, data):
-    print("Training a PCA model...")
+    print('Training a PCA model...')
     model = PCA(n_components=int(args['--pca']))
     X = data.get_expression_mat('train')
     model.fit(X)
-    with open(join(working_dir_path, "pca.p"), 'wb') as f:
+    with open(join(working_dir_path, 'pca.p'), 'wb') as f:
         pickle.dump(model, f)
 
-def train_siamese_neural_net(model, args, data_container, callbacks_list):
-    if args['--online_train']:
-        # TODO: add callbacks option to online training
-        history = online_siamese_training(model, data_container, int(args['--epochs']), int(args['--online_train']), same_lim=2000, ratio_hard_negatives=2)
+def fit_neural_net(model, args, data, callbacks_list, working_dir_path):
+    if args['--triplet']:
+        history = fit_triplet_neural_net(model, args, data, callbacks_list)
+        plt.figure()
+        plt.semilogy(history.history['frac_active_triplet_metric'])
+        plt.title('Fraction of active triplets per epoch')
+        plt.ylabel('% active triplets')
+        plt.xlabel('epoch')
+        plt.savefig(join(working_dir_path, 'frac_active_triplets.png'))
+        plt.close()
     else:
-        # same_lim =  750, 100K
-        # same_lim = 1500, 200K
-        # same_lim = 3000, 
-        # same_lim = 3300, 400K
-        # same_lim = 3500, 428K
-        X, y = get_data_for_siamese(data_container, args) # this function shuffles the data too
-        history = model.fit(X, y, batch_size=int(args['--batch_size']), epochs=int(args['--epochs']), verbose=1, validation_split=float(args['--valid']), callbacks=callbacks_list)
+        if args['--siamese']:
+            # Specially routines for training siamese models
+            data.create_siamese_data(args)
+            X_train = data.splits['train']['siam_X']
+            y_train = data.splits['train']['siam_y']
+            X_valid = data.splits['valid']['siam_X']
+            y_valid = data.splits['valid']['siam_y']
+        else:
+            X_train, y_train = data.get_data_for_neural_net('train', one_hot=True)
+            X_valid, y_valid = data.get_data_for_neural_net('valid', one_hot=True)
+            print('Train data shapes:')
+            print(X_train.shape)
+            print(y_train.shape)
+            print('Valid data shapes:')
+            print(X_valid.shape)
+            print(y_valid.shape)
+        history = model.fit(X_train, y_train, batch_size=int(args['--batch_size']), epochs=int(args['--epochs']), verbose=1, validation_data=(X_valid, y_valid), callbacks=callbacks_list)
     return history
 
-def train_triplet_neural_net(model, args, X, y, callbacks_list):
+def fit_triplet_neural_net(model, args, data, callbacks_list):
     print(model.summary())
-    train_frac = 1.0 - float(args['--valid'])
-    split_idx = math.ceil(X.shape[0] * train_frac)
     embedding_dim = model.layers[-1].output_shape[1]
     P = int(args['--batch_hard_P'])
     K = int(args['--batch_hard_K'])
     num_batches = int(args['--num_batches'])
-    train_data = triplet.TripletSequence(X[0:split_idx], y[0:split_idx], embedding_dim, P, K, num_batches)
-    valid_data = triplet.TripletSequence(X[split_idx:], y[split_idx:], embedding_dim, P, K, num_batches)
+    X_train, y_train = data.get_data_for_neural_net('train', one_hot=False)
+    X_valid, y_valid = data.get_data_for_neural_net('valid', one_hot=False)
+    train_data = triplet.TripletSequence(X_train, y_train, embedding_dim, P, K, num_batches)
+    valid_data = triplet.TripletSequence(X_valid, y_valid, embedding_dim, P, K, num_batches)
     history = model.fit_generator(train_data, epochs=int(args['--epochs']), verbose=1, callbacks=callbacks_list, validation_data=valid_data)
     return history
 
 def save_neural_net(working_dir_path, args, model):
-    print("saving model to folder: " + working_dir_path)
+    print('saving model to folder: ' + working_dir_path)
     if args['--checkpoints']:
-        path = join(working_dir_path, "last_model.h5")
-        path_weights = join(working_dir_path, "last_model_weights.h5")
+        path = join(working_dir_path, 'last_model.h5')
+        path_weights = join(working_dir_path, 'last_model_weights.h5')
     else:
-        path = join(working_dir_path, "model.h5")
-        path_weights = join(working_dir_path, "model_weights.h5")
+        path = join(working_dir_path, 'model.h5')
+        path_weights = join(working_dir_path, 'model_weights.h5')
     if args['--siamese']:
         # For siamese nets, we only care about saving the subnetwork, not the whole siamese net
         model = model.layers[2] # For now, seems safe to assume index 2 corresponds to base net
-    print("Model saved:\n\n\n")
+    print('Model saved:\n\n\n')
     print(model.summary())
     nn.save_trained_nn(model, path, path_weights)
 
 def get_callbacks_list(working_dir_path, args):
     callbacks_list = []
     if args['--sgd_step_decay']:
-        print("Using SGD Step Decay")
+        print('Using SGD Step Decay')
         lr_history = callbacks.StepLRHistory(float(args['--sgd_lr']), int(args['--sgd_step_decay']))
         lrate_sched = LearningRateScheduler(lr_history.get_step_decay_fcn())
         callbacks_list.extend([lr_history, lrate_sched])
@@ -450,29 +221,119 @@ def get_callbacks_list(working_dir_path, args):
         # checkpoints_folder = join(working_dir_path, 'checkpoints')
         # if not exists(checkpoints_folder):
         #     makedirs(checkpoints_folder)
-        # callbacks_list.append(ModelCheckpoint(checkpoints_folder+"/model_{epoch:03d}-{val_loss:06.3f}.h5", monitor='val_loss', verbose=1, save_best_only=True))
-        callbacks_list.append(ModelCheckpoint(working_dir_path+"/model.h5", monitor=args['--checkpoints'], verbose=1, save_best_only=True))
-        callbacks_list.append(ModelCheckpoint(working_dir_path+"/model_weights.h5", monitor=args['--checkpoints'], verbose=1, save_best_only=True, save_weights_only=True))
+        # callbacks_list.append(ModelCheckpoint(checkpoints_folder+'/model_{epoch:03d}-{val_loss:06.3f}.h5', monitor='val_loss', verbose=1, save_best_only=True))
+        callbacks_list.append(ModelCheckpoint(working_dir_path+'/model.h5', monitor=args['--checkpoints'], verbose=1, save_best_only=True))
+        callbacks_list.append(ModelCheckpoint(working_dir_path+'/model_weights.h5', monitor=args['--checkpoints'], verbose=1, save_best_only=True, save_weights_only=True))
     if args['--loss_history']:
         callbacks_list.append(callbacks.LossHistory(working_dir_path))
     return callbacks_list
+
+def layerwise_train_neural_net(working_dir_path, args, data, train_report):
+    print('Layerwise pre-training a Neural Network model...')
+    # Set up optimizer
+    opt = get_optimizer(args)
+    # Construct network architecture
+    gene_names = data.get_gene_names()
+    input_dim, output_dim = data.get_in_out_dims()
+    model, embed_dims = get_model_architecture(working_dir_path, args, input_dim, output_dim, gene_names)
+    training_report['cfg_DIMS'] = embed_dims
+    # Get unlabeled data
+    X = data.get_expression_mat()
+    # Greedy layerwise pretrain
+    hidden_layer_sizes = [int(x) for x in args['<hidden_layer_sizes>']]
+    if args['--nn'] == 'dense':
+        if hidden_layer_sizes == [1136, 100]:
+            pt.pretrain_dense_1136_100_model(model, input_dim, opt, X, working_dir_path, args)
+        elif hidden_layer_sizes == [1136, 500, 100]:
+            pt.pretrain_dense_1136_500_100_model(input_dim, opt, X, working_dir_path, args)
+        else:
+            raise util.ScrnaException('Layerwise pretraining not implemented for this architecture')
+    elif args['--nn'] == 'sparse' and int(args['--with_dense']) == 100:
+        if 'flat' in args['--sparse_groupings']:
+            print('Layerwise pretraining for FlatGO')
+            if hidden_layer_sizes == [100]:
+                _, _, adj_mat = get_adj_mat_from_groupings(args['--sparse_groupings'], gene_names)
+                pt.pretrain_flatGO_400_100_model(input_dim, adj_mat, opt, X, working_dir_path, args)
+            elif hidden_layer_sizes == [200, 100]:
+                _, _, adj_mat = get_adj_mat_from_groupings(args['--sparse_groupings'], gene_names)
+                pt.pretrain_flatGO_400_200_100_model(input_dim, adj_mat, opt, X, working_dir_path, args)
+            else:
+                raise util.ScrnaException('Layerwise pretraining not implemented for this architecture')
+        else:
+            print('Layerwise pretraining for PPITF')
+            if hidden_layer_sizes == [100]:
+                _, _, adj_mat = get_adj_mat_from_groupings(args['--sparse_groupings'], gene_names)
+                pt.pretrain_ppitf_1136_100_model(input_dim, adj_mat, opt, X, working_dir_path, args)
+            elif hidden_layer_sizes == [500, 100]:
+                _, _, adj_mat = get_adj_mat_from_groupings(args['--sparse_groupings'], gene_names)
+                pt.pretrain_ppitf_1136_500_100_model(input_dim, adj_mat, opt, X, working_dir_path, args)
+            else:
+                raise util.ScrnaException('Layerwise pretraining not implemented for this architecture')
+
+    elif args['--nn'] == 'GO' and int(args['--with_dense']) == 31:
+        go_first_level_groupings_file = join(args['--go_arch'], 'GO_arch_first_level_groupings.txt')
+        _, _, go_first_level_adj_mat = get_adj_mat_from_groupings(go_first_level_groupings_file, gene_names)
+        go_other_levels_adj_mats_file = join(args['--go_arch'], 'GO_arch_other_levels_adj_mats.pickle')
+        with open(go_other_levels_adj_mats_file, 'rb') as fp:
+            go_other_levels_adj_mats = pickle.load(fp)
+        pt.pretrain_GOlvls_model(input_dim, go_first_level_adj_mat, go_other_levels_adj_mats[0], go_other_levels_adj_mats[1], opt, X, working_dir_path, args)
+    else:
+        raise util.ScrnaException('Layerwise pretraining not implemented for this architecture')
+
+def evaluate_model(model, args, data, training_report):
+    # Get performance on each metric for each split
+    for split in data.splits.keys():
+        if args['--siamese']:
+            X = data.splits[split]['siam_X']
+            y = data.splits[split]['siam_y']
+        else:
+            X, y = data.get_data_for_neural_net(split, one_hot=not args['--triplet'])
+        if args['--triplet']:
+            # TODO: remove copy/pasted code
+            embedding_dim = model.layers[-1].output_shape[1]
+            bh_P = int(args['--batch_hard_P'])
+            bh_K = int(args['--batch_hard_K'])
+            num_batches = int(args['--num_batches'])
+            eval_data = triplet.TripletSequence(X, y, embedding_dim, bh_P, bh_K, num_batches)
+            eval_results = model.evaluate_generator(eval_data, verbose=1)
+        else:
+            eval_results = model.evaluate(x=X, y=y)
+        try: # Ensure eval_results is iterable
+            _ = (i for i in eval_results)
+        except TypeError:
+            eval_results = [eval_results]
+        for metric, res in zip(model.metrics_names, eval_results):
+            training_report['res_{}_{}'.format(split, metric)] = res
+            print('{}\t{}\t{}'.format(split, metric, res))
+    # Additionally, test retrieval performance with valid and test splits as queries
+    database = data.get_expression_mat(split='train')
+    reducing_model = model
+    if args['--siamese']:
+        reducing_model = model.layers[2]
+        last_hidden_layer = reducing_model.layers[-1]
+    elif args['--triplet']:
+        last_hidden_layer = reducing_model.layers[-1]
+    else:
+        last_hidden_layer = reducing_model.layers[-2]
+    get_activations = K.function([reducing_model.layers[0].input], [last_hidden_layer.output])
+    database = get_activations([database])[0]
+    database_labels = data.get_labels('train')
+    for split in ['valid', 'test']:
+        query = data.get_expression_mat(split)
+        query = get_activations([query])[0]
+        query_labels = data.get_labels(split)
+        avg_map, wt_avg_map, avg_mafp, wt_avg_mafp = retrieval_test_all_in_memory(database, database_labels, query, query_labels)
+        training_report['res_{}_avg_map'.format(split)] = avg_map
+        training_report['res_{}_wt_avg_map'.format(split)] = wt_avg_map
+        training_report['res_{}_avg_mafp'.format(split)] = avg_mafp
+        training_report['res_{}_wt_avg_mafp'.format(split)] = wt_avg_mafp
     
 def train_neural_net(working_dir_path, args, data, training_report):
-    print("Training a Neural Network model...")
-    #X, y, input_dim, output_dim, label_strings_lookup, gene_names, label_to_int_map = get_data_for_training(data_container, args)
-    X_train, y_train, input_dim, output_dim = data.get_data_for_neural_net('train', one_hot=not args['--triplet'])
-    X_valid, y_valid, _, _ = data.get_data_for_neural_net('valid', one_hot=not args['--triplet'])
-    gene_names = data.get_gene_names()
-    print("Train data shapes:")
-    print(X_train.shape)
-    print(y_train.shape)
-    print("Valid data shapes:")
-    print(X_valid.shape)
-    print(y_valid.shape)
-    #X, y = shuffle(X, y) # Shuffle so that Keras's naive selection of validation data doesn't get all same class
-    opt = get_optimizer(args)
-    
+    print('Training a Neural Network model...')
+    # Construct network architecture
     ngpus = int(args['--ngpus'])
+    gene_names = data.get_gene_names()
+    input_dim, output_dim = data.get_in_out_dims()
     if ngpus > 1:
         import tensorflow as tf
         with tf.device('/cpu:0'):
@@ -481,109 +342,31 @@ def train_neural_net(working_dir_path, args, data, training_report):
     else:
         template_model, embed_dims = get_model_architecture(working_dir_path, args, input_dim, output_dim, gene_names)
         model = template_model
-
     training_report['cfg_DIMS'] = embed_dims
-    
-    if args['--layerwise_pt']:
-        hidden_layer_sizes = [int(x) for x in args['<hidden_layer_sizes>']]
-        if args['--nn'] == 'dense':
-            if hidden_layer_sizes == [1136, 100]:
-                pt.pretrain_dense_1136_100_model(model, input_dim, opt, X, working_dir_path, args)
-            elif hidden_layer_sizes == [1136, 500, 100]:
-                pt.pretrain_dense_1136_500_100_model(input_dim, opt, X, working_dir_path, args)
-            else:
-                raise util.ScrnaException("Layerwise pretraining not implemented for this architecture")
-        elif args['--nn'] == 'sparse' and int(args['--with_dense']) == 100:
-            if 'flat' in args['--sparse_groupings']:
-                print('Using pretrained weights for FlatGO')
-                if hidden_layer_sizes == [100]:
-                    _, _, adj_mat = get_adj_mat_from_groupings(args['--sparse_groupings'], gene_names)
-                    pt.pretrain_flatGO_400_100_model(input_dim, adj_mat, opt, X, working_dir_path, args)
-                elif hidden_layer_sizes == [200, 100]:
-                    _, _, adj_mat = get_adj_mat_from_groupings(args['--sparse_groupings'], gene_names)
-                    pt.pretrain_flatGO_400_200_100_model(input_dim, adj_mat, opt, X, working_dir_path, args)
-                else:
-                    raise util.ScrnaException("Layerwise pretraining not implemented for this architecture")
-            else:
-                print("Using pretrained weights for PPITF")
-                if hidden_layer_sizes == [100]:
-                    _, _, adj_mat = get_adj_mat_from_groupings(args['--sparse_groupings'], gene_names)
-                    pt.pretrain_ppitf_1136_100_model(input_dim, adj_mat, opt, X, working_dir_path, args)
-                elif hidden_layer_sizes == [500, 100]:
-                    _, _, adj_mat = get_adj_mat_from_groupings(args['--sparse_groupings'], gene_names)
-                    pt.pretrain_ppitf_1136_500_100_model(input_dim, adj_mat, opt, X, working_dir_path, args)
-                else:
-                    raise util.ScrnaException("Layerwise pretraining not implemented for this architecture")
-
-        elif args['--nn'] == 'GO' and int(args['--with_dense']) == 31:
-            go_first_level_groupings_file = join(args['--go_arch'], 'GO_arch_first_level_groupings.txt')
-            _, _, go_first_level_adj_mat = get_adj_mat_from_groupings(go_first_level_groupings_file, gene_names)
-            go_other_levels_adj_mats_file = join(args['--go_arch'], 'GO_arch_other_levels_adj_mats.pickle')
-            with open(go_other_levels_adj_mats_file, 'rb') as fp:
-                go_other_levels_adj_mats = pickle.load(fp)
-            pt.pretrain_GOlvls_model(input_dim, go_first_level_adj_mat, go_other_levels_adj_mats[0], go_other_levels_adj_mats[1], opt, X, working_dir_path, args)
-        else:
-            raise util.ScrnaException("Layerwise pretraining not implemented for this architecture")
-        
+    # Set up optimizer
+    opt = get_optimizer(args)
+    # Compile the model
     compile_model(model, args, opt)
     print(model.summary())
-    print("model compiled and ready for training")
+    print('model compiled and ready for training')
     # Prep callbacks
     callbacks_list = get_callbacks_list(working_dir_path, args)
-    print("training model...")
+    # Fit the model
+    print('training model...')
     t0 = datetime.datetime.now()
-    if args['--siamese']:
-        # Specially routines for training siamese models
-        history = train_siamese_neural_net(model, args, data_container, callbacks_list)
-    elif args['--triplet']:
-        history = train_triplet_neural_net(model, args, X, y, callbacks_list)
-        plt.figure()
-        plt.semilogy(history.history['frac_active_triplet_metric'])
-        plt.title('Fraction of active triplets per epoch')
-        plt.ylabel('% active triplets')
-        plt.xlabel('epoch')
-        plt.savefig(join(working_dir_path, 'frac_active_triplets.png'))
-        plt.close()
-    else:
-        history = model.fit(X_train, y_train, batch_size=int(args['--batch_size']), epochs=int(args['--epochs']), verbose=1, validation_data=(X_valid, y_valid), callbacks=callbacks_list)
+    history = fit_neural_net(model, args, data, callbacks_list, working_dir_path)
     t1 = datetime.datetime.now()
     time_str = pretty_tdelta(t1-t0)
-    print("Training neural net took " + time_str)
+    print('Training neural net took ' + time_str)
     training_report['res_train_time'] = time_str
-    with open(join(working_dir_path, "timing.txt"), 'w') as f:
-        f.write(time_str + "\n")
-    if not args['--ae'] and not args['--siamese'] and not args['--triplet']:
-        plot_accuracy_history(history, join(working_dir_path, "accuracy.png"))
-
-    X_test, y_test, _, _ = data.get_data_for_neural_net('test', one_hot=not args['--triplet'])
-    print("Test data shapes:")
-    print(X_test.shape)
-    print(y_test.shape)
-    print("Evaluating")
-    eval_results = model.evaluate(x=X_test, y=y_test)
-    with open(join(working_dir_path, "evaluation.txt"), 'w') as f:
-        try:
-            for metric, res in zip(model.metrics_names, eval_results):
-                training_report['res_test_{}'.format(metric)] = res
-                print("{}\t{}".format(metric, res))
-                f.write("{}\t{}\n".format(metric, res))
-        except TypeError:
-            print(eval_results)
-            f.write("{}\t{}\n".format(model.metrics_names, eval_results))
+    # Evaluate model
+    # TODO: make this automatically happen via callback
+    if not args['--siamese'] and not args['--triplet']:
+        plot_accuracy_history(history, join(working_dir_path, 'accuracy.png'))
+    print('Evaluating')
+    evaluate_model(model, args, data, training_report)
+    # Finally, save the model
     save_neural_net(working_dir_path, args, template_model)
-    # This code is an artifact, only works with an old dataset.
-    # Needs some attention to make it work for the newer datasets.
-    # if args['--viz']:
-    #     print("Visualizing...")
-    #     X, _, _ = data_container.get_data()
-    #     labels = data_container.get_labels()
-    #     if args['--siamese']:
-    #         last_hidden_layer = model.layers[-1]
-    #     else:
-    #         last_hidden_layer = model.layers[-2]
-    #     get_activations = theano.function([model.layers[0].input], last_hidden_layer.output)
-    #     X_embedded = get_activations(X)
-    #     visualize_embedding(X_embedded, labels, join(working_dir_path, "tsne.png"))
 
 def report_config(args, training_report):
     # Data normalization
@@ -645,27 +428,29 @@ def load_data(args, working_dir):
     data.add_split(join(args['--data'], 'valid_data.h5'), 'valid')
     data.add_split(join(args['--data'], 'test_data.h5'), 'test')
     if args['--gn']:
-        # save the training data mean and std for later use with test data
-        data.mean.to_pickle(join(working_dir, "mean.p"))
-        data.std.to_pickle(join(working_dir, "std.p"))
+        # save the training data mean and std for later use on new data
+        data.mean.to_pickle(join(working_dir, 'mean.p'))
+        data.std.to_pickle(join(working_dir, 'std.p'))
     return data
         
-        
 def train(args):
-    model_type = args['--nn'] if args['--nn'] is not None else "pca"
+    model_type = args['--nn'] if args['--nn'] is not None else 'pca'
     # create a unique working directory for this model
-    working_dir_path = util.create_working_directory(args['--out'], "models/", model_type)
-    with open(join(working_dir_path, "command_line_args.json"), 'w') as fp:
+    working_dir_path = util.create_working_directory(args['--out'], 'models/', model_type)
+    with open(join(working_dir_path, 'command_line_args.json'), 'w') as fp:
         json.dump(args, fp)
     training_report = {'cfg_type': model_type, 'cfg_folder': working_dir_path}
     report_config(args, training_report)
-    print("loading data and setting up model...")
+    print('loading data and setting up model...')
     data = load_data(args, working_dir_path)
     if args['--pca']:
         train_pca_model(working_dir_path, args, data)
         training_report['cfg_DIMS'] = int(args['--pca'])
-    else:
-        train_neural_net(working_dir_path, args, data, training_report)
+    elif args['--nn']:
+        if args['--layerwise_pt']:
+            layerwise_train_neural_net(working_dir_path, args, data, train_report)
+        else:
+            train_neural_net(working_dir_path, args, data, training_report)
 
     # Report the configuration and performance of the model
     with open(join(working_dir_path, 'config_results.csv'), 'w') as f:

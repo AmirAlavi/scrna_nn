@@ -83,7 +83,6 @@ Options:
                               layer as the Sparse layer. [default: 0]
     --init=<pt_weight_file>   Use initial weights from a pretrained weights file. If this flag is not specified,
                               random initialization is used.
-    --ae                      Use an unsupervised autoencoder architecture.
     --layerwise_pt            Use greedy layer-wise pretraining to pretrain the model with denoising
                               autoencoders
     --dropout=<rate>          Use dropout layers to avoid overfitting. The location and number of dropout
