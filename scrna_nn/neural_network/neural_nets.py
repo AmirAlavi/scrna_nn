@@ -10,7 +10,7 @@ from keras import regularizers
 from keras import backend as K
 
 from .sparse_layer import Sparse
-from .util import ScrnaException
+from ..util import ScrnaException
 from . import autoencoders as ae
 from . import losses_and_metrics
 

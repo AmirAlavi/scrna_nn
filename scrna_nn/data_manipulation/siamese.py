@@ -5,9 +5,7 @@ from itertools import combinations
 
 import numpy as np
 
-from . import distances
-from . import util
-from .util import ScrnaException
+from ..util import ScrnaException, distances
 
 CACHE_ROOT = "_cache"
 SIAM_CACHE = "siam_data"

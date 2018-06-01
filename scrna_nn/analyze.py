@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 from sklearn.decomposition import PCA
 from sklearn.manifold import TSNE
 
-from .data_container import DataContainer
+from .data_manipulation.data_container import DataContainer
 from .reduce import _reduce_helper
 from . import util
 

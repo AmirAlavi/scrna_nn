@@ -5,7 +5,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.decomposition import PCA
 
-from .data_container import DataContainer
+from .data_manipulation.data_container import DataContainer
 from . import util
 
 

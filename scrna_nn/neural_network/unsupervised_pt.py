@@ -10,7 +10,7 @@ from keras.callbacks import EarlyStopping
 
 from .sparse_layer import Sparse
 from .sparse_autoencoder import DenseLayerAutoencoder, SparseLayerAutoencoder
-from .util import ScrnaException
+from ..util import ScrnaException
 
 NOISE_LEVEL = 0.1
 

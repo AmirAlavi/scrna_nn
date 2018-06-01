@@ -5,9 +5,8 @@ from os.path import join
 import numpy as np
 from scipy.spatial import distance
 
-from .data_container import DataContainer
-from .util import create_working_directory
-from . import distances
+from .data_manipulation.data_container import DataContainer
+from .util import create_working_directory, distances
 
 # def average_accuracy(query_label, retrieved_labels, dist_mat_by_strings, max_dist):
 #     avg_acc = 0

@@ -3,7 +3,7 @@ import math
 import numpy as np
 from keras.utils import Sequence
 
-from . import util
+from .. import util
 
 
 class TripletSequence(Sequence):

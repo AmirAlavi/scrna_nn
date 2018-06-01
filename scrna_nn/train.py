@@ -23,16 +23,16 @@ from keras.callbacks import Callback, LearningRateScheduler, EarlyStopping, Mode
 from keras.optimizers import SGD
 from keras import backend as K
 
-from .data_container import DataContainer
+from .data_manipulation.data_container import DataContainer
 from . import util
-from . import neural_nets as nn
-from . import distances
-from .bio_knowledge import get_adj_mat_from_groupings
+from .neural_network import neural_nets as nn
+from .util import distances
+from .neural_network.bio_knowledge import get_adj_mat_from_groupings
 from .retrieval_test import retrieval_test_all_in_memory
-from . import triplet
-from . import unsupervised_pt as pt
-from . import callbacks
-from . import losses_and_metrics
+from .neural_network import triplet
+from .neural_network import unsupervised_pt as pt
+from .neural_network import callbacks
+from .neural_network import losses_and_metrics
 
 
 def pretty_tdelta(tdelta):
