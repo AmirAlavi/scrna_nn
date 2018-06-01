@@ -6,6 +6,7 @@ import time
 import keras
 from keras.models import Model, load_model
 from keras.layers import Dense, Input, Lambda, Dropout
+from keras import regularizers
 from keras import backend as K
 
 from .sparse_layer import Sparse
@@ -123,7 +124,7 @@ def get_triplet(base_network):
     embedding = base_network.layers[-2].output
     return Model(name="TripletNet", inputs=base_network.layers[0].input, outputs=embedding)
 
-def get_dense(hidden_layer_sizes, input_dim, activation_fcn='tanh', dropout=0.0):
+def get_dense(hidden_layer_sizes, input_dim, activation_fcn='tanh', dropout=0.0, regularization=None):
     inputs = Input(shape=(input_dim,))
     # Hidden layers
     x = inputs
@@ -131,103 +132,116 @@ def get_dense(hidden_layer_sizes, input_dim, activation_fcn='tanh', dropout=0.0)
         if dropout > 0:
             print("Using dropout layer")
             x = Dropout(dropout)(x)
-        x = Dense(size, activation=activation_fcn)(x)
+        x = Dense(size, activation=activation_fcn, kernel_regularizer=regularization)(x)
     return inputs, x
 
-def get_sparse(hidden_layer_sizes, input_dim, adj_mat, activation_fcn='tanh', extra_dense_units=0):
+def get_sparse(hidden_layer_sizes, input_dim, adj_mat, activation_fcn='tanh', extra_dense_units=0, regularization=None):
     inputs = Input(shape=(input_dim,))
     # Hidden layers
     # first hidden layer
-    sparse_out = Sparse(activation=activation_fcn, adjacency_mat=adj_mat)(inputs)
+    sparse_out = Sparse(activation=activation_fcn, adjacency_mat=adj_mat, kernel_regularizer=regularization)(inputs)
     if extra_dense_units > 0:
-        dense_out = Dense(extra_dense_units, activation=activation_fcn)(inputs)
+        dense_out = Dense(extra_dense_units, activation=activation_fcn, kernel_regularizer=regularization)(inputs)
         x = keras.layers.concatenate([sparse_out, dense_out])
     else:
         x = sparse_out
     # other hidden layers
     for size in hidden_layer_sizes:
-        x = Dense(size, activation=activation_fcn)(x)
+        x = Dense(size, activation=activation_fcn, kernel_regularizer=regularization)(x)
     return inputs, x
 
-def get_GO(hidden_layer_sizes, input_dim, go_first_level_adj_mat, go_other_levels_adj_mats, activation_fcn='tanh', extra_dense_units=0):
+def get_GO(hidden_layer_sizes, input_dim, go_first_level_adj_mat, go_other_levels_adj_mats, activation_fcn='tanh', extra_dense_units=0, regularization=None):
     inputs = Input(shape=(input_dim,))
     # Hidden layers
     # first hidden layer
     # (Condsider entire GO tree (multi-level) as being in the 1st hidden layer)
     t0 = time.time()
-    go_out = Sparse(activation=activation_fcn, adjacency_mat=go_first_level_adj_mat)(inputs)
+    go_out = Sparse(activation=activation_fcn, adjacency_mat=go_first_level_adj_mat, kernel_regularizer=regularization)(inputs)
     print("time to add GO lvl 1: ", time.time() - t0)
     for other_adj_mat in go_other_levels_adj_mats:
         t0 = time.time()
-        go_out = Sparse(activation=activation_fcn, adjacency_mat=other_adj_mat)(go_out)
+        go_out = Sparse(activation=activation_fcn, adjacency_mat=other_adj_mat, kernel_regularizer=regularization)(go_out)
         print("time to add GO lvl: ", time.time() - t0)
     # Finished constructing GO tree
     if extra_dense_units > 0:
-        dense_out = Dense(extra_dense_units, activation=activation_fcn)(inputs)
+        dense_out = Dense(extra_dense_units, activation=activation_fcn, kernel_regularizer=regularization)(inputs)
         x = keras.layers.concatenate([go_out, dense_out])
     else:
         x = go_out
     # other hidden layers
     for size in hidden_layer_sizes:
-        x = Dense(size, activation=activation_fcn)(x)
+        x = Dense(size, activation=activation_fcn, kerel_regularizer=regularization)(x)
     return inputs, x
 
-def get_flatGO_ppitf(hidden_layer_sizes, input_dim, flatGO_ppitf_adj_mats, activation_fcn='tanh', extra_dense_units=0):
+def get_flatGO_ppitf(hidden_layer_sizes, input_dim, flatGO_ppitf_adj_mats, activation_fcn='tanh', extra_dense_units=0, regularization=None):
     inputs = Input(shape=(input_dim,))
     # Hidden layers
     # first hidden layer
-    sparse_flatGO_out = Sparse(activation=activation_fcn, adjacency_mat=flatGO_ppitf_adj_mats[0])(inputs)
-    sparse_ppitf_out = Sparse(activation=activation_fcn, adjacency_mat=flatGO_ppitf_adj_mats[1])(inputs)
+    sparse_flatGO_out = Sparse(activation=activation_fcn, adjacency_mat=flatGO_ppitf_adj_mats[0], kernel_regularizer=regularization)(inputs)
+    sparse_ppitf_out = Sparse(activation=activation_fcn, adjacency_mat=flatGO_ppitf_adj_mats[1], kernel_regularizer=regularization)(inputs)
     if extra_dense_units > 0:
-        dense_out = Dense(extra_dense_units, activation=activation_fcn)(inputs)
+        dense_out = Dense(extra_dense_units, activation=activation_fcn, kernel_regularizer=regularization)(inputs)
         x = keras.layers.concatenate([sparse_flatGO_out, sparse_ppitf_out, dense_out])
     else:
         x = keras.layers.concatenate([sparse_flatGO_out, sparse_ppitf_out])
     # other hidden layers
     for size in hidden_layer_sizes:
-        x = Dense(size, activation=activation_fcn)(x)
+        x = Dense(size, activation=activation_fcn, kernel_regularizer=regularization)(x)
     return inputs, x
 
-def get_GO_ppitf(hidden_layer_sizes, input_dim, ppitf_adj_mat, go_first_level_adj_mat, go_other_levels_adj_mats, activation_fcn='tanh', extra_dense_units=0):
+def get_GO_ppitf(hidden_layer_sizes, input_dim, ppitf_adj_mat, go_first_level_adj_mat, go_other_levels_adj_mats, activation_fcn='tanh', extra_dense_units=0, regularization=None):
     inputs = Input(shape=(input_dim,))
     # Hidden layers
     # first hidden layer
-    ppitf_out = Sparse(activation=activation_fcn, adjacency_mat=ppitf_adj_mat)(inputs)
+    ppitf_out = Sparse(activation=activation_fcn, adjacency_mat=ppitf_adj_mat, kernel_regularizer=regularization)(inputs)
     # (Condsider entire GO tree (multi-level) as being in the 1st hidden layer)
-    go_out = Sparse(activation=activation_fcn, adjacency_mat=go_first_level_adj_mat)(inputs)
+    go_out = Sparse(activation=activation_fcn, adjacency_mat=go_first_level_adj_mat, kernel_regularizer=regularization)(inputs)
     for other_adj_mat in go_other_levels_adj_mats:
-        go_out = Sparse(activation=activation_fcn, adjacency_mat=other_adj_mat)(go_out)
+        go_out = Sparse(activation=activation_fcn, adjacency_mat=other_adj_mat, kernel_regularizer=regularization)(go_out)
     # Finished constructing GO tree
     if extra_dense_units > 0:
-        dense_out = Dense(extra_dense_units, activation=activation_fcn)(inputs)
+        dense_out = Dense(extra_dense_units, activation=activation_fcn, kernel_regularizer=regularization)(inputs)
         x = keras.layers.concatenate([go_out, ppitf_out, dense_out])
     else:
         x = keras.layers.concatenate([go_out, ppitf_out])
     # other hidden layers
     for size in hidden_layer_sizes:
-        x = Dense(size, activation=activation_fcn)(x)
+        x = Dense(size, activation=activation_fcn, kernel_regularizer=regularization)(x)
     return inputs, x
 
-def get_nn_model(model_name, hidden_layer_sizes, input_dim, is_autoencoder, activation_fcn='tanh', output_dim=None, adj_mat=None, go_first_level_adj_mat=None, go_other_levels_adj_mats=None, flatGO_ppitf_adj_mats=None, extra_dense_units=0, dropout=0.0):
+def get_regularization(args):
+    l1_reg = float(args['--l1_reg'])
+    l2_reg = float(args['--l2_reg'])
+    reg = None
+    if l1_reg > 0 and l2_reg > 0:
+        raise ScrnaException('Can only specify L1 or L2 regularization, not both!')
+    if l1_reg > 0:
+        reg = regularizers.l1(l1_reg)
+    elif l2_reg > 0:
+        reg = regularizers.l2(l2_reg)
+    print('Using regularizer: {}'.format(reg))
+    return reg
+
+def get_nn_model(args, model_name, hidden_layer_sizes, input_dim, is_autoencoder, activation_fcn='tanh', output_dim=None, adj_mat=None, go_first_level_adj_mat=None, go_other_levels_adj_mats=None, flatGO_ppitf_adj_mats=None, extra_dense_units=0, dropout=0.0):
     # if is_autoencoder:
     #     # autoencoder architectures in a separate module for organizational purposes
     #     latent_size = None
     #     if hidden_layer_sizes is not None:
     #         latent_size = hidden_layer_sizes[0]
     #     return ae.get_ae_model(model_name, latent_size, input_dim, activation_fcn, adj_mat)
-
+    reg = get_regularization(args)
     print(hidden_layer_sizes)
     # First get the tensors from hidden layers
     if model_name == 'dense':
-        in_tensors, hidden_tensors = get_dense(hidden_layer_sizes, input_dim, activation_fcn, dropout)
+        in_tensors, hidden_tensors = get_dense(hidden_layer_sizes, input_dim, activation_fcn, dropout, reg)
     elif model_name == 'sparse':
-        in_tensors, hidden_tensors = get_sparse(hidden_layer_sizes, input_dim, adj_mat, activation_fcn, extra_dense_units)
+        in_tensors, hidden_tensors = get_sparse(hidden_layer_sizes, input_dim, adj_mat, activation_fcn, extra_dense_units, reg)
     elif model_name == 'GO':
-        in_tensors, hidden_tensors = get_GO(hidden_layer_sizes, input_dim, go_first_level_adj_mat, go_other_levels_adj_mats, activation_fcn, extra_dense_units)
+        in_tensors, hidden_tensors = get_GO(hidden_layer_sizes, input_dim, go_first_level_adj_mat, go_other_levels_adj_mats, activation_fcn, extra_dense_units, reg)
     elif model_name == 'flatGO_ppitf':
-        in_tensors, hidden_tensors = get_flatGO_ppitf(hidden_layer_sizes, input_dim, flatGO_ppitf_adj_mats, activation_fcn, extra_dense_units)
+        in_tensors, hidden_tensors = get_flatGO_ppitf(hidden_layer_sizes, input_dim, flatGO_ppitf_adj_mats, activation_fcn, extra_dense_units, reg)
     elif model_name == 'GO_ppitf':
-        in_tensors, hidden_tensors = get_GO_ppitf(hidden_layer_sizes, input_dim, adj_mat, go_first_level_adj_mat, go_other_levels_adj_mats, activation_fcn, extra_dense_units)
+        in_tensors, hidden_tensors = get_GO_ppitf(hidden_layer_sizes, input_dim, adj_mat, go_first_level_adj_mat, go_other_levels_adj_mats, activation_fcn, extra_dense_units, reg)
     else:
         raise ScrnaException("Bad neural network name: " + model_name)
     

@@ -97,7 +97,7 @@ def get_base_model_architecture(args, input_dim, output_dim, gene_names):
     #         print('For GO autoencoder, doing 1st layer')
     #         adj_mat = go_first_level_adj_mat
         
-    return nn.get_nn_model(args['--nn'], hidden_layer_sizes, input_dim, False, args['--act'], output_dim, adj_mat, go_first_level_adj_mat, go_other_levels_adj_mats, flatGO_ppitf_adj_mats, int(args['--with_dense']), float(args['--dropout']))
+    return nn.get_nn_model(args, args['--nn'], hidden_layer_sizes, input_dim, False, args['--act'], output_dim, adj_mat, go_first_level_adj_mat, go_other_levels_adj_mats, flatGO_ppitf_adj_mats, int(args['--with_dense']), float(args['--dropout']))
 
 def get_optimizer(args):
     if args['--opt'] == 'sgd':
@@ -385,6 +385,10 @@ def report_config(args, training_report):
     training_report['cfg_activation'] = args['--act']
     if float(args['--dropout']) > 0:
         training_report['cfg_dropout'] = float(args['--dropout'])
+    if float(args['--l1_reg']) > 0:
+        training_report['cfg_l1_reg'] = float(args['--l1_reg'])
+    if float(args['--l2_reg']) > 0:
+        training_report['cfg_l2_reg'] = float(args['--l2_reg'])
     if int(args['--with_dense']) > 0:
         training_report['cfg_with_dense'] = int(args['--with_dense'])
     if args['--freeze']:

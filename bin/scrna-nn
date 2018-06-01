@@ -88,6 +88,8 @@ Options:
     --dropout=<rate>          Use dropout layers to avoid overfitting. The location and number of dropout
                               layers depends on the architecture. rate of 0 denotes that no dropout layers
                               should be added. [default: 0]
+    --l1_reg=<l1>             Amount of L1 regularization to use (only on weights, not bias). [default: 0]
+    --l2_reg=<l2>             Amount of L2 regularization to use (only on weights, not bias). [default: 0]
 
 
     **OPTIMIZER-RELATED-OPTIONS**
