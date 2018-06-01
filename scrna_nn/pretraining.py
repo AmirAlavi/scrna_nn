@@ -2,6 +2,7 @@ from keras.models import load_model
 
 from .sparse_layer import Sparse
 
+
 def get_pt_model(pt_base_file_name, args):
     model_file = pt_base_file_name
     if args['--sn']:

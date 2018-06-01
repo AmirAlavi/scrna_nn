@@ -1,13 +1,12 @@
 from os.path import join
 
-import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.decomposition import PCA
 from sklearn.manifold import TSNE
 
+from . import util
 from .data_manipulation.data_container import DataContainer
 from .reduce import _reduce_helper
-from . import util
 
 
 def visualize(data, working_dir):

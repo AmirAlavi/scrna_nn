@@ -1,32 +1,23 @@
 # import pdb; pdb.set_trace()
+import datetime
 import json
 import pickle
-import random
 import time
-import datetime
-import math
-from collections import defaultdict, namedtuple
-from itertools import combinations
-from os import makedirs
-from os.path import join, exists
+from os.path import join
 
-import numpy as np
 import matplotlib
+
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from sklearn.decomposition import PCA
-from sklearn.manifold import TSNE
-from sklearn.metrics.pairwise import euclidean_distances
-from sklearn.utils import shuffle
-from keras.utils import plot_model, np_utils, multi_gpu_model
-from keras.callbacks import Callback, LearningRateScheduler, EarlyStopping, ModelCheckpoint
+from keras.utils import multi_gpu_model
+from keras.callbacks import LearningRateScheduler, EarlyStopping, ModelCheckpoint
 from keras.optimizers import SGD
 from keras import backend as K
 
 from .data_manipulation.data_container import DataContainer
 from . import util
 from .neural_network import neural_nets as nn
-from .util import distances
 from .neural_network.bio_knowledge import get_adj_mat_from_groupings
 from .retrieval_test import retrieval_test_all_in_memory
 from .neural_network import triplet

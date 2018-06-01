@@ -23,9 +23,9 @@ Options:
                                       specified, then the distance matrix is
                                       calculated for each study separately.
 """
-#import pdb; pdb.set_trace()
-import time
 import multiprocessing
+# import pdb; pdb.set_trace()
+import time
 from itertools import repeat
 
 import numpy as np

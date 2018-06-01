@@ -10,7 +10,12 @@ Options:
     -h --help                               Show this screen
 """
 #import pdb; pdb.set_trace()
-import sys
+import os
+import string
+import subprocess
+
+from docopt import docopt
+# import pdb; pdb.set_trace()
 import os
 import string
 import subprocess

@@ -1,18 +1,15 @@
 # import pdb; pdb.set_trace()
-import pickle
-import math
 import time
 
 import keras
-from keras.models import Model, load_model
-from keras.layers import Dense, Input, Lambda, Dropout
-from keras import regularizers
 from keras import backend as K
+from keras import regularizers
+from keras.layers import Dense, Input, Lambda, Dropout
+from keras.models import Model, load_model
 
+from . import losses_and_metrics
 from .sparse_layer import Sparse
 from ..util import ScrnaException
-from . import autoencoders as ae
-from . import losses_and_metrics
 
 
 def save_trained_nn(model, model_path, weights_path):

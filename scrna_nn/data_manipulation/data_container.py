@@ -4,8 +4,8 @@ from collections import defaultdict
 from os import makedirs
 from os.path import join, exists
 
-import pandas as pd
 import numpy as np
+import pandas as pd
 from keras.utils import np_utils
 
 from . import siamese

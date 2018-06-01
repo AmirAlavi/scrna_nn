@@ -2,10 +2,11 @@ import math
 from os import makedirs
 from os.path import join
 
-import numpy as np
-from keras.utils import Sequence
-from keras.callbacks import Callback
 import matplotlib
+import numpy as np
+from keras.callbacks import Callback
+from keras.utils import Sequence
+
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 

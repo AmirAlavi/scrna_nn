@@ -1,5 +1,3 @@
-from collections import defaultdict
-
 import numpy as np
 
 def get_adj_mat_from_groupings(groups_filepath, dataset_gene_names):

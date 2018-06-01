@@ -8,27 +8,26 @@ Options:
     --out=<path>  Path to save output to. 'None' means a time-stamped folder
                   will automatically be created. [default: None]
 """
+import json
+import math
+from collections import defaultdict, Counter
+from itertools import groupby as g
+from os import makedirs
 # import pdb; pdb.set_trace()
 from os.path import join, basename, normpath, exists
-from os import makedirs, remove
-from collections import defaultdict, Counter
-import json
-from itertools import groupby as g
-import math
 
-import pandas as pd
+import matplotlib
 import numpy as np
-from scipy.spatial import distance
 from docopt import docopt
+from scipy.spatial import distance
 from sklearn.decomposition import PCA
 from sklearn.manifold import TSNE
-import matplotlib
+
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 import seaborn
 seaborn.set()
-import FisherExact
 from scipy.stats import binom_test
 
 from scrna_nn.data_container import DataContainer

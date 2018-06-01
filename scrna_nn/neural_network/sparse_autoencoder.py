@@ -1,7 +1,8 @@
-from keras.layers import Dense
 from keras import backend as K
+from keras.layers import Dense
 
 from .sparse_layer import Sparse
+
 
 class DenseLayerAutoencoder(Dense):
     def compute_output_shape(self, input_shape):

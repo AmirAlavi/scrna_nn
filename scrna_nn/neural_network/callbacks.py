@@ -1,9 +1,10 @@
+import math
 from os import makedirs
 from os.path import join, exists
-import math
 
-import numpy as np
 import matplotlib
+import numpy as np
+
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import imageio

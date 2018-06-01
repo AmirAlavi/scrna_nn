@@ -1,9 +1,9 @@
 import numpy as np
-from scipy.stats import truncnorm
-from keras.layers import Dense
-from keras.initializers import Initializer, VarianceScaling, _compute_fans
-from keras.engine import InputSpec
 from keras import backend as K
+from keras.engine import InputSpec
+from keras.initializers import Initializer, VarianceScaling, _compute_fans
+from keras.layers import Dense
+
 
 # For now, only Glorot initializers are supported for the weight matrix of a
 # Sparse layer. Whatever the user specifies for 'kernel_initializer' is ignored.

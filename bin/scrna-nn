@@ -191,11 +191,11 @@ Options:
 # import pdb; pdb.set_trace()
 import sys
 
-from docopt import docopt
 import numpy as np
+from docopt import docopt
 
 if __name__ == '__main__':
-    print("NOTE: setting random seed for reproducability")
+    print("NOTE: setting random seed for reproducibility")
     np.random.seed(34792)
     print(sys.argv)
     args = docopt(__doc__, version='scrna 0.3.0')

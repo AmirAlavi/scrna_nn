@@ -23,10 +23,11 @@ Options:
 """
 
 import json
+import sys
 # import pdb; pdb.set_trace()
 from collections import defaultdict, namedtuple
 from typing import List, Tuple
-import sys
+
 sys.setrecursionlimit(5000)
 
 import mygene

@@ -12,10 +12,10 @@ import subprocess
 import time
 from os import makedirs
 # import pdb; pdb.set_trace()
-from os.path import join, basename, normpath, realpath, dirname
+from os.path import join, realpath, dirname
 
-from docopt import docopt
 import numpy as np
+from docopt import docopt
 
 DEFAULT_WORKING_DIR_ROOT = 'experiments'
 REDUCE_COMMAND_TEMPLATE = """scrna-nn reduce {trained_nn_folder} \

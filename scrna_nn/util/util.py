@@ -1,7 +1,8 @@
 import time
-from os.path import exists, join
-from os import makedirs
 from collections import defaultdict
+from os import makedirs
+from os.path import exists, join
+
 
 class ScrnaException(Exception):
     pass

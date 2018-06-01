@@ -7,8 +7,8 @@ from os.path import join, dirname, exists
 import pandas as pd
 from keras import backend as K
 
-from .neural_network import neural_nets as nn
 from .data_manipulation.data_container import DataContainer
+from .neural_network import neural_nets as nn
 
 
 def save_reduced_data_to_h5(filename, X_reduced, data_container, save_metadata):

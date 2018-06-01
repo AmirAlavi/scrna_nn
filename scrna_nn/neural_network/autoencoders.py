@@ -1,8 +1,8 @@
-import keras
 from keras.models import Model
-from keras.layers import Input
+from keras.models import Model
 
 from .sparse_autoencoder import DenseLayerAutoencoder, SparseLayerAutoencoder
+
 
 def get_ae_model(model_name, latent_layer_size, input_dim, activation_fcn='tanh', adj_mat=None):
     inputs = Input(shape=(input_dim,))

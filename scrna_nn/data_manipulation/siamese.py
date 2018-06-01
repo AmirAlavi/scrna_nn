@@ -1,6 +1,4 @@
 import random
-from os import makedirs
-from os.path import join, exists
 from itertools import combinations
 
 import numpy as np

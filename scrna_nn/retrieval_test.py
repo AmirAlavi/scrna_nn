@@ -8,6 +8,7 @@ from scipy.spatial import distance
 from .data_manipulation.data_container import DataContainer
 from .util import create_working_directory, distances
 
+
 # def average_accuracy(query_label, retrieved_labels, dist_mat_by_strings, max_dist):
 #     avg_acc = 0
 #     for r in retrieved_labels:

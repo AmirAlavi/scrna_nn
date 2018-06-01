@@ -1,12 +1,12 @@
 import pickle
 from os.path import join
 
-import numpy as np
 import matplotlib.pyplot as plt
+import numpy as np
 from sklearn.decomposition import PCA
 
-from .data_manipulation.data_container import DataContainer
 from . import util
+from .data_manipulation.data_container import DataContainer
 
 
 def visualize(args):

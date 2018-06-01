@@ -9,10 +9,8 @@ import pickle
 from collections import defaultdict
 
 import networkx as nx
-from docopt import docopt
 import numpy as np
-
-import ontology
+from docopt import docopt
 
 if __name__ == "__main__":
     args = docopt(__doc__, version='ontology_analysis 0.1')

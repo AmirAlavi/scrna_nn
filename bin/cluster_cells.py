@@ -16,31 +16,21 @@ Options:
     -p <prefix> --prefix=<prefix>     String prefix to prepend to all cells in their labels and filenames.
 """
 # import pdb; pdb.set_trace()
-from os.path import join, basename, normpath, exists
-from os import makedirs, remove
-from collections import defaultdict, Counter
-import json
-from itertools import groupby as g
-import math
+from os.path import join
 
-import pandas as pd
+import matplotlib
 import numpy as np
-from scipy.spatial import distance
+import pandas as pd
 from docopt import docopt
+from sklearn.cluster import MiniBatchKMeans
 from sklearn.decomposition import PCA
 from sklearn.manifold import TSNE
-from sklearn.cluster import MiniBatchKMeans
-import matplotlib
+
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
-import matplotlib.patches as mpatches
-from mpl_toolkits.mplot3d import Axes3D
 #import seaborn
 #seaborn.set()
-import FisherExact
-from scipy.stats import binom_test
 
-from scrna_nn.data_container import DataContainer
 from scrna_nn.reduce import _reduce_helper
 from scrna_nn import util
         
