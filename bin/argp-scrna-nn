@@ -1,0 +1,40 @@
+#!/usr/bin/env python
+
+# import pdb; pdb.set_trace()
+import sys
+
+import numpy as np
+#from docopt import docopt
+
+import argparser
+
+if __name__ == '__main__':
+    print("NOTE: setting random seed for reproducibility")
+    np.random.seed(34792)
+    print(sys.argv)
+    #args = docopt(__doc__, version='scrna 0.3.0')
+    args = argparser.parser.parse_args()
+    print(args); print()
+    print(args.batch_hard_K)
+
+    # from scrna_nn.train import train
+    # from scrna_nn.reduce import reduce
+    # from scrna_nn.visualize import visualize
+    # from scrna_nn.retrieval_test import retrieval_test
+    # from scrna_nn.analyze import analyze
+    # from scrna_nn.util import ScrnaException
+    
+    # try:
+    #     if args['train']:
+    #         train(args)
+    #     elif args['reduce']:
+    #         reduce(args)
+    #     elif args['visualize']:
+    #         visualize(args)
+    #     elif args['retrieval']:
+    #         retrieval_test(args)
+    #     elif args['analyze']:
+    #         analyze(args)
+    # except ScrnaException as e:
+    #     msg = e.args[0]
+    #     print("scrna exception: ", msg)
