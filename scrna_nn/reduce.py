@@ -37,32 +37,32 @@ def _reduce_helper(trained_model_folder, data_to_reduce):
     mean = None
     std = None
     feature_normalize = False
-    if '--gn' in training_args and training_args['--gn']:
+    if training_args.gn:
         feature_normalize = True
         mean = pd.read_pickle(join(trained_model_folder, "mean.p"))
         std = pd.read_pickle(join(trained_model_folder, "std.p"))
-    data_container = DataContainer(data_to_reduce, sample_normalize=training_args['--sn'], feature_normalize=feature_normalize, feature_mean=mean, feature_std=std)
+    data_container = DataContainer(data_to_reduce, sample_normalize=training_args.sn, feature_normalize=feature_normalize, feature_mean=mean, feature_std=std)
     X = data_container.get_expression_mat()
-    if training_args['--nn']:
-        if '--triplet' in training_args and training_args['--triplet']:
-            triplet_batch_size = int(training_args['--batch_hard_P'])*int(training_args['--batch_hard_K'])
+    if training_args.nn:
+        if training_args.triplet:
+            triplet_batch_size = training_args.batch_hard_P*training_args.batch_hard_K
             model = nn.load_trained_nn(join(trained_model_folder, "model.h5"), triplet_loss_batch_size=triplet_batch_size)
-        elif training_args['--siamese']:
+        elif training_args.siamese:
             dynamic_margin=-1
             if '--dynMargin' in training_args:
-                dynamic_margin = float(training_args['--dynMargin'])
+                dynamic_margin = training_args.dynMargin
             model = nn.load_trained_nn(join(trained_model_folder, "model.h5"), dynamic_margin=dynamic_margin, siamese=True)
-            if training_args['--checkpoints']:
+            if training_args.checkpoints:
                 # HACK, TODO: account for this beforehand
                 model = model.layers[2]
         else:
             model = nn.load_trained_nn(join(trained_model_folder, "model.h5"))
         print(model.summary())
         # use the last hidden layer of the model as a lower-dimensional representation:
-        if training_args['--siamese']:
+        if training_args.siamese:
             print("Model was trained in a siamese architecture")
             last_hidden_layer = model.layers[-1]
-        elif '--triplet' in training_args and training_args['--triplet']:
+        elif training_args.triplet:
             print("Model was trained in a triplet architecture")
             last_hidden_layer = model.layers[-1]
         else:
@@ -78,7 +78,7 @@ def _reduce_helper(trained_model_folder, data_to_reduce):
     return X_transformed, data_container
     
 def reduce(args):
-    X_transformed, original_data_container = _reduce_helper(args['<trained_model_folder>'], args['--data'])
-    save_reduced_data_to_h5(args['--out'], X_transformed, original_data_container, args['--save_meta'])
+    X_transformed, original_data_container = _reduce_helper(args.trained_model_folder, args.data)
+    save_reduced_data_to_h5(args.out, X_transformed, original_data_container, args.save_meta)
     # with open(join(working_dir_path, "training_command_line_args.json"), 'w') as fp:
     #     json.dump(training_args, fp)

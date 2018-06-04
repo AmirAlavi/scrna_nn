@@ -118,11 +118,11 @@ class DataContainer(object):
         # First check if we have already cached the siamese data for this configuration
         # Build a configuration string (a string that uniquely identifies a configuration)
         normalization = ""
-        if args['--sn']:
+        if args.sn:
             normalization = "sn"
-        elif args['--gn']:
+        elif args.gn:
             normalization = "gn"
-        config_string = '_'.join([args['--data'], normalization, args['--dynMarginLoss'], args['--dist_mat_file'], args['--trnsfm_fcn'], args['--trnsfm_fcn_param'], args['--unif_diff'], args['--same_lim'], args['--diff_multiplier']])
+        config_string = '_'.join([args.data, normalization, args.dynMarginLoss, args.dist_mat_file, args.trnsfm_fcn, args.trnsfm_fcn_param, args.unif_diff, args.same_lim, args.diff_multiplier])
         cache_path = join(join(join(CACHE_ROOT, SIAM_CACHE), config_string), split)
         if exists(cache_path):
             print("Loading siamese data from cache...")

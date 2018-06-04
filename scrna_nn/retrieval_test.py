@@ -114,26 +114,26 @@ def retrieval_test_all_in_memory(db, db_labels, query, query_labels):
     return retrieval_results_d["average_map"], retrieval_results_d["weighted_average_map"], retrieval_results_d["average_mafp"], retrieval_results_d["weighted_average_mafp"]
     
 def retrieval_test(args):
-    if args['--similarity_type'] == 'ontology':
+    if args.similarity_type == 'ontology':
         print("ontology-based similarities")
-        similarity_fcn = distances.OntologyBasedPairSimilarity(max_ontology_distance=int(args['--max_ont_path_len']),
-                                                               distance_mat_file=args['--sim_mat_file'],
-                                                               transform=args['--sim_trnsfm_fcn'],
-                                                               transform_param=int(args['--sim_trnsfm_param']))
-    elif args['--similarity_type'] == 'text-mined':
+        similarity_fcn = distances.OntologyBasedPairSimilarity(max_ontology_distance=args.max_ont_path_len,
+                                                               distance_mat_file=args.sim_mat_file,
+                                                               transform=args.sim_trnsfm_fcn,
+                                                               transform_param=args.sim_trnsfm_param)
+    elif args.similarity_type == 'text-mined':
         print("text-mined similarities")
-        similarity_fcn = distances.TextMinedPairSimilarity(distance_mat_file=args['--sim_mat_file'],
-                                                           transform=args['--sim_trnsfm_fcn'],
-                                                           transform_param=int(args['--sim_trnsfm_param']))
+        similarity_fcn = distances.TextMinedPairSimilarity(distance_mat_file=args.sim_mat_file,
+                                                           transform=args.sim_trnsfm_fcn,
+                                                           transform_param=args.sim_trnsfm_param)
     else:
         raise ScrnaException("Not a valid similarity type!")
 
 
     
-    working_dir_path = create_working_directory(args['--out'], "retrieval_results/")
+    working_dir_path = create_working_directory(args.out, "retrieval_results/")
     # Load the reduced data
-    query_data = DataContainer(args['<query_data_file>'])
-    database_data = DataContainer(args['<database_data_file>'])
+    query_data = DataContainer(args.query_data_file)
+    database_data = DataContainer(args.database_data_file)
     queries = query_data.get_expression_mat()
     db = database_data.get_expression_mat()
     queries_labels = query_data.get_labels()
@@ -146,8 +146,8 @@ def retrieval_test(args):
     db_label_count_d = {label: count for (label, count) in zip(db_uniq, db_counts)}
 
     with open(join(working_dir_path, "data_summary.txt"), 'w') as data_summary_f:
-        data_summary_f.write("Query data file: " + args['<query_data_file>'])
-        data_summary_f.write("Database data file: " + args['<database_data_file>'])
+        data_summary_f.write("Query data file: " + args.query_data_file)
+        data_summary_f.write("Database data file: " + args.database_data_file)
         data_summary_f.write("num query points: " + str(len(queries_labels)) + '\n')
         data_summary_f.write("num database points: " + str(len(db_labels)) + '\n')
         data_summary_f.write("num query types: " + str(len(query_counts)) + '\n')
@@ -167,7 +167,7 @@ def retrieval_test(args):
     # average_flex_precisions_for_label2 = defaultdict(list)
     # average_accuracies_for_label = defaultdict(list)
     # average_top_fourth_accuracies_for_label = defaultdict(list)
-    distance_matrix = distance.cdist(queries, db, metric=args['--dist_metric'])
+    distance_matrix = distance.cdist(queries, db, metric=args.dist_metric)
     for index, distances_to_query in enumerate(distance_matrix): # Loop is over the set of query cells
         query_label = queries_labels[index]
         sorted_distances_indices = np.argsort(distances_to_query)
@@ -176,7 +176,7 @@ def retrieval_test(args):
         # avg_accuracy = average_accuracy(query_label, retrieved_labels, dist_mat_by_strings, int(args['--max_ont_dist']))
         # top_fourth_idx = int(num_results/4)
         # avg_accuracy_of_top_fourth = average_accuracy(query_label, retrieved_labels[:top_fourth_idx], dist_mat_by_strings, int(args['--max_ont_dist']))
-        avg_flex_precision = average_flex_precision(query_label, retrieved_labels, similarity_fcn, args['--asymm_dist'])
+        avg_flex_precision = average_flex_precision(query_label, retrieved_labels, similarity_fcn, args.asymm_dist)
         #  avg_flex_precision2 = average_flex_precision2(query_label, retrieved_labels, dist_mat_by_strings, int(args['--max_ont_dist']))
         avg_precision = average_precision(query_label, retrieved_labels)
         if avg_flex_precision <= 0.2:

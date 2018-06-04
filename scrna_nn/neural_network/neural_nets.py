@@ -207,11 +207,9 @@ def get_GO_ppitf(hidden_layer_sizes, input_dim, ppitf_adj_mat, go_first_level_ad
     return inputs, x
 
 def get_regularization(args):
-    l1_reg = float(args['--l1_reg'])
-    l2_reg = float(args['--l2_reg'])
+    l1_reg = args.l1_reg
+    l2_reg = args.l2_reg
     reg = None
-    if l1_reg > 0 and l2_reg > 0:
-        raise ScrnaException('Can only specify L1 or L2 regularization, not both!')
     if l1_reg > 0:
         reg = regularizers.l1(l1_reg)
     elif l2_reg > 0:

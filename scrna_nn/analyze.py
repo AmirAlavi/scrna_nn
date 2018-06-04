@@ -36,8 +36,8 @@ def visualize(data, working_dir):
 
 # analyze <model> <raw_data> <raw_database> --out=...
 def analyze(args):
-    working_dir_path = util.create_working_directory(args['--out'], "analyses/")
-    query_data = DataContainer(args['<query>'])
+    working_dir_path = util.create_working_directory(args.out, "analyses/")
+    query_data = DataContainer(args.query)
     #database_data = DataContainer(args['<database>'])
     query = query_data.get_expression_mat()
     #database = database_data.get_expression_mat()
@@ -46,7 +46,7 @@ def analyze(args):
     visualize(query, working_dir_path)
 
     # Then embed it and visualize it
-    query_reduced, _ = _reduce_helper(args['<trained_model_folder>'], args['<query>'])
+    query_reduced, _ = _reduce_helper(args.trained_model_folder, args.query)
     visualize(query_reduced, working_dir_path)
 
     

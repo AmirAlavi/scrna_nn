@@ -10,9 +10,9 @@ from .data_manipulation.data_container import DataContainer
 
 
 def visualize(args):
-    working_dir_path = util.create_working_directory(args['--out'], "visualizations/")
+    working_dir_path = util.create_working_directory(args.out, "visualizations/")
     # Load the reduced data
-    data = DataContainer(args['<reduced_data_file>'])
+    data = DataContainer(args.reduced_data_file)
     X = data.get_expression_mat()
     print(X.shape)
     pca = PCA(n_components=2)
@@ -27,7 +27,7 @@ def visualize(args):
     colormap = plt.get_cmap('gist_rainbow')
     fig = plt.figure()
     ax = fig.add_subplot(111)
-    num_colors = int(args['--ntypes'])
+    num_colors = args.ntypes
     # Pre-set pyplot's color cycler
     ax.set_color_cycle([colormap(1.*i/num_colors) for i in range(num_colors)])
 
@@ -35,15 +35,15 @@ def visualize(args):
     labels_and_counts = [(label, len(samples)) for label, samples in indices_lists.items()]
     labels_and_counts.sort(key=lambda x: x[1], reverse=True)
     
-    max_cells = int(args['--nsamples'])
-    for i in range(int(args['--ntypes'])):
+    max_cells = args.nsamples
+    for i in range(args.ntypes):
         # Select at most max_cells of each type and plot them
         print(labels_and_counts[i])
         cur_label = labels_and_counts[i][0]
         cur_X = X[indices_lists[cur_label]][:max_cells]
         ax.scatter(cur_X[:,0], cur_X[:,1], label=cur_label, alpha=0.3) 
     lgd = ax.legend(bbox_to_anchor=(1.05, 1), loc=2, fancybox=True, shadow=True)
-    plt.title(args['--title'])
+    plt.title(args.title)
     plt.xlabel('PC 1')
     plt.ylabel('PC 2')
     print("Saving...")

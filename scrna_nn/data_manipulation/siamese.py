@@ -74,12 +74,12 @@ def select_diff_pairs(X, y, true_ids, label_strings_lookup, anchor_label, anchor
         transformed_similarity = similarity_fcn(anchor_string, diff_string, transform=True)
         for s in diff_samples:
             similarity_to_anchor.append((raw_similarity, transformed_similarity, s))
-    if int(args['--unif_diff']) > 0:
+    if args.unif_diff > 0:
         print("uniform!")
-        pairs, labels = uniformly_select_diff_pairs(int(args['--unif_diff']), similarity_to_anchor, X, y, true_ids, anchor_samples, same_count, int(args['--diff_multiplier']))
+        pairs, labels = uniformly_select_diff_pairs(args.unif_diff, similarity_to_anchor, X, y, true_ids, anchor_samples, same_count, args.diff_multiplier)
     else:
         print("unconstrained!")
-        pairs, labels = unconstrained_select_diff_pairs(similarity_to_anchor, X, y, true_ids, anchor_samples, same_count, int(args['--diff_multiplier']))
+        pairs, labels = unconstrained_select_diff_pairs(similarity_to_anchor, X, y, true_ids, anchor_samples, same_count, args.diff_multiplier)
     return pairs, labels
 
 #def create_flexible_data_pairs(X, y, true_ids, indices_lists, same_lim, label_strings_lookup, args):
@@ -96,18 +96,18 @@ def create_flexible_data_pairs(X, y, true_ids, label_strings_lookup, args):
     #     pairs = np.load(join(cache_path, "siam_X.npy"))
     #     labels = np.load(join(cache_path, "siam_y.npy"))
     #     return pairs, labels
-    same_lim = int(args['--same_lim'])
-    if args['--dynMarginLoss'] == 'ontology':
+    same_lim = args.same_lim
+    if args.dynMarginLoss == 'ontology':
         print("ontology-based similarities")
-        similarity_fcn = distances.OntologyBasedPairSimilarity(max_ontology_distance=int(args['--max_ont_dist']),
-                                                               distance_mat_file=args['--dist_mat_file'],
-                                                               transform=args['--trnsfm_fcn'],
-                                                               transform_param=int(args['--trnsfm_fcn_param']))
-    elif args['--dynMarginLoss'] == 'text-mined':
+        similarity_fcn = distances.OntologyBasedPairSimilarity(max_ontology_distance=args.max_ont_dist,
+                                                               distance_mat_file=args.dist_mat_file,
+                                                               transform=args.trnsfm_fcn,
+                                                               transform_param=args.trnsfm_fcn_param)
+    elif args.dynMarginLoss == 'text-mined':
         print("text-mined similarities")
-        similarity_fcn = distances.TextMinedPairSimilarity(distance_mat_file=args['--dist_mat_file'],
-                                                           transform=args['--trnsfm_fcn'],
-                                                           transform_param=int(args['--trnsfm_fcn_param']))
+        similarity_fcn = distances.TextMinedPairSimilarity(distance_mat_file=args.dist_mat_file,
+                                                           transform=args.trnsfm_fcn,
+                                                           transform_param=args.trnsfm_fcn_param)
     else:
         raise ScrnaException("Not a valid dynMarginLoss type!")
 
