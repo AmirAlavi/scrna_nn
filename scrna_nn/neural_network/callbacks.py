@@ -2,12 +2,9 @@ import math
 from os import makedirs
 from os.path import join, exists
 
-import matplotlib
-import numpy as np
-
-matplotlib.use('Agg')
-import matplotlib.pyplot as plt
 import imageio
+import matplotlib.pyplot as plt
+import numpy as np
 from keras.callbacks import Callback
 
 

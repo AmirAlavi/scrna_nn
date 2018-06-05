@@ -17,7 +17,8 @@ setup(name='scrna_nn',
           'graphviz',
           'h5py',
           'imageio',
-          'sparsely-connected-keras'
+          'sparsely-connected-keras',
+          'tied-autoencoder-keras'
       ],
       python_requires='>=3',
       scripts=['bin/scrna-nn', 'bin/scrna-nn-data-prep', 'bin/scrna-nn-impute'],

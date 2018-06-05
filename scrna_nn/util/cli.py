@@ -47,6 +47,7 @@ def create_parser():
                                      help="Subtract the mean and divide by standard deviation within each gene.",
                                      action="store_true")
 
+    parser_train.add_argument("--valid", help="The portion of the training data to set aside for validation. Model is not trained on this data. (currently only unsed in usupervised pretraining models).", type=float, default=0.15)
     parser_train.add_argument("--loss_history", help="Keep track of and plot loss history while training neural net.",
                               action="store_true")
 
@@ -63,7 +64,7 @@ def create_parser():
     group_arch.add_argument("--init",
                             help="Use initial weights from a pretrained weights file. If this flag is not specified, random initialization is used.")
     group_arch.add_argument("--layerwise_pt",
-                            help="Use greedy layer-wise pretraining to pretrain the model with denoising autoencoders.")
+                            help="Use greedy layer-wise pretraining to pretrain the model with denoising autoencoders.", action="store_true")
     group_arch.add_argument("--dropout",
                             help="Use dropout layers to avoid overfitting. The location and number of dropout layers depends on the architecture. Rate of 0 denotes that no dropout layers should be added.",
                             type=float, default=0)

@@ -1,30 +1,26 @@
 # import pdb; pdb.set_trace()
 import argparse
 import datetime
-import json
 import pickle
 import time
 from os.path import join
 
-import matplotlib
-
-matplotlib.use('Agg')
 import matplotlib.pyplot as plt
-from sklearn.decomposition import PCA
-from keras.utils import multi_gpu_model
+from keras import backend as K
 from keras.callbacks import LearningRateScheduler, EarlyStopping, ModelCheckpoint
 from keras.optimizers import SGD
-from keras import backend as K
+from keras.utils import multi_gpu_model
+from sklearn.decomposition import PCA
 
-from .data_manipulation.data_container import DataContainer
 from . import util
-from .neural_network import neural_nets as nn
-from .neural_network.bio_knowledge import get_adj_mat_from_groupings
-from .retrieval_test import retrieval_test_in_memory
-from .neural_network import triplet
-from .neural_network import unsupervised_pt as pt
+from .data_manipulation.data_container import DataContainer
 from .neural_network import callbacks
 from .neural_network import losses_and_metrics
+from .neural_network import neural_nets as nn
+from .neural_network import triplet
+from .neural_network import unsupervised_pt as pt
+from .neural_network.bio_knowledge import get_adj_mat_from_groupings
+from .retrieval_test import retrieval_test_in_memory
 
 
 def pretty_tdelta(tdelta):
