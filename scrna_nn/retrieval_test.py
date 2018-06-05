@@ -59,7 +59,7 @@ def average_precision(target, retrieved_list):
         avg_precision /= float(correct)
     return avg_precision
 
-def retrieval_test_all_in_memory(db, db_labels, query, query_labels):
+def retrieval_test_in_memory(db, db_labels, query, query_labels):
     similarity_fcn = distances.TextMinedPairSimilarity(distance_mat_file='dump_A_1.p',
                                                        transform='linear',
                                                        transform_param=1)
