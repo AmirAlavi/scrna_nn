@@ -8,7 +8,8 @@ from keras.layers import Dense, Input
 from keras.models import Model
 
 from .sparse_autoencoder import DenseLayerAutoencoder, SparseLayerAutoencoder
-from .sparse_layer import Sparse
+#from .sparse_layer import Sparse
+from sparsely_connected_keras import Sparse
 
 NOISE_LEVEL = 0.1
 

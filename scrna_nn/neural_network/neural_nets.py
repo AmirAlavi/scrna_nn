@@ -8,7 +8,8 @@ from keras.layers import Dense, Input, Lambda, Dropout
 from keras.models import Model, load_model
 
 from . import losses_and_metrics
-from .sparse_layer import Sparse
+#from .sparse_layer import Sparse
+from sparsely_connected_keras import Sparse
 from ..util import ScrnaException
 
 

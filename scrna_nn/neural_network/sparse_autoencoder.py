@@ -1,7 +1,8 @@
 from keras import backend as K
 from keras.layers import Dense
 
-from .sparse_layer import Sparse
+#from .sparse_layer import Sparse
+from sparsely_connected_keras import Sparse
 
 
 class DenseLayerAutoencoder(Dense):

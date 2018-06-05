@@ -16,7 +16,8 @@ setup(name='scrna_nn',
           'pydot',
           'graphviz',
           'h5py',
-          'imageio'
+          'imageio',
+          'sparsely-connected-keras'
       ],
       python_requires='>=3',
       scripts=['bin/scrna-nn', 'bin/scrna-nn-data-prep', 'bin/scrna-nn-impute'],
