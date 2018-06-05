@@ -6,7 +6,7 @@ setup(name='scrna_nn',
       author='Amir Alavi',
       packages=['scrna_nn'],
       install_requires=[
-          'keras>=2.0.9',
+          'keras>=2.1.6',
           'docopt',
           'pandas',
           'tables',
@@ -15,7 +15,8 @@ setup(name='scrna_nn',
           'scikit-learn',
           'pydot',
           'graphviz',
-          'h5py'
+          'h5py',
+          'imageio'
       ],
       python_requires='>=3',
       scripts=['bin/scrna-nn', 'bin/scrna-nn-data-prep', 'bin/scrna-nn-impute'],
