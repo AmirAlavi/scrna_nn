@@ -396,8 +396,10 @@ def evaluate_model(model, args, data, training_report):
             X = data.splits[split]['siam_X']
             y = data.splits[split]['siam_y']
         else:
-            X, y = data.get_data_for_neural_net(
-                split, one_hot=not args.triplet)
+            if args.nn == "DAE":
+                X, y = data.get_data_for_neural_net_unsupervised(split, args.noise_level)
+            else:
+                X, y = data.get_data_for_neural_net(split, one_hot=not args.triplet)
         if args.triplet:
             # TODO: remove copy/pasted code
             embedding_dim = model.layers[-1].output_shape[1]
@@ -429,6 +431,9 @@ def evaluate_model(model, args, data, training_report):
         last_hidden_layer = reducing_model.layers[-2]
     get_activations = K.function([reducing_model.layers[0].input], [
                                  last_hidden_layer.output])
+    if args.nn == "DAE":
+        embedded = model.layers[1].encode(model.layers[0].input)
+        get_activations = K.function([model.layers[0].input], [embedded])
     database = get_activations([database])[0]
     database_labels = data.get_labels('train')
     for split in ['valid', 'test']:
@@ -483,7 +488,7 @@ def train_neural_net(working_dir_path, args, data, training_report):
     training_report['res_train_time'] = time_str
     # Evaluate model
     # TODO: make this automatically happen via callback
-    if not args.siamese and not args.triplet:
+    if not args.siamese and not args.triplet and args.nn != "DAE": # TODO: just do this by checking if 'acc' is a current metric
         plot_accuracy_history(history, join(working_dir_path, 'accuracy.png'))
     print('Evaluating')
     evaluate_model(model, args, data, training_report)
@@ -512,6 +517,8 @@ def report_config(args, training_report):
         training_report['cfg_l1_reg'] = args.l1_reg
     if args.l2_reg > 0:
         training_report['cfg_l2_reg'] = args.l2_reg
+    if args.nn == "DAE":
+        training_report['cfg_noise_level'] = args.noise_level
     if args.with_dense > 0:
         training_report['cfg_with_dense'] = args.with_dense
     if args.freeze:
