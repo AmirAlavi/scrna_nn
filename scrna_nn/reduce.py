@@ -20,7 +20,7 @@ def save_reduced_data_to_h5(filename, X_reduced, data_container, save_metadata):
     if dirname(filename) != '':
         makedirs(dirname(filename), exist_ok=True)
     h5_store = pd.HDFStore(filename)
-    h5_store['rpkm'] = pd.DataFrame(data=X_reduced, index=data_container.rpkm_df.index)
+    h5_store['rpkm'] = pd.DataFrame(data=X_reduced, index=data_container.splits['train']['rpkm_df'].index)
     if save_metadata:
         print("saving metadata as well...")
         # Note: Does not make sense to save gene_symbols because our columns are no longer
