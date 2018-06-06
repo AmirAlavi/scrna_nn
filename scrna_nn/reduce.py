@@ -7,6 +7,7 @@ from os.path import join, dirname, exists
 import pandas as pd
 from keras import backend as K
 
+from . import util
 from .data_manipulation.data_container import DataContainer
 from .neural_network import neural_nets as nn
 
@@ -30,9 +31,8 @@ def save_reduced_data_to_h5(filename, X_reduced, data_container, save_metadata):
 
 
 def _reduce_helper(trained_model_folder, data_to_reduce):
-    training_args_path = join(trained_model_folder, "command_line_args.json")
-    with open(training_args_path, 'r') as fp:
-        training_args = json.load(fp)
+    training_args_path = join(trained_model_folder, "command_line_args.txt")
+    training_args = util.cli.load_cmd_args_from_file(training_args_path)
     # Must ensure that we use the same normalizations/standardization from when model was trained
     mean = None
     std = None
@@ -68,6 +68,9 @@ def _reduce_helper(trained_model_folder, data_to_reduce):
         else:
             last_hidden_layer = model.layers[-2]
         get_activations = K.function([model.layers[0].input], [last_hidden_layer.output])
+        if training_args.nn == "DAE":
+            embedded = model.layers[1].encode(model.layers[0].input)
+            get_activations = K.function([model.layers[0].input], [embedded])
         X_transformed = get_activations([X])[0]
     else:
         # Use PCA

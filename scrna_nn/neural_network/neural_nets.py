@@ -10,7 +10,7 @@ from keras.models import Model, load_model
 from . import losses_and_metrics
 #from .sparse_layer import Sparse
 from sparsely_connected_keras import Sparse
-from tied_autoencoder_keras import DenseLayerAutoencoder, SparseLayerAutoencoder
+from tied_autoencoder_keras import DenseLayerAutoencoder
 from ..util import ScrnaException
 
 
@@ -19,7 +19,7 @@ def save_trained_nn(model, model_path, weights_path):
     model.save_weights(weights_path)
 
 def load_trained_nn(path, triplet_loss_batch_size=-1, dynamic_margin=-1, siamese=False):
-    custom_objects={'Sparse': Sparse}
+    custom_objects={'Sparse': Sparse, 'DenseLayerAutoencoder': DenseLayerAutoencoder}
     if triplet_loss_batch_size >= 0:
         custom_objects['triplet_batch_hard_loss'] = losses_and_metrics.get_triplet_batch_hard_loss(triplet_loss_batch_size)
         custom_objects['frac_active_triplet_metric'] = losses_and_metrics.get_frac_active_triplet_metric(triplet_loss_batch_size)
