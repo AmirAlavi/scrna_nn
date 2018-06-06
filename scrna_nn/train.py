@@ -38,6 +38,8 @@ def get_model_architecture(
     base_model = get_base_model_architecture(
         args, input_dim, output_dim, gene_names)
     embedding_dim = base_model.layers[-1].input_shape[1]
+    if args.nn == "DAE":
+        embedding_dim = int(args.hidden_layer_sizes[0])
     print(base_model.summary())
     # Set pretrained weights, if any, before making into siamese
     if args.init:
@@ -109,7 +111,6 @@ def get_base_model_architecture(args, input_dim, output_dim, gene_names):
         args.nn,
         hidden_layer_sizes,
         input_dim,
-        False,
         args.act,
         output_dim,
         adj_mat,
@@ -152,6 +153,8 @@ def compile_model(model, args, optimizer):
         frac_active_triplets = losses_and_metrics.get_frac_active_triplet_metric(
             batch_size)
         metrics = [frac_active_triplets]
+    elif args.nn == "DAE":
+        loss = 'mean_squared_error'
     else:
         loss = 'categorical_crossentropy'
         metrics = ['accuracy']
@@ -198,10 +201,14 @@ def fit_neural_net(model, args, data, callbacks_list, working_dir_path):
             X_valid = data.splits['valid']['siam_X']
             y_valid = data.splits['valid']['siam_y']
         else:
-            X_train, y_train = data.get_data_for_neural_net(
-                'train', one_hot=True)
-            X_valid, y_valid = data.get_data_for_neural_net(
-                'valid', one_hot=True)
+            if args.nn == "DAE":
+                X_train, y_train = data.get_data_for_neural_net_unsupervised('train', args.noise_level)
+                X_valid, y_valid = data.get_data_for_neural_net_unsupervised('valid', args.noise_level)
+            else:
+                X_train, y_train = data.get_data_for_neural_net(
+                    'train', one_hot=True)
+                X_valid, y_valid = data.get_data_for_neural_net(
+                    'valid', one_hot=True)
             print('Train data shapes:')
             print(X_train.shape)
             print(y_train.shape)

@@ -38,7 +38,7 @@ def create_parser():
     group_model_type.add_argument("--pca", help="Fit a PCA model with specified number of principal components.",
                                   type=int)
     group_model_type.add_argument("--nn", help="Train an instance of specified neural network architecture.",
-                                  choices=["dense", "sparse", "GO", "flatGO_ppitf", "GO_ppitf"])
+                                  choices=["dense", "sparse", "GO", "flatGO_ppitf", "GO_ppitf", "DAE", "sparseDAE"])
 
     group_normalization = parser_train.add_mutually_exclusive_group()
     group_normalization.add_argument("--sn", help="Divide each sample by the total number of reads for that sample.",
@@ -47,6 +47,7 @@ def create_parser():
                                      help="Subtract the mean and divide by standard deviation within each gene.",
                                      action="store_true")
 
+    parser_train.add_argument("--noise_level", help="Amount of corrupting noise to add to data (used for DAE training).", type=float, default=0.1)
     parser_train.add_argument("--valid", help="The portion of the training data to set aside for validation. Model is not trained on this data. (currently only unsed in usupervised pretraining models).", type=float, default=0.15)
     parser_train.add_argument("--loss_history", help="Keep track of and plot loss history while training neural net.",
                               action="store_true")

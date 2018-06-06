@@ -10,6 +10,7 @@ from keras.models import Model, load_model
 from . import losses_and_metrics
 #from .sparse_layer import Sparse
 from sparsely_connected_keras import Sparse
+from tied_autoencoder_keras import DenseLayerAutoencoder, SparseLayerAutoencoder
 from ..util import ScrnaException
 
 
@@ -207,6 +208,24 @@ def get_GO_ppitf(hidden_layer_sizes, input_dim, ppitf_adj_mat, go_first_level_ad
         x = Dense(size, activation=activation_fcn, kernel_regularizer=regularization)(x)
     return inputs, x
 
+def get_DAE(hidden_layer_sizes, input_dim, activation_fcn='tanh', dropout=0.0, regularization=None):
+    inputs = Input(shape=(input_dim,))
+    x = inputs
+    x = DenseLayerAutoencoder(hidden_layer_sizes[0], activation=activation_fcn, kernel_regularizer=regularization)(x)
+    return inputs, x
+
+# def get_sparseDAE(input_dim, adj_mat, activation_fcn='tanh', extra_dense_units=0, regularization=None):
+#     inputs = Input(shape=(input_dim,))
+#     # Hidden layers
+#     # first hidden layer
+#     sparse_out = SparseLayerAutoencoder(activation=activation_fcn, adjacency_mat=adj_mat, kernel_regularizer=regularization)(inputs)
+#     if extra_dense_units > 0:
+#         dense_out = DenseLayerAutoencoder(extra_dense_units, activation=activation_fcn, kernel_regularizer=regularization)(inputs)
+#         x = keras.layers.concatenate([sparse_out, dense_out])
+#     else:
+#         x = sparse_out
+#     return inputs, x
+
 def get_regularization(args):
     l1_reg = args.l1_reg
     l2_reg = args.l2_reg
@@ -218,13 +237,14 @@ def get_regularization(args):
     print('Using regularizer: {}'.format(reg))
     return reg
 
-def get_nn_model(args, model_name, hidden_layer_sizes, input_dim, is_autoencoder, activation_fcn='tanh', output_dim=None, adj_mat=None, go_first_level_adj_mat=None, go_other_levels_adj_mats=None, flatGO_ppitf_adj_mats=None, extra_dense_units=0, dropout=0.0):
+def get_nn_model(args, model_name, hidden_layer_sizes, input_dim, activation_fcn='tanh', output_dim=None, adj_mat=None, go_first_level_adj_mat=None, go_other_levels_adj_mats=None, flatGO_ppitf_adj_mats=None, extra_dense_units=0, dropout=0.0):
     # if is_autoencoder:
     #     # autoencoder architectures in a separate module for organizational purposes
     #     latent_size = None
     #     if hidden_layer_sizes is not None:
     #         latent_size = hidden_layer_sizes[0]
     #     return ae.get_ae_model(model_name, latent_size, input_dim, activation_fcn, adj_mat)
+    is_autoencoder = False
     reg = get_regularization(args)
     print(hidden_layer_sizes)
     # First get the tensors from hidden layers
@@ -238,13 +258,16 @@ def get_nn_model(args, model_name, hidden_layer_sizes, input_dim, is_autoencoder
         in_tensors, hidden_tensors = get_flatGO_ppitf(hidden_layer_sizes, input_dim, flatGO_ppitf_adj_mats, activation_fcn, extra_dense_units, reg)
     elif model_name == 'GO_ppitf':
         in_tensors, hidden_tensors = get_GO_ppitf(hidden_layer_sizes, input_dim, adj_mat, go_first_level_adj_mat, go_other_levels_adj_mats, activation_fcn, extra_dense_units, reg)
+    elif model_name == 'DAE':
+        in_tensors, hidden_tensors = get_DAE(hidden_layer_sizes, input_dim, activation_fcn, dropout, reg)
+        is_autoencoder = True
     else:
         raise ScrnaException("Bad neural network name: " + model_name)
     
     # Then add output layer on top
-    # if is_autoencoder:
-    #     out_tensors = Dense(input_dim, activation=activation_fcn)(hidden_tensors)
-    # else:
-    out_tensors = Dense(output_dim, activation='softmax')(hidden_tensors)
+    if is_autoencoder: # (no explicit output layer required here)
+        out_tensors = hidden_tensors
+    else:
+        out_tensors = Dense(output_dim, activation='softmax')(hidden_tensors)
     model = Model(inputs=in_tensors, outputs=out_tensors)
     return model

@@ -99,6 +99,11 @@ class DataContainer(object):
             y = np_utils.to_categorical(y, output_dim)
         return X, y
 
+    def get_data_for_neural_net_unsupervised(self, split, noise_level):
+        X_clean = self.splits[split]['rpkm_df'].values
+        X = X_clean + noise_level * np.random.normal(loc=0, scale=1, size=X_clean.shape)
+        return X, X_clean
+
     def get_in_out_dims(self):
         return self.splits['train']['rpkm_df'].shape[1], len(self.label_to_int_map)
     # def save_about_data(self, folder_to_save_in):
