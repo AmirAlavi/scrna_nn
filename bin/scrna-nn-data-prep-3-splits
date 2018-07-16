@@ -21,7 +21,7 @@ Options:
                         - 'unique'  Use only cells that map to a single ontology term. Throw out cells that map to
                                     multiple terms.
 """
-
+import math
 import json
 import sys
 # import pdb; pdb.set_trace()
@@ -258,8 +258,8 @@ if __name__ == '__main__':
         # Of these, pick the accession with the median number of cells of that cell type,
         # hold it out for the query set
         #query_accn_for_label = {}
-        valid_accn_for_label = {}
-        test_accn_for_label = {}
+        valid_accns_for_label = {}
+        test_accns_for_label = {}
 
         label_to_accessions_d = defaultdict(lambda: defaultdict(int))
         for accession, label in zip(accessions, pod.labels):
@@ -270,32 +270,72 @@ if __name__ == '__main__':
         de_nodes = set()
         
         print("\nAccessions for each cell type:")
+        print("* = in validation set")
+        print("^ = in test set")
         for label, accession_counts_d in label_to_accessions_d.items():
             print(label)
             accns_for_label = []
             accns_for_label_counts = []
             print("\t<acsn>: <count>")
+
             for accession, count in accession_counts_d.items():
-                print("\t", accession, ": ", count)
                 accns_for_label.append(accession)
                 accns_for_label_counts.append(count)
                 if count >= 75:
                     de_nodes.add(label)
-            if len(accession_counts_d.keys()) >= 3:
-                # Find accession with median number of cells of this type:
-                sorted_indices = np.argsort(accns_for_label_counts)
-                median_idx = sorted_indices[len(accns_for_label_counts) // 2]
-                one_before_median_idx = sorted_indices[(len(accns_for_label_counts) // 2)-1]
-                valid_accn = accns_for_label[median_idx]
-                test_accn = accns_for_label[one_before_median_idx]
-                print("\tvalid accn: ", valid_accn)
-                print("\ttest accn: ", test_accn)
-                valid_accn_for_label[label] = valid_accn
-                test_accn_for_label[label] = test_accn
+
+            sorted_indices = np.argsort(accns_for_label_counts)
+            valid_accns = []
+            test_accns = []
+            n_accessions = len(accession_counts_d.keys())
+            train_cutoff = -1
+            valid_test_cutoff = -1
+            if n_accessions >= 3:
+                train_cutoff = math.floor(0.9 * n_accessions)
+                valid_test_cutoff = math.floor(0.5 * train_cutoff)
+
+            accns_for_label = np.array(accns_for_label)
+            accns_for_label_counts = np.array(accns_for_label_counts)
+            for idx, (accession, count) in enumerate(zip(accns_for_label[sorted_indices], accns_for_label_counts[sorted_indices])):
+                if idx < valid_test_cutoff:
+                    # will go in test set
+                    print("\t^{}: {}".format(accession, count))
+                    test_accns.append(accession)
+                elif idx < train_cutoff:
+                    # will go in valid set
+                    print("\t*{}: {}".format(accession, count))
+                    valid_accns.append(accession)
+                else:
+                    # will go in train set
+                    print("\t {}: {}".format(accession, count))
+            valid_accns_for_label[label] = valid_accns
+            test_accns_for_label[label] = test_accns
+            
+            #     # Find accession with median number of cells of this type:
+            #     median_idx = sorted_indices[len(accns_for_label_counts) // 2]
+            #     one_before_median_idx = sorted_indices[(len(accns_for_label_counts) // 2)-1]
+            #     valid_accns = [ accns_for_label[median_idx] ]
+            #     test_accns = [ accns_for_label[one_before_median_idx] ]
+            #     if len(accession_counts_d.keys()) >= 5:
+            #         one_after_median_idx = sorted_indices[(len(accns_for_label_counts) // 2)+1]
+            #         two_before_median_idx = sorted_indices[(len(accns_for_label_counts) // 2)-2]
+            #         valid_accns.append(accns_for_label[one_after_median_idx])
+            #         test_accns.append(accns_for_label[two_before_median_idx])
+            #     valid_accns_for_label[label] = valid_accns
+            #     test_accns_for_label[label] = test_accns
+            # accns_for_label = np.array(accns_for_label)
+            # accns_for_label_counts = np.array(accns_for_label_counts)
+            # for accession, count in zip(accns_for_label[sorted_indices], accns_for_label_counts[sorted_indices]):
+            #     if accession in valid_accns:
+            #         print("\t*{}: {}".format(accession, count))
+            #     elif accession in test_accns:
+            #         print("\t^{}: {}".format(accession, count))
+            #     else:
+            #         print("\t {}: {}".format(accession, count))
 
         # Print out the query cell types
-        print("Num valid/test cell types: ", len(valid_accn_for_label))
-        for cell_type in valid_accn_for_label.keys():
+        print("Num valid/test cell types: ", len(valid_accns_for_label))
+        for cell_type in valid_accns_for_label.keys():
             print("\t", cell_type)
 
         # Print out nodes that we can do DE analysis for
@@ -316,11 +356,11 @@ if __name__ == '__main__':
         test_true_ids = []
         test_labels = []
         for cell_id, true_id, label, accession in zip(assigned_rpkm_df.index, pod.true_id_index, pod.labels, accessions):
-            if label in valid_accn_for_label and accession == valid_accn_for_label[label]:
+            if label in valid_accns_for_label and accession in valid_accns_for_label[label]:
                 valid_ids.append(cell_id)
                 valid_true_ids.append(true_id)
                 valid_labels.append(label)
-            elif label in test_accn_for_label and accession == test_accn_for_label[label]:
+            elif label in test_accns_for_label and accession in test_accns_for_label[label]:
                 test_ids.append(cell_id)
                 test_true_ids.append(true_id)
                 test_labels.append(label)
