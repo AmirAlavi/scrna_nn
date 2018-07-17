@@ -537,7 +537,7 @@ def report_config(args, training_report):
         training_report['cfg_early_stop_patience'] = args.early_stop_pat
         training_report['cfg_early_stop_metric'] = args.early_stop
     if args.checkpoints:
-        training_report.cfg_checkpoints = args.checkpoints
+        training_report['cfg_checkpoints'] = args.checkpoints
     # Siamese
     if args.siamese:
         training_report['cfg_siam?'] = 'Y'
