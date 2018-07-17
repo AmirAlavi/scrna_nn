@@ -23,9 +23,13 @@ def average_flex_precision(query_label, retrieved_labels, similarity_fcn, is_asy
     scores = []
     relevance_sum = 0
     for idx, retrieved in enumerate(retrieved_labels):
-        relevance = similarity_fcn(query_label, retrieved)
-        if is_asymm:
-            relevance = min(relevance, similarity_fcn(retrieved, query_label))
+        try:
+            relevance = similarity_fcn(query_label, retrieved)
+            if is_asymm:
+                relevance = min(relevance, similarity_fcn(retrieved, query_label))
+        except KeyError as err:
+            print("WARNING: similarity information for {} isn't available!".format(err))
+            relevance = 1
         relevance_sum += relevance
         scores.append(relevance_sum / float(idx+1))
     if len(scores) > 0:
