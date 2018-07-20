@@ -95,7 +95,8 @@ def nn_command_construction_helper(args, nn_type, layer_list, name_prefix, base_
         unsup_pt_arg = ""
         if 'pt' in name_prefix:
             pt_model_path = os.path.join(args['--unsup_pt_models'], name)
-            unsup_pt_arg = " --unsup_pt={}".format(pt_model_path)
+            pt_model_path = os.path.join(pt_model_path, 'pretrained_layer_weights.h5')
+            unsup_pt_arg = " --init={}".format(pt_model_path)
         command = string.Formatter().vformat(command, (), SafeDict(hidden_sizes=" ".join(hiddens), other_opts=other_model_opts+unsup_pt_arg))
         args['commands_list'].append(command)
     
@@ -137,10 +138,13 @@ def create_neural_net_train_commands(args, name_prefix, unsupervised_pretraining
         combined_flatGO_ppitf_dense(args, COMBINED_MODELS_LAYERS, name_prefix, other_opts)
 
 def glup(args):
-    original_output_root = args['<output_root>']
-    args['<output_root>'] = os.path.join(args['<output_root>'], 'glup')
-    create_neural_net_train_commands(args, name_prefix="", unsupervised_pretraining=True, other_opts="--ae --layerwise_pt")
-    args['<output_root>'] = original_output_root
+    # original_output_root = args['<output_root>']
+    # args['<output_root>'] = os.path.join(args['<output_root>'], 'glup')
+    # if not os.path.exists(args['<output_root>']):
+    #     os.makedirs(args['<output_root>'])
+    # create_neural_net_train_commands(args, name_prefix="", unsupervised_pretraining=True, other_opts="--layerwise_pt")
+    # args['<output_root>'] = original_output_root
+    create_neural_net_train_commands(args, name_prefix="", unsupervised_pretraining=True, other_opts="--layerwise_pt")
 
 def write_list_to_file(my_list, filename):
     with open(filename, 'w') as f:
@@ -170,7 +174,7 @@ if __name__ == '__main__':
         elif model_type == "triplet-pretrained":
             create_neural_net_train_commands(args, name_prefix="pt_triplet_", unsupervised_pretraining=True, other_opts="--triplet")
         elif model_type == "GLUP": # Greedy Layerwise Unsupervised Pretraining
-            glup(args)
+            create_neural_net_train_commands(args, name_prefix="", unsupervised_pretraining=True, other_opts="--layerwise_pt")
         else:
             raise ValueError("Not a valid model type: {}".format(model_type))
     train_commands_filename = os.path.join(args['<output_root>'], 'train_commands.list')

@@ -328,7 +328,7 @@ def layerwise_train_neural_net(working_dir_path, args, data, training_report):
                 model, input_dim, opt, X, working_dir_path, args)
         elif hidden_layer_sizes == [1136, 500, 100]:
             pt.pretrain_dense_1136_500_100_model(
-                input_dim, opt, X, working_dir_path, args)
+                model, input_dim, opt, X, working_dir_path, args)
         else:
             raise util.ScrnaException(
                 'Layerwise pretraining not implemented for this architecture')
@@ -339,12 +339,12 @@ def layerwise_train_neural_net(working_dir_path, args, data, training_report):
                 _, _, adj_mat = get_adj_mat_from_groupings(
                     args.sparse_groupings, gene_names)
                 pt.pretrain_flatGO_400_100_model(
-                    input_dim, adj_mat, opt, X, working_dir_path, args)
+                    model, input_dim, adj_mat, opt, X, working_dir_path, args)
             elif hidden_layer_sizes == [200, 100]:
                 _, _, adj_mat = get_adj_mat_from_groupings(
                     args.sparse_groupings, gene_names)
                 pt.pretrain_flatGO_400_200_100_model(
-                    input_dim, adj_mat, opt, X, working_dir_path, args)
+                    model, input_dim, adj_mat, opt, X, working_dir_path, args)
             else:
                 raise util.ScrnaException(
                     'Layerwise pretraining not ' +
@@ -355,12 +355,12 @@ def layerwise_train_neural_net(working_dir_path, args, data, training_report):
                 _, _, adj_mat = get_adj_mat_from_groupings(
                     args.sparse_groupings, gene_names)
                 pt.pretrain_ppitf_1136_100_model(
-                    input_dim, adj_mat, opt, X, working_dir_path, args)
+                    model, input_dim, adj_mat, opt, X, working_dir_path, args)
             elif hidden_layer_sizes == [500, 100]:
                 _, _, adj_mat = get_adj_mat_from_groupings(
                     args.sparse_groupings, gene_names)
                 pt.pretrain_ppitf_1136_500_100_model(
-                    input_dim, adj_mat, opt, X, working_dir_path, args)
+                    model, input_dim, adj_mat, opt, X, working_dir_path, args)
             else:
                 raise util.ScrnaException(
                     'Layerwise pretraining not ' +
@@ -376,6 +376,7 @@ def layerwise_train_neural_net(working_dir_path, args, data, training_report):
         with open(go_other_levels_adj_mats_file, 'rb') as fp:
             go_other_levels_adj_mats = pickle.load(fp)
         pt.pretrain_GOlvls_model(
+            model,
             input_dim,
             go_first_level_adj_mat,
             go_other_levels_adj_mats[0],

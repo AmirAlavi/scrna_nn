@@ -31,7 +31,7 @@ def pretrain_dense_1136_100_model(
                 verbose=1)]
     # h1 pretraining
     inputs = Input(shape=(input_dim,))
-    x = DenseLayerAutoencoder(1136, activation=args.act)(inputs)
+    x = DenseLayerAutoencoder([1136], activation=args.act)(inputs)
     h1 = Model(inputs=inputs, outputs=x)
 
     # compile and train h1
@@ -53,7 +53,7 @@ def pretrain_dense_1136_100_model(
     inputs = Input(shape=(input_dim,))
     x = Dense(1136, activation=args.act)(inputs)
     h2_rep = Model(inputs=inputs, outputs=x)
-    h2_rep.layers[1].set_weights(h1.layers[1].get_weights()[1:])
+    h2_rep.layers[1].set_weights(h1.layers[1].get_weights()[:2])
     h2_rep.layers[1].trainable = False
     h2_rep.compile(loss='mean_squared_error', optimizer=opt)
     X_orig2 = h2_rep.predict(X_orig)
@@ -62,7 +62,7 @@ def pretrain_dense_1136_100_model(
     y = X_orig2
 
     inputs = Input(shape=(1136,))
-    x = DenseLayerAutoencoder(100, activation=args.act)(inputs)
+    x = DenseLayerAutoencoder([100], activation=args.act)(inputs)
     h2 = Model(inputs=inputs, outputs=x)
 
     # compile and train h2
@@ -76,8 +76,8 @@ def pretrain_dense_1136_100_model(
         validation_split=args.valid,
         callbacks=callbacks_list)
 
-    model.layers[1].set_weights(h1.layers[1].get_weights()[1:])
-    model.layers[2].set_weights(h2.layers[1].get_weights()[1:])
+    model.layers[1].set_weights(h1.layers[1].get_weights()[:2])
+    model.layers[2].set_weights(h2.layers[1].get_weights()[:2])
     model.save_weights(join(working_dir, 'pretrained_layer_weights.h5'))
     sys.exit()
 
@@ -100,7 +100,7 @@ def pretrain_dense_1136_500_100_model(
                 verbose=1)]
     # h1 pretraining
     inputs = Input(shape=(input_dim,))
-    x = DenseLayerAutoencoder(1136, activation=args.act)(inputs)
+    x = DenseLayerAutoencoder([1136], activation=args.act)(inputs)
     h1 = Model(inputs=inputs, outputs=x)
 
     # compile and train h1
@@ -122,7 +122,7 @@ def pretrain_dense_1136_500_100_model(
     inputs = Input(shape=(input_dim,))
     x = Dense(1136, activation=args.act)(inputs)
     h2_rep = Model(inputs=inputs, outputs=x)
-    h2_rep.layers[1].set_weights(h1.layers[1].get_weights()[1:])
+    h2_rep.layers[1].set_weights(h1.layers[1].get_weights()[:2])
     h2_rep.layers[1].trainable = False
     h2_rep.compile(loss='mean_squared_error', optimizer=opt)
     X_orig2 = h2_rep.predict(X_orig)
@@ -131,7 +131,7 @@ def pretrain_dense_1136_500_100_model(
     y = X_orig2
 
     inputs = Input(shape=(1136,))
-    x = DenseLayerAutoencoder(500, activation=args.act)(inputs)
+    x = DenseLayerAutoencoder([500], activation=args.act)(inputs)
     h2 = Model(inputs=inputs, outputs=x)
 
     # compile and train h2
@@ -145,9 +145,9 @@ def pretrain_dense_1136_500_100_model(
     x = Dense(1136, activation=args.act)(inputs)
     x = Dense(500, activation=args.act)(x)
     h3_rep = Model(inputs=inputs, outputs=x)
-    h3_rep.layers[1].set_weights(h1.layers[1].get_weights()[1:])
+    h3_rep.layers[1].set_weights(h1.layers[1].get_weights()[:2])
     h3_rep.layers[1].trainable = False
-    h3_rep.layers[2].set_weights(h2.layers[1].get_weights()[1:])
+    h3_rep.layers[2].set_weights(h2.layers[1].get_weights()[:2])
     h3_rep.layers[2].trainable = False
     h3_rep.compile(loss='mean_squared_error', optimizer=opt)
     X_orig3 = h3_rep.predict(X_orig)
@@ -156,7 +156,7 @@ def pretrain_dense_1136_500_100_model(
     y = X_orig3
 
     inputs = Input(shape=(500,))
-    x = DenseLayerAutoencoder(100, activation=args.act)(inputs)
+    x = DenseLayerAutoencoder([100], activation=args.act)(inputs)
     h3 = Model(inputs=inputs, outputs=x)
 
     # compile and train h3
@@ -171,9 +171,9 @@ def pretrain_dense_1136_500_100_model(
         callbacks=callbacks_list)
 
     # finally, write out the pretrained weights
-    model.layers[1].set_weights(h1.layers[1].get_weights()[1:])
-    model.layers[2].set_weights(h2.layers[1].get_weights()[1:])
-    model.layers[3].set_weights(h3.layers[1].get_weights()[1:])
+    model.layers[1].set_weights(h1.layers[1].get_weights()[:2])
+    model.layers[2].set_weights(h2.layers[1].get_weights()[:2])
+    model.layers[3].set_weights(h3.layers[1].get_weights()[:2])
     model.save_weights(join(working_dir, 'pretrained_layer_weights.h5'))
     sys.exit()
 
@@ -217,7 +217,7 @@ def pretrain_ppitf_1136_100_model(
         callbacks=callbacks_list)
 
     # dense units pretraining
-    x = DenseLayerAutoencoder(100, activation=args.act)(inputs)
+    x = DenseLayerAutoencoder([100], activation=args.act)(inputs)
     dense = Model(inputs=inputs, outputs=x)
 
     # compile and train dense
@@ -239,7 +239,7 @@ def pretrain_ppitf_1136_100_model(
     h2_rep = Model(inputs=inputs, outputs=x)
     h2_rep.layers[1].set_weights(sparse.layers[1].get_weights()[1:])
     h2_rep.layers[1].trainable = False
-    h2_rep.layers[2].set_weights(dense.layers[1].get_weights()[1:])
+    h2_rep.layers[2].set_weights(dense.layers[1].get_weights()[:2])
     h2_rep.layers[2].trainable = False
     h2_rep.compile(loss='mean_squared_error', optimizer=opt)
     X_orig2 = h2_rep.predict(X_orig)
@@ -248,7 +248,7 @@ def pretrain_ppitf_1136_100_model(
     y = X_orig2
 
     inputs = Input(shape=(1136,))
-    x = DenseLayerAutoencoder(100, activation=args.act)(inputs)
+    x = DenseLayerAutoencoder([100], activation=args.act)(inputs)
     h2 = Model(inputs=inputs, outputs=x)
 
     # compile and train h2
@@ -264,8 +264,8 @@ def pretrain_ppitf_1136_100_model(
 
     # finally, write out the pretrained weights
     model.layers[1].set_weights(sparse.layers[1].get_weights()[1:])
-    model.layers[2].set_weights(dense.layers[1].get_weights()[1:])
-    model.layers[4].set_weights(h2.layers[1].get_weights()[1:])
+    model.layers[2].set_weights(dense.layers[1].get_weights()[:2])
+    model.layers[4].set_weights(h2.layers[1].get_weights()[:2])
     model.save_weights(join(working_dir, 'pretrained_layer_weights.h5'))
     sys.exit()
 
@@ -309,7 +309,7 @@ def pretrain_ppitf_1136_500_100_model(
         callbacks=callbacks_list)
 
     # dense units pretraining
-    x = DenseLayerAutoencoder(100, activation=args.act)(inputs)
+    x = DenseLayerAutoencoder([100], activation=args.act)(inputs)
     dense = Model(inputs=inputs, outputs=x)
 
     # compile and train dense
@@ -331,7 +331,7 @@ def pretrain_ppitf_1136_500_100_model(
     h2_rep = Model(inputs=inputs, outputs=x)
     h2_rep.layers[1].set_weights(sparse.layers[1].get_weights()[1:])
     h2_rep.layers[1].trainable = False
-    h2_rep.layers[2].set_weights(dense.layers[1].get_weights()[1:])
+    h2_rep.layers[2].set_weights(dense.layers[1].get_weights()[:2])
     h2_rep.layers[2].trainable = False
     h2_rep.compile(loss='mean_squared_error', optimizer=opt)
     X_orig2 = h2_rep.predict(X_orig)
@@ -340,7 +340,7 @@ def pretrain_ppitf_1136_500_100_model(
     y = X_orig2
 
     inputs = Input(shape=(1136,))
-    x = DenseLayerAutoencoder(500, activation=args.act)(inputs)
+    x = DenseLayerAutoencoder([500], activation=args.act)(inputs)
     h2 = Model(inputs=inputs, outputs=x)
 
     # compile and train h2
@@ -363,9 +363,9 @@ def pretrain_ppitf_1136_500_100_model(
     h3_rep = Model(inputs=inputs, outputs=x)
     h3_rep.layers[1].set_weights(sparse.layers[1].get_weights()[1:])
     h3_rep.layers[1].trainable = False
-    h3_rep.layers[2].set_weights(dense.layers[1].get_weights()[1:])
+    h3_rep.layers[2].set_weights(dense.layers[1].get_weights()[:2])
     h3_rep.layers[2].trainable = False
-    h3_rep.layers[4].set_weights(h2.layers[1].get_weights()[1:])
+    h3_rep.layers[4].set_weights(h2.layers[1].get_weights()[:2])
     h3_rep.layers[4].trainable = False
     h3_rep.compile(loss='mean_squared_error', optimizer=opt)
     X_orig3 = h3_rep.predict(X_orig)
@@ -374,7 +374,7 @@ def pretrain_ppitf_1136_500_100_model(
     y = X_orig3
 
     inputs = Input(shape=(500,))
-    x = DenseLayerAutoencoder(100, activation=args.act)(inputs)
+    x = DenseLayerAutoencoder([100], activation=args.act)(inputs)
     h3 = Model(inputs=inputs, outputs=x)
 
     # compile and train h3
@@ -390,9 +390,9 @@ def pretrain_ppitf_1136_500_100_model(
 
     # finally, write out the pretrained weights
     model.layers[1].set_weights(sparse.layers[1].get_weights()[1:])
-    model.layers[2].set_weights(dense.layers[1].get_weights()[1:])
-    model.layers[4].set_weights(h2.layers[1].get_weights()[1:])
-    model.layers[5].set_weights(h3.layers[1].get_weights()[1:])
+    model.layers[2].set_weights(dense.layers[1].get_weights()[:2])
+    model.layers[4].set_weights(h2.layers[1].get_weights()[:2])
+    model.layers[5].set_weights(h3.layers[1].get_weights()[:2])
     model.save_weights(join(working_dir, 'pretrained_layer_weights.h5'))
     sys.exit()
 
@@ -436,7 +436,7 @@ def pretrain_flatGO_400_100_model(
         callbacks=callbacks_list)
 
     # dense units pretraining
-    x = DenseLayerAutoencoder(100, activation=args.act)(inputs)
+    x = DenseLayerAutoencoder([100], activation=args.act)(inputs)
     dense = Model(inputs=inputs, outputs=x)
 
     # compile and train dense
@@ -458,7 +458,7 @@ def pretrain_flatGO_400_100_model(
     h2_rep = Model(inputs=inputs, outputs=x)
     h2_rep.layers[1].set_weights(sparse.layers[1].get_weights()[1:])
     h2_rep.layers[1].trainable = False
-    h2_rep.layers[2].set_weights(dense.layers[1].get_weights()[1:])
+    h2_rep.layers[2].set_weights(dense.layers[1].get_weights()[:2])
     h2_rep.layers[2].trainable = False
     h2_rep.compile(loss='mean_squared_error', optimizer=opt)
     X_orig2 = h2_rep.predict(X_orig)
@@ -467,7 +467,7 @@ def pretrain_flatGO_400_100_model(
     y = X_orig2
 
     inputs = Input(shape=(400,))
-    x = DenseLayerAutoencoder(100, activation=args.act)(inputs)
+    x = DenseLayerAutoencoder([100], activation=args.act)(inputs)
     h2 = Model(inputs=inputs, outputs=x)
 
     # compile and train h2
@@ -483,8 +483,8 @@ def pretrain_flatGO_400_100_model(
 
     # finally, write out the pretrained weights
     model.layers[1].set_weights(sparse.layers[1].get_weights()[1:])
-    model.layers[2].set_weights(dense.layers[1].get_weights()[1:])
-    model.layers[4].set_weights(h2.layers[1].get_weights()[1:])
+    model.layers[2].set_weights(dense.layers[1].get_weights()[:2])
+    model.layers[4].set_weights(h2.layers[1].get_weights()[:2])
     model.save_weights(join(working_dir, 'pretrained_layer_weights.h5'))
     sys.exit()
 
@@ -528,7 +528,7 @@ def pretrain_flatGO_400_200_100_model(
         callbacks=callbacks_list)
 
     # dense units pretraining
-    x = DenseLayerAutoencoder(100, activation=args.act)(inputs)
+    x = DenseLayerAutoencoder([100], activation=args.act)(inputs)
     dense = Model(inputs=inputs, outputs=x)
 
     # compile and train dense
@@ -550,7 +550,7 @@ def pretrain_flatGO_400_200_100_model(
     h2_rep = Model(inputs=inputs, outputs=x)
     h2_rep.layers[1].set_weights(sparse.layers[1].get_weights()[1:])
     h2_rep.layers[1].trainable = False
-    h2_rep.layers[2].set_weights(dense.layers[1].get_weights()[1:])
+    h2_rep.layers[2].set_weights(dense.layers[1].get_weights()[:2])
     h2_rep.layers[2].trainable = False
     h2_rep.compile(loss='mean_squared_error', optimizer=opt)
     X_orig2 = h2_rep.predict(X_orig)
@@ -559,7 +559,7 @@ def pretrain_flatGO_400_200_100_model(
     y = X_orig2
 
     inputs = Input(shape=(400,))
-    x = DenseLayerAutoencoder(200, activation=args.act)(inputs)
+    x = DenseLayerAutoencoder([200], activation=args.act)(inputs)
     h2 = Model(inputs=inputs, outputs=x)
 
     # compile and train h2
@@ -582,9 +582,9 @@ def pretrain_flatGO_400_200_100_model(
     h3_rep = Model(inputs=inputs, outputs=x)
     h3_rep.layers[1].set_weights(sparse.layers[1].get_weights()[1:])
     h3_rep.layers[1].trainable = False
-    h3_rep.layers[2].set_weights(dense.layers[1].get_weights()[1:])
+    h3_rep.layers[2].set_weights(dense.layers[1].get_weights()[:2])
     h3_rep.layers[2].trainable = False
-    h3_rep.layers[4].set_weights(h2.layers[1].get_weights()[1:])
+    h3_rep.layers[4].set_weights(h2.layers[1].get_weights()[:2])
     h3_rep.layers[4].trainable = False
     h3_rep.compile(loss='mean_squared_error', optimizer=opt)
     X_orig3 = h3_rep.predict(X_orig)
@@ -593,7 +593,7 @@ def pretrain_flatGO_400_200_100_model(
     y = X_orig3
 
     inputs = Input(shape=(200,))
-    x = DenseLayerAutoencoder(100, activation=args.act)(inputs)
+    x = DenseLayerAutoencoder([100], activation=args.act)(inputs)
     h3 = Model(inputs=inputs, outputs=x)
 
     # compile and train h3
@@ -609,9 +609,9 @@ def pretrain_flatGO_400_200_100_model(
 
     # finally, write out the pretrained weights
     model.layers[1].set_weights(sparse.layers[1].get_weights()[1:])
-    model.layers[2].set_weights(dense.layers[1].get_weights()[1:])
-    model.layers[4].set_weights(h2.layers[1].get_weights()[1:])
-    model.layers[5].set_weights(h3.layers[1].get_weights()[1:])
+    model.layers[2].set_weights(dense.layers[1].get_weights()[:2])
+    model.layers[4].set_weights(h2.layers[1].get_weights()[:2])
+    model.layers[5].set_weights(h3.layers[1].get_weights()[:2])
     model.save_weights(join(working_dir, 'pretrained_layer_weights.h5'))
     sys.exit()
 
@@ -724,7 +724,7 @@ def pretrain_GOlvls_model(
 
     # dense pretraining
     inputs = Input(shape=(input_dim,))
-    x = DenseLayerAutoencoder(31, activation=args.act)(inputs)
+    x = DenseLayerAutoencoder([31], activation=args.act)(inputs)
     dense = Model(inputs=inputs, outputs=x)
 
     # compile and train dense
@@ -745,6 +745,6 @@ def pretrain_GOlvls_model(
     model.layers[1].set_weights(level1.layers[1].get_weights()[1:])
     model.layers[2].set_weights(level2.layers[1].get_weights()[1:])
     model.layers[3].set_weights(level3.layers[1].get_weights()[1:])
-    model.layers[4].set_weights(dense.layers[1].get_weights()[1:])
+    model.layers[4].set_weights(dense.layers[1].get_weights()[:2])
     model.save_weights(join(working_dir, 'pretrained_layer_weights.h5'))
     sys.exit()
