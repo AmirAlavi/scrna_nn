@@ -3,6 +3,7 @@ from itertools import combinations
 
 import numpy as np
 
+from .. import util
 from ..util import ScrnaException, distances
 
 CACHE_ROOT = "_cache"

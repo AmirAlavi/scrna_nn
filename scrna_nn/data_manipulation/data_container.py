@@ -127,7 +127,7 @@ class DataContainer(object):
             normalization = "sn"
         elif args.gn:
             normalization = "gn"
-        config_string = '_'.join([args.data, normalization, args.dynMarginLoss, args.dist_mat_file, args.trnsfm_fcn, args.trnsfm_fcn_param, args.unif_diff, args.same_lim, args.diff_multiplier])
+        config_string = '_'.join([args.data, normalization, args.dynMarginLoss, args.dist_mat_file, args.trnsfm_fcn, str(args.trnsfm_fcn_param), str(args.unif_diff), str(args.same_lim), str(args.diff_multiplier)])
         cache_path = join(join(join(CACHE_ROOT, SIAM_CACHE), config_string), split)
         if exists(cache_path):
             print("Loading siamese data from cache...")
