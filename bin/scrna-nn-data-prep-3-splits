@@ -334,9 +334,14 @@ if __name__ == '__main__':
             #         print("\t {}: {}".format(accession, count))
 
         # Print out the query cell types
-        print("Num valid/test cell types: ", len(valid_accns_for_label))
-        for cell_type in valid_accns_for_label.keys():
-            print("\t", cell_type)
+        print("valid/test cell types: ")
+        valid_test_types_count = 0
+        for cell_type, accn_list in valid_accns_for_label.items():
+            if len(accn_list > 0):
+                print("\t", cell_type)
+                valid_test_types_count += 1
+        print("Total valid/test cell types: {}".format(valid_test_types_count))
+                
 
         # Print out nodes that we can do DE analysis for
         print("Num nodes for DE: ", len(de_nodes))
