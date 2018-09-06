@@ -30,7 +30,7 @@ import matplotlib.patches as mpatches
 import seaborn
 seaborn.set()
 
-from scrna_nn.data_container import DataContainer
+from scrna_nn.data_manipulation.data_container import DataContainer
 from scrna_nn.reduce import _reduce_helper
 from scrna_nn import util
 
@@ -74,6 +74,13 @@ def plot_groups(X, name, working_dir, labels, config):
         plt.savefig(join(working_dir, name+"_groups.pdf"), bbox_inches="tight")
         plt.savefig(join(working_dir, name+"_groups.png"), bbox_inches="tight")
         plt.close()
+        plot_data = {'legend_circles': circles,
+                     'X': X,
+                     'colors': colors,
+                     'name': name,
+                     'config': config}
+        with open(join(working_dir, name+"_groups_data.pkl"), 'wb') as f:
+                pickle.dump(plot_data, f)
         
 def visualize(data, name, working_dir, labels, config):
         pca = PCA(n_components=2)
@@ -246,6 +253,14 @@ def plot_classification_histograms_two_group(group_data, working_dir, name, conf
         plt.savefig(join(working_dir, name + ".pdf"), bbox_inches="tight")
         plt.savefig(join(working_dir, name + ".png"), bbox_inches="tight")
         plt.close()
+        plot_data = {'bar_data': normalized_data,
+                     'x_locations': x_locations,
+                     'bar_width': bar_width,
+                     'x_ticks': merged_db_types,
+                     'config': config,
+                     'name': name}
+        with open(join(working_dir, name + "_bar_data.pkl"), 'wb') as f:
+                pickle.dump(plot_data, f)
 
 def make_classification_histograms_for_groups(classifications, working_dir, config):
         group_clfs = defaultdict(list)
@@ -420,7 +435,8 @@ def plot_marker_heatmap2(data, classifications, macrophage_enz, macrophage_sym, 
                 indices = indices.reshape((-1,))
                 class_markers = marker_data.iloc[indices, :].mean(axis=0).values
                 heatmap[cls] = class_markers
-
+        # Save the heatmap data for later plotting again
+        heatmap.to_pickle(join(working_dir, "marker_heatmap2.pkl"))
         ax = seaborn.heatmap(heatmap)
         plt.setp(ax.yaxis.get_majorticklabels(), ha='left')
         #ax.set_yticklabels(rows, ha='left')
@@ -466,7 +482,10 @@ def investigate_macrophage(data, reduced_query, macrophage_indices, macrophage_l
 
 def main(args):
         config = load_config(args)
+        if args['--out'] == 'None':
+                args['--out'] = None # Hack to get code that was meant for argparse to work with docopt defaults
         working_dir = util.create_working_directory(args['--out'], 'comparative_analysis/')
+        print("working dir: ", working_dir)
         model_name = basename(normpath(args['<model>']))
         baseline_name = basename(normpath(args['<baseline>']))
         #raw_query, query_labels, raw_db, db_labels, db_cell_ids, query_data_container = load_data(args)
@@ -503,7 +522,7 @@ def main(args):
                 sorted_labels = data['db_labels'][sorted_distances_indices]
                 sorted_cell_ids = data['db_cell_ids'][sorted_distances_indices]
 
-                top_5_nearest_cells[data['query_datacontainer'].rpkm_df.index[index]] = sorted_cell_ids[:5]
+                top_5_nearest_cells[data['query_datacontainer'].splits['train']['rpkm_df'].index[index]] = sorted_cell_ids[:5]
                 
                 min_distances = nearest_dist_to_each_type(sorted_distances, sorted_labels)
                 for db_type, min_dist in min_distances.items():
@@ -531,7 +550,7 @@ def main(args):
         make_5_nearest_distances_plots(avg_nearest_5_distances_dict, working_dir)
         make_classification_histograms(classifications, working_dir, config)
 
-        investigate_macrophage(data['query_datacontainer'].rpkm_df, query_model, macrophage_indices, macrophage_labels, working_dir, overall_classifications)
+        investigate_macrophage(data['query_datacontainer'].splits['train']['rpkm_df'], query_model, macrophage_indices, macrophage_labels, working_dir, overall_classifications)
         top_fibroblast = sorted(set(top_fibroblast))
         for f in top_fibroblast:
                 print(f)
