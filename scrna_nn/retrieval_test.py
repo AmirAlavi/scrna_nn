@@ -172,6 +172,8 @@ def retrieval_test(args):
 
     average_precisions_for_label = defaultdict(list)
     average_flex_precisions_for_label = defaultdict(list)
+    all_average_precisions = []
+    all_average_flex_precisions = []
     # average_flex_precisions_for_label2 = defaultdict(list)
     # average_accuracies_for_label = defaultdict(list)
     # average_top_fourth_accuracies_for_label = defaultdict(list)
@@ -195,6 +197,8 @@ def retrieval_test(args):
                 print("\t\t" + l)
         average_precisions_for_label[query_label].append(avg_precision)
         average_flex_precisions_for_label[query_label].append(avg_flex_precision)
+        all_average_precisions.append("{},{}".format(query_label, avg_precision))
+        all_average_flex_precisions.append("{},{}".format(query_label, avg_flex_precision))
         # average_flex_precisions_for_label2[query_label].append(avg_flex_precision2)
         # average_accuracies_for_label[query_label].append(avg_accuracy)
         # average_top_fourth_accuracies_for_label[query_label].append(avg_accuracy_of_top_fourth)
@@ -244,6 +248,15 @@ def retrieval_test(args):
     # retrieval_results_d["weighted_average_macq"] = np.average(macqs, weights=weights)
     with open(join(working_dir_path, "retrieval_results_d.pickle"), 'wb') as f:
         pickle.dump(retrieval_results_d, f)
+
+    with open(join(working_dir_path, "all_avg_precision_scores.txt"), 'w') as f:
+        for score in all_average_precisions:
+            f.write(score + '\n')
+        
+    with open(join(working_dir_path, "all_avg_flex_precision_scores.txt"), 'w') as f:
+        for score in all_average_flex_precisions:
+            f.write(score + '\n')
+        
         
     # summary_csv_file = open(join(working_dir_path, "retrieval_summary.csv"), 'w')
     # with open(join(working_dir_path, "retrieval_summary.csv"), 'w') as summary_csv_file:
