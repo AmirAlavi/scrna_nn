@@ -1,11 +1,16 @@
 import argparse
 import sys
 
-from ..analyze import analyze
-from ..reduce import reduce
-from ..retrieval_test import retrieval_test
-from ..train import train
-from ..visualize import visualize
+# from ..analyze import analyze
+# from ..reduce import reduce
+# from ..retrieval_test import retrieval_test
+# from ..train import train
+# from ..visualize import visualize
+from .. import analyze
+from .. import reduce
+from .. import retrieval_test
+from .. import train
+from .. import visualize
 
 
 def save_cmd_args_to_file(path):
@@ -31,7 +36,7 @@ def create_parser():
         "--data",
         help="Path to input data. For 'train' command, this must be a folder " +
         "with train/valid/test files.",
-        required=True)
+        required=False)
     common_options_parser.add_argument(
         "--out",
         help="Path to save output to. For training and retrieval this is a " +
@@ -45,7 +50,7 @@ def create_parser():
         help="Train a scRNA-seq dimensionality reduction model.",
         parents=[common_options_parser],
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser_train.set_defaults(func=train)
+    parser_train.set_defaults(func=train.train)
     parser_train.add_argument(
         "hidden_layer_sizes",
         help="List of hidden layer sizes (number of neurons per layer).",
@@ -340,7 +345,7 @@ def create_parser():
         help="Use a trained model to reduce dimensions (embed) scRNA-seq data.",
         parents=[common_options_parser],
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser_reduce.set_defaults(func=reduce)
+    parser_reduce.set_defaults(func=reduce.reduce)
     parser_reduce.add_argument(
         "--save_meta",
         help="Also save the metadata that was associated with the input data " +
@@ -357,7 +362,7 @@ def create_parser():
         help="Visualize reduced dimension data.",
         parents=[common_options_parser],
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser_visualize.set_defaults(func=visualize)
+    parser_visualize.set_defaults(func=visualize.visualize)
     parser_visualize.add_argument(
         "reduced_data_file",
         help="Path to reduced dimenstion data (hdf5 dataframe).")
@@ -383,7 +388,7 @@ def create_parser():
         help="Conduct a retrieval analysis experiment.",
         parents=[common_options_parser],
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser_retrieval.set_defaults(func=retrieval_test)
+    parser_retrieval.set_defaults(func=retrieval_test.retrieval_test)
     parser_retrieval.add_argument(
         "query_data_file",
         help="Path to query samples (hdf5 dataframe).")
@@ -427,7 +432,7 @@ def create_parser():
         help="Analyze data (incomplete).",
         parents=[common_options_parser],
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser_analyze.set_defaults(func=analyze)
+    parser_analyze.set_defaults(func=analyze.analyze)
     parser_analyze.add_argument(
         "trained_model_folder",
         help="Path to folder containing trained model.")

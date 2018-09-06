@@ -6,7 +6,8 @@ from sklearn.manifold import TSNE
 
 from . import util
 from .data_manipulation.data_container import DataContainer
-from .reduce import _reduce_helper
+#from .reduce import _reduce_helper
+from . import reduce
 
 
 def visualize(data, working_dir):
@@ -46,7 +47,7 @@ def analyze(args):
     visualize(query, working_dir_path)
 
     # Then embed it and visualize it
-    query_reduced, _ = _reduce_helper(args.trained_model_folder, args.query)
+    query_reduced, _ = reduce._reduce_helper(args.trained_model_folder, args.query)
     visualize(query_reduced, working_dir_path)
 
     

@@ -7,7 +7,7 @@ from os.path import join, dirname, exists
 import pandas as pd
 from keras import backend as K
 
-from . import util
+from .util import cli
 from .data_manipulation.data_container import DataContainer
 from .neural_network import neural_nets as nn
 
@@ -25,14 +25,14 @@ def save_reduced_data_to_h5(filename, X_reduced, data_container, save_metadata):
         print("saving metadata as well...")
         # Note: Does not make sense to save gene_symbols because our columns are no longer
         # genes, they are some reduced dimension.
-        h5_store['labels'] = data_container.labels_series
-        h5_store['accessions'] = data_container.accessions_series
+        h5_store['labels'] = data_container.splits['train']['labels_series']
+        h5_store['accessions'] = data_container.splits['train']['accessions_series']
     h5_store.close()
 
 
 def _reduce_helper(trained_model_folder, data_to_reduce):
     training_args_path = join(trained_model_folder, "command_line_args.txt")
-    training_args = util.cli.load_cmd_args_from_file(training_args_path)
+    training_args = cli.load_cmd_args_from_file(training_args_path)
     # Must ensure that we use the same normalizations/standardization from when model was trained
     mean = None
     std = None
