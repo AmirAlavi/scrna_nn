@@ -149,18 +149,15 @@ def get_sparse(hidden_layer_sizes, input_dim, adj_mat, activation_fcn='tanh', ex
         x = Dense(size, activation=activation_fcn, kernel_regularizer=regularization)(x)
     return inputs, x
 
-def get_GO(hidden_layer_sizes, input_dim, go_first_level_adj_mat, go_other_levels_adj_mats, activation_fcn='tanh', extra_dense_units=0, regularization=None):
+def get_GO(hidden_layer_sizes, input_dim, GO_adj_dfs, activation_fcn='tanh', extra_dense_units=0, regularization=None):
     inputs = Input(shape=(input_dim,))
+    go_out = inputs
     # Hidden layers
     # first hidden layer
-    # (Condsider entire GO tree (multi-level) as being in the 1st hidden layer)
-    t0 = time.time()
-    go_out = Sparse(activation=activation_fcn, adjacency_mat=go_first_level_adj_mat, kernel_regularizer=regularization)(inputs)
-    print("time to add GO lvl 1: ", time.time() - t0)
-    for other_adj_mat in go_other_levels_adj_mats:
-        t0 = time.time()
-        go_out = Sparse(activation=activation_fcn, adjacency_mat=other_adj_mat, kernel_regularizer=regularization)(go_out)
-        print("time to add GO lvl: ", time.time() - t0)
+    # (Consider entire GO tree (multi-level) as being in the 1st hidden layer)
+    for adj_df in GO_adj_dfs:
+        adj_mat = adj_df.to_dense().values
+        go_out = Sparse(activation=activation_fcn, adjacency_mat=adj_mat, kernel_regularizer=regularization)(go_out)
     # Finished constructing GO tree
     if extra_dense_units > 0:
         dense_out = Dense(extra_dense_units, activation=activation_fcn, kernel_regularizer=regularization)(inputs)
@@ -237,7 +234,7 @@ def get_regularization(args):
     print('Using regularizer: {}'.format(reg))
     return reg
 
-def get_nn_model(args, model_name, hidden_layer_sizes, input_dim, activation_fcn='tanh', output_dim=None, adj_mat=None, go_first_level_adj_mat=None, go_other_levels_adj_mats=None, flatGO_ppitf_adj_mats=None, extra_dense_units=0, dropout=0.0):
+def get_nn_model(args, model_name, hidden_layer_sizes, input_dim, activation_fcn='tanh', output_dim=None, adj_mat=None, GO_adj_mats=None, flatGO_ppitf_adj_mats=None, extra_dense_units=0, dropout=0.0):
     # if is_autoencoder:
     #     # autoencoder architectures in a separate module for organizational purposes
     #     latent_size = None
@@ -253,7 +250,7 @@ def get_nn_model(args, model_name, hidden_layer_sizes, input_dim, activation_fcn
     elif model_name == 'sparse':
         in_tensors, hidden_tensors = get_sparse(hidden_layer_sizes, input_dim, adj_mat, activation_fcn, extra_dense_units, reg)
     elif model_name == 'GO':
-        in_tensors, hidden_tensors = get_GO(hidden_layer_sizes, input_dim, go_first_level_adj_mat, go_other_levels_adj_mats, activation_fcn, extra_dense_units, reg)
+        in_tensors, hidden_tensors = get_GO(hidden_layer_sizes, input_dim, GO_adj_mats, activation_fcn, extra_dense_units, reg)
     elif model_name == 'flatGO_ppitf':
         in_tensors, hidden_tensors = get_flatGO_ppitf(hidden_layer_sizes, input_dim, flatGO_ppitf_adj_mats, activation_fcn, extra_dense_units, reg)
     elif model_name == 'GO_ppitf':
@@ -263,9 +260,8 @@ def get_nn_model(args, model_name, hidden_layer_sizes, input_dim, activation_fcn
         is_autoencoder = True
     else:
         raise ScrnaException("Bad neural network name: " + model_name)
-    
     # Then add output layer on top
-    if is_autoencoder: # (no explicit output layer required here)
+    if is_autoencoder or output_dim is None: # (no explicit output layer required here)
         out_tensors = hidden_tensors
     else:
         out_tensors = Dense(output_dim, activation='softmax')(hidden_tensors)

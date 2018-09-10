@@ -626,11 +626,7 @@ def pretrain_GOlvls_model(
         X_orig,
         working_dir,
         args):
-    # GO dimensions:
-    # 20499
-    #  5394
-    #   925
-    #    69
+
     print("Pretraining GO architecture")
     callbacks_list = []
     if args.early_stop:
@@ -673,7 +669,7 @@ def pretrain_GOlvls_model(
         np.random.normal(loc=0, scale=1, size=X_orig2.shape)
     y = X_orig2
 
-    inputs = Input(shape=(5394,))
+    inputs = Input(shape=(3231,))
     x = SparseLayerAutoencoder(
         activation=args.act,
         adjacency_mat=level2_adj_mat)(inputs)
@@ -705,7 +701,7 @@ def pretrain_GOlvls_model(
         np.random.normal(loc=0, scale=1, size=X_orig3.shape)
     y = X_orig3
 
-    inputs = Input(shape=(925,))
+    inputs = Input(shape=(568,))
     x = SparseLayerAutoencoder(
         activation=args.act,
         adjacency_mat=level3_adj_mat)(inputs)
@@ -724,7 +720,7 @@ def pretrain_GOlvls_model(
 
     # dense pretraining
     inputs = Input(shape=(input_dim,))
-    x = DenseLayerAutoencoder([31], activation=args.act)(inputs)
+    x = DenseLayerAutoencoder([46], activation=args.act)(inputs)
     dense = Model(inputs=inputs, outputs=x)
 
     # compile and train dense

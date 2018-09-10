@@ -22,13 +22,16 @@ class DataContainer(object):
         self.std = feature_std
         self.splits = defaultdict(dict)
         self.add_split(filepath, 'train')
+        self.label_to_int_map = None
+
+    def _create_label_mapping(self):
         # Create a unique mapping of label string to integer, will be shared among all splits
         label_strings = self.splits['train']['labels_series'].values
         uniq_label_strings, y = np.unique(label_strings, return_inverse=True)
         self.label_to_int_map = {}
         for i, label_string in enumerate(label_strings):
             self.label_to_int_map[label_string] = y[i]
-
+    
     def _normalize_split(self, split):
         eps = np.finfo(np.float32).eps
         if self.sample_normalize:
@@ -89,6 +92,8 @@ class DataContainer(object):
         return self.splits[split]['rpkm_df'].index.values
 
     def get_data_for_neural_net(self, split, one_hot=True):
+        if self.label_to_int_map is None:
+            self._create_label_mapping()
         X = self.splits[split]['rpkm_df'].values
         label_strings = self.splits[split]['labels_series'].values
         y = []
@@ -105,6 +110,8 @@ class DataContainer(object):
         return X, X_clean
 
     def get_in_out_dims(self):
+        if self.label_to_int_map is None:
+            self._create_label_mapping()
         return self.splits['train']['rpkm_df'].shape[1], len(self.label_to_int_map)
     # def save_about_data(self, folder_to_save_in):
     #     """Save some descriptive info about this data to a text file.

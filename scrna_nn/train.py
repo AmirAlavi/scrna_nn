@@ -68,29 +68,16 @@ def get_base_model_architecture(args, input_dim, output_dim, gene_names):
     provide an adjacency matrix for sparsely connected layers.
     '''
     adj_mat = None
-    go_first_level_adj_mat = None
-    go_other_levels_adj_mats = None
+    GO_adj_mats = None
     flatGO_ppitf_adj_mats = None
     if args.nn == 'sparse' or args.nn == 'GO_ppitf':
         _, _, adj_mat = get_adj_mat_from_groupings(
             args.sparse_groupings, gene_names)
         print('Sparse layer adjacency mat shape: ', adj_mat.shape)
-    if args.nn == 'GO' or args.nn == 'GO_ppitf':
-        # For now, we expect these file names
-        # TODO: decouple file naming
-        go_first_level_groupings_file = join(
-            args.go_arch, 'GO_arch_first_level_groupings.txt')
-        t0 = time.time()
-        _, _, go_first_level_adj_mat = get_adj_mat_from_groupings(
-            go_first_level_groupings_file, gene_names)
-        print('get adj mat from groupings file took: ', time.time() - t0)
-        print(
-            '(GO first level) Sparse layer adjacency mat shape: ',
-            go_first_level_adj_mat.shape)
-        go_other_levels_adj_mats_file = join(
-            args.go_arch, 'GO_arch_other_levels_adj_mats.pickle')
-        with open(go_other_levels_adj_mats_file, 'rb') as fp:
-            go_other_levels_adj_mats = pickle.load(fp)
+    # TODO: "GO_ppitf" is now broken, fix or remove
+    if args.nn == 'GO':
+        with open(args.go_arch, 'rb') as f:
+            GO_adj_mats = pickle.load(f)
     elif args.nn == 'flatGO_ppitf':
         _, _, flatGO_adj_mat = get_adj_mat_from_groupings(
             args.fGO_ppitf_grps.split(',')[0], gene_names)
@@ -114,8 +101,7 @@ def get_base_model_architecture(args, input_dim, output_dim, gene_names):
         args.act,
         output_dim,
         adj_mat,
-        go_first_level_adj_mat,
-        go_other_levels_adj_mats,
+        GO_adj_mats,
         flatGO_ppitf_adj_mats,
         args.with_dense,
         args.dropout)
@@ -312,14 +298,14 @@ def layerwise_train_neural_net(working_dir_path, args, data, training_report):
     print('Layerwise pre-training a Neural Network model...')
     # Set up optimizer
     opt = get_optimizer(args)
+    # Get unlabeled data
+    X = data.get_expression_mat()
     # Construct network architecture
     gene_names = data.get_gene_names()
-    input_dim, output_dim = data.get_in_out_dims()
+    input_dim, output_dim = X.shape[1], None
     model, embed_dims = get_model_architecture(
         working_dir_path, args, input_dim, output_dim, gene_names)
     training_report['cfg_DIMS'] = embed_dims
-    # Get unlabeled data
-    X = data.get_expression_mat()
     # Greedy layerwise pretrain
     hidden_layer_sizes = [int(x) for x in args.hidden_layer_sizes]
     if args.nn == 'dense':
@@ -366,21 +352,18 @@ def layerwise_train_neural_net(working_dir_path, args, data, training_report):
                     'Layerwise pretraining not ' +
                     'implemented for this architecture')
 
-    elif args.nn == 'GO' and args.with_dense == 31:
-        go_first_level_groupings_file = join(
-            args.go_arch, 'GO_arch_first_level_groupings.txt')
-        _, _, go_first_level_adj_mat = get_adj_mat_from_groupings(
-            go_first_level_groupings_file, gene_names)
-        go_other_levels_adj_mats_file = join(
-            args.go_arch, 'GO_arch_other_levels_adj_mats.pickle')
-        with open(go_other_levels_adj_mats_file, 'rb') as fp:
-            go_other_levels_adj_mats = pickle.load(fp)
+    elif args.nn == 'GO' and args.with_dense == 46:
+        with open(args.go_arch, 'rb') as f:
+            GO_adj_mats = pickle.load(f)
+        for i in range(len(GO_adj_mats)):
+            GO_adj_mats[i] = GO_adj_mats[i].to_dense()
+            print("FOOBAR: ", GO_adj_mats[i].shape)
         pt.pretrain_GOlvls_model(
             model,
             input_dim,
-            go_first_level_adj_mat,
-            go_other_levels_adj_mats[0],
-            go_other_levels_adj_mats[1],
+            GO_adj_mats[0].values,
+            GO_adj_mats[1].values,
+            GO_adj_mats[2].values,
             opt,
             X,
             working_dir_path,
@@ -495,6 +478,9 @@ def train_neural_net(working_dir_path, args, data, training_report):
     evaluate_model(model, args, data, training_report)
     # Finally, save the model
     save_neural_net(working_dir_path, args, template_model)
+    # Also save the mapping of label to string:
+    with open(join(working_dir_path, "label_to_int_map.pickle"), 'wb') as f:
+        pickle.dump(data.label_to_int_map, f)
 
 
 def report_config(args, training_report):
@@ -560,14 +546,22 @@ def report_config(args, training_report):
 
 
 def load_data(args, working_dir):
-    data = DataContainer(
-        join(
-            args.data,
-            'train_data.h5'),
-        sample_normalize=args.sn,
-        feature_normalize=args.gn)
-    data.add_split(join(args.data, 'valid_data.h5'), 'valid')
-    data.add_split(join(args.data, 'test_data.h5'), 'test')
+    if args.layerwise_pt:
+        data = DataContainer(
+            join(
+                args.data,
+                'unlabeled_data.h5'),
+            sample_normalize=args.sn,
+            feature_normalize=args.gn)
+    else:
+        data = DataContainer(
+            join(
+                args.data,
+                'train_data.h5'),
+            sample_normalize=args.sn,
+            feature_normalize=args.gn)
+        data.add_split(join(args.data, 'valid_data.h5'), 'valid')
+        data.add_split(join(args.data, 'test_data.h5'), 'test')
     if args.gn:
         # save the training data mean and std for later use on new data
         data.mean.to_pickle(join(working_dir, 'mean.p'))
