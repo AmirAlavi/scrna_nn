@@ -134,10 +134,12 @@ def get_dense(hidden_layer_sizes, input_dim, activation_fcn='tanh', dropout=0.0,
         x = Dense(size, activation=activation_fcn, kernel_regularizer=regularization)(x)
     return inputs, x
 
-def get_sparse(hidden_layer_sizes, input_dim, adj_mat, activation_fcn='tanh', extra_dense_units=0, regularization=None):
+def get_sparse(hidden_layer_sizes, input_dim, adj_df, activation_fcn='tanh', extra_dense_units=0, regularization=None):
     inputs = Input(shape=(input_dim,))
     # Hidden layers
     # first hidden layer
+    adj_mat = adj_df.to_dense().values
+    print("Sparse adj mat shape: {}".format(adj_mat.shape))
     sparse_out = Sparse(activation=activation_fcn, adjacency_mat=adj_mat, kernel_regularizer=regularization)(inputs)
     if extra_dense_units > 0:
         dense_out = Dense(extra_dense_units, activation=activation_fcn, kernel_regularizer=regularization)(inputs)
@@ -166,7 +168,7 @@ def get_GO(hidden_layer_sizes, input_dim, GO_adj_dfs, activation_fcn='tanh', ext
         x = go_out
     # other hidden layers
     for size in hidden_layer_sizes:
-        x = Dense(size, activation=activation_fcn, kerel_regularizer=regularization)(x)
+        x = Dense(size, activation=activation_fcn, kernel_regularizer=regularization)(x)
     return inputs, x
 
 def get_flatGO_ppitf(hidden_layer_sizes, input_dim, flatGO_ppitf_adj_mats, activation_fcn='tanh', extra_dense_units=0, regularization=None):
@@ -234,7 +236,7 @@ def get_regularization(args):
     print('Using regularizer: {}'.format(reg))
     return reg
 
-def get_nn_model(args, model_name, hidden_layer_sizes, input_dim, activation_fcn='tanh', output_dim=None, adj_mat=None, GO_adj_mats=None, flatGO_ppitf_adj_mats=None, extra_dense_units=0, dropout=0.0):
+def get_nn_model(args, model_name, hidden_layer_sizes, input_dim, activation_fcn='tanh', output_dim=None, adj_mat=None, GO_adj_mats=None, extra_dense_units=0, dropout=0.0):
     # if is_autoencoder:
     #     # autoencoder architectures in a separate module for organizational purposes
     #     latent_size = None
@@ -251,10 +253,6 @@ def get_nn_model(args, model_name, hidden_layer_sizes, input_dim, activation_fcn
         in_tensors, hidden_tensors = get_sparse(hidden_layer_sizes, input_dim, adj_mat, activation_fcn, extra_dense_units, reg)
     elif model_name == 'GO':
         in_tensors, hidden_tensors = get_GO(hidden_layer_sizes, input_dim, GO_adj_mats, activation_fcn, extra_dense_units, reg)
-    elif model_name == 'flatGO_ppitf':
-        in_tensors, hidden_tensors = get_flatGO_ppitf(hidden_layer_sizes, input_dim, flatGO_ppitf_adj_mats, activation_fcn, extra_dense_units, reg)
-    elif model_name == 'GO_ppitf':
-        in_tensors, hidden_tensors = get_GO_ppitf(hidden_layer_sizes, input_dim, adj_mat, go_first_level_adj_mat, go_other_levels_adj_mats, activation_fcn, extra_dense_units, reg)
     elif model_name == 'DAE':
         in_tensors, hidden_tensors = get_DAE(hidden_layer_sizes, input_dim, activation_fcn, dropout, reg)
         is_autoencoder = True

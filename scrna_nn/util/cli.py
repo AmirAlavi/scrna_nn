@@ -1,11 +1,6 @@
 import argparse
 import sys
 
-# from ..analyze import analyze
-# from ..reduce import reduce
-# from ..retrieval_test import retrieval_test
-# from ..train import train
-# from ..visualize import visualize
 from .. import analyze
 from .. import reduce
 from .. import retrieval_test

@@ -33,10 +33,9 @@ def get_model_architecture(
         working_dir_path,
         args,
         input_dim,
-        output_dim,
-        gene_names):
+        output_dim):
     base_model = get_base_model_architecture(
-        args, input_dim, output_dim, gene_names)
+        args, input_dim, output_dim)
     embedding_dim = base_model.layers[-1].input_shape[1]
     if args.nn == "DAE":
         embedding_dim = int(args.hidden_layer_sizes[0])
@@ -58,7 +57,7 @@ def get_model_architecture(
     return model, embedding_dim
 
 
-def get_base_model_architecture(args, input_dim, output_dim, gene_names):
+def get_base_model_architecture(args, input_dim, output_dim):
     '''Possible options for neural network architectures are outlined in the
     '--help' command
 
@@ -69,29 +68,14 @@ def get_base_model_architecture(args, input_dim, output_dim, gene_names):
     '''
     adj_mat = None
     GO_adj_mats = None
-    flatGO_ppitf_adj_mats = None
-    if args.nn == 'sparse' or args.nn == 'GO_ppitf':
-        _, _, adj_mat = get_adj_mat_from_groupings(
-            args.sparse_groupings, gene_names)
-        print('Sparse layer adjacency mat shape: ', adj_mat.shape)
-    # TODO: "GO_ppitf" is now broken, fix or remove
+    if args.nn == 'sparse':
+        with open(args.sparse_groupings, 'rb') as f:
+            adj_mat = pickle.load(f)
     if args.nn == 'GO':
         with open(args.go_arch, 'rb') as f:
             GO_adj_mats = pickle.load(f)
-    elif args.nn == 'flatGO_ppitf':
-        _, _, flatGO_adj_mat = get_adj_mat_from_groupings(
-            args.fGO_ppitf_grps.split(',')[0], gene_names)
-        _, _, ppitf_adj_mat = get_adj_mat_from_groupings(
-            args.fGO_ppitf_grps.split(',')[1], gene_names)
-        flatGO_ppitf_adj_mats = [flatGO_adj_mat, ppitf_adj_mat]
-    # elif args['--nn'] == 'GO_ppitf':
-    #     _, _, adj_mat = get_adj_mat_from_groupings(args['--sparse_groupings'], gene_names)
 
     hidden_layer_sizes = [int(x) for x in args.hidden_layer_sizes]
-    # if args['--ae']:
-    #     if args['--nn'] == 'GO':
-    #         print('For GO autoencoder, doing 1st layer')
-    #         adj_mat = go_first_level_adj_mat
 
     return nn.get_nn_model(
         args,
@@ -102,7 +86,6 @@ def get_base_model_architecture(args, input_dim, output_dim, gene_names):
         output_dim,
         adj_mat,
         GO_adj_mats,
-        flatGO_ppitf_adj_mats,
         args.with_dense,
         args.dropout)
 
@@ -301,77 +284,12 @@ def layerwise_train_neural_net(working_dir_path, args, data, training_report):
     # Get unlabeled data
     X = data.get_expression_mat()
     # Construct network architecture
-    gene_names = data.get_gene_names()
     input_dim, output_dim = X.shape[1], None
     model, embed_dims = get_model_architecture(
-        working_dir_path, args, input_dim, output_dim, gene_names)
+        working_dir_path, args, input_dim, output_dim)
     training_report['cfg_DIMS'] = embed_dims
     # Greedy layerwise pretrain
-    hidden_layer_sizes = [int(x) for x in args.hidden_layer_sizes]
-    if args.nn == 'dense':
-        if hidden_layer_sizes == [1136, 100]:
-            pt.pretrain_dense_1136_100_model(
-                model, input_dim, opt, X, working_dir_path, args)
-        elif hidden_layer_sizes == [1136, 500, 100]:
-            pt.pretrain_dense_1136_500_100_model(
-                model, input_dim, opt, X, working_dir_path, args)
-        else:
-            raise util.ScrnaException(
-                'Layerwise pretraining not implemented for this architecture')
-    elif args.nn == 'sparse' and args.with_dense == 100:
-        if 'flat' in args.sparse_groupings:
-            print('Layerwise pretraining for FlatGO')
-            if hidden_layer_sizes == [100]:
-                _, _, adj_mat = get_adj_mat_from_groupings(
-                    args.sparse_groupings, gene_names)
-                pt.pretrain_flatGO_400_100_model(
-                    model, input_dim, adj_mat, opt, X, working_dir_path, args)
-            elif hidden_layer_sizes == [200, 100]:
-                _, _, adj_mat = get_adj_mat_from_groupings(
-                    args.sparse_groupings, gene_names)
-                pt.pretrain_flatGO_400_200_100_model(
-                    model, input_dim, adj_mat, opt, X, working_dir_path, args)
-            else:
-                raise util.ScrnaException(
-                    'Layerwise pretraining not ' +
-                    'implemented for this architecture')
-        else:
-            print('Layerwise pretraining for PPITF')
-            if hidden_layer_sizes == [100]:
-                _, _, adj_mat = get_adj_mat_from_groupings(
-                    args.sparse_groupings, gene_names)
-                pt.pretrain_ppitf_1136_100_model(
-                    model, input_dim, adj_mat, opt, X, working_dir_path, args)
-            elif hidden_layer_sizes == [500, 100]:
-                _, _, adj_mat = get_adj_mat_from_groupings(
-                    args.sparse_groupings, gene_names)
-                pt.pretrain_ppitf_1136_500_100_model(
-                    model, input_dim, adj_mat, opt, X, working_dir_path, args)
-            else:
-                raise util.ScrnaException(
-                    'Layerwise pretraining not ' +
-                    'implemented for this architecture')
-
-    elif args.nn == 'GO' and args.with_dense == 46:
-        with open(args.go_arch, 'rb') as f:
-            GO_adj_mats = pickle.load(f)
-        for i in range(len(GO_adj_mats)):
-            GO_adj_mats[i] = GO_adj_mats[i].to_dense()
-            print("FOOBAR: ", GO_adj_mats[i].shape)
-        pt.pretrain_GOlvls_model(
-            model,
-            input_dim,
-            GO_adj_mats[0].values,
-            GO_adj_mats[1].values,
-            GO_adj_mats[2].values,
-            opt,
-            X,
-            working_dir_path,
-            args)
-    else:
-        raise util.ScrnaException(
-            'Layerwise pretraining not implemented for this architecture')
-
+    pt.pretrain_model(model, input_dim, opt, X, working_dir_path, args)
 
 def evaluate_model(model, args, data, training_report):
     # Get performance on each metric for each split
@@ -436,17 +354,16 @@ def train_neural_net(working_dir_path, args, data, training_report):
     print('Training a Neural Network model...')
     # Construct network architecture
     ngpus = args.ngpus
-    gene_names = data.get_gene_names()
     input_dim, output_dim = data.get_in_out_dims()
     if ngpus > 1:
         import tensorflow as tf
         with tf.device('/cpu:0'):
             template_model, embed_dims = get_model_architecture(
-                working_dir_path, args, input_dim, output_dim, gene_names)
+                working_dir_path, args, input_dim, output_dim)
         model = multi_gpu_model(template_model, gpus=ngpus)
     else:
         template_model, embed_dims = get_model_architecture(
-            working_dir_path, args, input_dim, output_dim, gene_names)
+            working_dir_path, args, input_dim, output_dim)
         model = template_model
     training_report['cfg_DIMS'] = embed_dims
     # Set up optimizer
@@ -595,13 +512,13 @@ def train(args: argparse.Namespace):
 
     # Report the configuration and performance of the model
     with open(join(working_dir_path, 'config_results.csv'), 'w') as f:
-        for i, col in enumerate(training_report.keys()):
+        for i, col in enumerate(sorted(training_report.keys())):
             if i == len(training_report) - 1:
                 f.write('{}\n'.format(col))
             else:
                 f.write('{},'.format(col))
-        for i, val in enumerate(training_report.values()):
+        for i, key in enumerate(sorted(training_report.keys())):
             if i == len(training_report) - 1:
-                f.write('{}\n'.format(val))
+                f.write('{}\n'.format(training_report[key]))
             else:
-                f.write('{},'.format(val))
+                f.write('{},'.format(training_report[key]))
