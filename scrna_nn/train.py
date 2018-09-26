@@ -10,6 +10,8 @@ from keras import backend as K
 from keras.callbacks import LearningRateScheduler, EarlyStopping, ModelCheckpoint
 from keras.optimizers import SGD
 from keras.utils import multi_gpu_model
+from keras.models import Model
+from keras.layers import Lambda, Input
 from sklearn.decomposition import PCA
 
 from . import util
@@ -38,7 +40,7 @@ def get_model_architecture(
         args, input_dim, output_dim)
     embedding_dim = base_model.layers[-1].input_shape[1]
     if args.nn == "DAE":
-        embedding_dim = int(args.hidden_layer_sizes[0])
+        embedding_dim = int(args.hidden_layer_sizes[-1])
     print(base_model.summary())
     # Set pretrained weights, if any, before making into siamese
     if args.init:
@@ -293,6 +295,10 @@ def layerwise_train_neural_net(working_dir_path, args, data, training_report):
 
 def evaluate_model(model, args, data, training_report):
     # Get performance on each metric for each split
+    if args.checkpoints:
+        # if checkpointing was used, then make sure we use the 'best'
+        # model for evaluation
+        model.load_weights(join(training_report['cfg_folder'], 'model_weights.h5'))
     for split in data.splits.keys():
         if args.siamese:
             X = data.splits[split]['siam_X']
@@ -323,24 +329,29 @@ def evaluate_model(model, args, data, training_report):
     # Additionally, test retrieval performance with valid and test splits as
     # queries
     database = data.get_expression_mat(split='train')
-    reducing_model = model
-    if args.siamese:
-        reducing_model = model.layers[2]
-        last_hidden_layer = reducing_model.layers[-1]
-    elif args.triplet:
-        last_hidden_layer = reducing_model.layers[-1]
-    else:
-        last_hidden_layer = reducing_model.layers[-2]
-    get_activations = K.function([reducing_model.layers[0].input], [
-                                 last_hidden_layer.output])
     if args.nn == "DAE":
-        embedded = model.layers[1].encode(model.layers[0].input)
-        get_activations = K.function([model.layers[0].input], [embedded])
-    database = get_activations([database])[0]
+        sample_in = Input(shape=model.layers[0].input_shape[1:],
+                          name='sample_input')
+        embedded = Lambda(lambda x: model.layers[1].encode(x),
+                          output_shape=(training_report['cfg_DIMS'],),
+                          name='encoder')(sample_in)
+        embedded._uses_learning_phase = True
+        embedder = Model(sample_in, embedded)
+    else:
+        reducing_model = model
+        if args.siamese:
+            reducing_model = model.layers[2]
+            last_hidden_layer = reducing_model.layers[-1]
+        elif args.triplet:
+            last_hidden_layer = reducing_model.layers[-1]
+        else:
+            last_hidden_layer = reducing_model.layers[-2]
+        embedder = Model(inputs=reducing_model.layers[0].input, outputs=last_hidden_layer.output)
+    database = embedder.predict(database)
     database_labels = data.get_labels('train')
     for split in ['valid', 'test']:
         query = data.get_expression_mat(split)
-        query = get_activations([query])[0]
+        query = embedder.predict(query)
         query_labels = data.get_labels(split)
         avg_map, wt_avg_map, avg_mafp, wt_avg_mafp = retrieval_test_in_memory(
             database, database_labels, query, query_labels)
@@ -392,12 +403,14 @@ def train_neural_net(working_dir_path, args, data, training_report):
     if not args.siamese and not args.triplet and args.nn != "DAE": # TODO: just do this by checking if 'acc' is a current metric
         plot_accuracy_history(history, join(working_dir_path, 'accuracy.png'))
     print('Evaluating')
-    evaluate_model(model, args, data, training_report)
-    # Finally, save the model
+    # Since evaluation functions may need to change the model,
+    # save the model here first
     save_neural_net(working_dir_path, args, template_model)
     # Also save the mapping of label to string:
     with open(join(working_dir_path, "label_to_int_map.pickle"), 'wb') as f:
         pickle.dump(data.label_to_int_map, f)
+    evaluate_model(model, args, data, training_report)
+    
 
 
 def report_config(args, training_report):

@@ -34,7 +34,8 @@ def average_flex_precision(query_label, retrieved_labels, similarity_fcn, is_asy
                 relevance_sum += relevance
                 scores.append(relevance_sum / float(idx+1))
             except KeyError as err:
-                print("WARNING: similarity information for {} isn't available, skipped!".format(err))
+                # no similarity information available (not in dict), skip
+                pass
         
     if len(scores) > 0:
         return np.mean(scores)

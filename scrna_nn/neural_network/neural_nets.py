@@ -30,10 +30,6 @@ def load_trained_nn(path, triplet_loss_batch_size=-1, dynamic_margin=-1, siamese
     print(custom_objects)
     return load_model(path, custom_objects=custom_objects)
 
-# def get_pretrained_weights(pretrained_model_file):
-#     pretrained_model = load_trained_nn(pretrained_model_file)
-#     return [layer.get_weights() for layer in pretrained_model.layers]
-
 def set_pretrained_weights(model, pretrained_weights_file):
     model.load_weights(pretrained_weights_file, by_name=True, skip_mismatch=True)
     print("Loaded pre-trained weights from: ", pretrained_weights_file)
@@ -134,30 +130,44 @@ def get_dense(hidden_layer_sizes, input_dim, activation_fcn='tanh', dropout=0.0,
         x = Dense(size, activation=activation_fcn, kernel_regularizer=regularization)(x)
     return inputs, x
 
-def get_sparse(hidden_layer_sizes, input_dim, adj_df, activation_fcn='tanh', extra_dense_units=0, regularization=None):
+def get_sparse(hidden_layer_sizes, input_dim, adj_df, activation_fcn='tanh', dropout=0.0, extra_dense_units=0, regularization=None):
     inputs = Input(shape=(input_dim,))
+    x = inputs
     # Hidden layers
+    if dropout > 0:
+        print("Using dropout layer")
+        x = Dropout(dropout)(x)
     # first hidden layer
     adj_mat = adj_df.to_dense().values
     print("Sparse adj mat shape: {}".format(adj_mat.shape))
-    sparse_out = Sparse(activation=activation_fcn, adjacency_mat=adj_mat, kernel_regularizer=regularization)(inputs)
+    sparse_out = Sparse(activation=activation_fcn, adjacency_mat=adj_mat, kernel_regularizer=regularization)(x)
     if extra_dense_units > 0:
-        dense_out = Dense(extra_dense_units, activation=activation_fcn, kernel_regularizer=regularization)(inputs)
+        dense_out = Dense(extra_dense_units, activation=activation_fcn, kernel_regularizer=regularization)(x)
         x = keras.layers.concatenate([sparse_out, dense_out])
     else:
         x = sparse_out
     # other hidden layers
+    
     for size in hidden_layer_sizes:
+        if dropout > 0:
+            print("Using dropout layer")
+            x = Dropout(dropout)(x)
         x = Dense(size, activation=activation_fcn, kernel_regularizer=regularization)(x)
     return inputs, x
 
-def get_GO(hidden_layer_sizes, input_dim, GO_adj_dfs, activation_fcn='tanh', extra_dense_units=0, regularization=None):
+def get_GO(hidden_layer_sizes, input_dim, GO_adj_dfs, activation_fcn='tanh', dropout=0.0, extra_dense_units=0, regularization=None):
     inputs = Input(shape=(input_dim,))
     go_out = inputs
     # Hidden layers
+    if dropout > 0:
+        print("Using dropout layer")
+        go_out = Dropout(dropout)(go_out)
     # first hidden layer
     # (Consider entire GO tree (multi-level) as being in the 1st hidden layer)
-    for adj_df in GO_adj_dfs:
+    for i, adj_df in enumerate(GO_adj_dfs):
+        if i > 0 and dropout > 0:
+            print("Using dropout layer")
+            go_out = Dropout(dropout)(go_out)
         adj_mat = adj_df.to_dense().values
         go_out = Sparse(activation=activation_fcn, adjacency_mat=adj_mat, kernel_regularizer=regularization)(go_out)
     # Finished constructing GO tree
@@ -168,6 +178,9 @@ def get_GO(hidden_layer_sizes, input_dim, GO_adj_dfs, activation_fcn='tanh', ext
         x = go_out
     # other hidden layers
     for size in hidden_layer_sizes:
+        if dropout > 0:
+            print("Using dropout layer")
+            x = Dropout(dropout)(x)
         x = Dense(size, activation=activation_fcn, kernel_regularizer=regularization)(x)
     return inputs, x
 
@@ -210,7 +223,7 @@ def get_GO_ppitf(hidden_layer_sizes, input_dim, ppitf_adj_mat, go_first_level_ad
 def get_DAE(hidden_layer_sizes, input_dim, activation_fcn='tanh', dropout=0.0, regularization=None):
     inputs = Input(shape=(input_dim,))
     x = inputs
-    x = DenseLayerAutoencoder(hidden_layer_sizes[0], activation=activation_fcn, kernel_regularizer=regularization)(x)
+    x = DenseLayerAutoencoder(hidden_layer_sizes, dropout=dropout, activation=activation_fcn, kernel_regularizer=regularization)(x)
     return inputs, x
 
 # def get_sparseDAE(input_dim, adj_mat, activation_fcn='tanh', extra_dense_units=0, regularization=None):
@@ -250,9 +263,9 @@ def get_nn_model(args, model_name, hidden_layer_sizes, input_dim, activation_fcn
     if model_name == 'dense':
         in_tensors, hidden_tensors = get_dense(hidden_layer_sizes, input_dim, activation_fcn, dropout, reg)
     elif model_name == 'sparse':
-        in_tensors, hidden_tensors = get_sparse(hidden_layer_sizes, input_dim, adj_mat, activation_fcn, extra_dense_units, reg)
+        in_tensors, hidden_tensors = get_sparse(hidden_layer_sizes, input_dim, adj_mat, activation_fcn, dropout, extra_dense_units, reg)
     elif model_name == 'GO':
-        in_tensors, hidden_tensors = get_GO(hidden_layer_sizes, input_dim, GO_adj_mats, activation_fcn, extra_dense_units, reg)
+        in_tensors, hidden_tensors = get_GO(hidden_layer_sizes, input_dim, GO_adj_mats, activation_fcn, dropout, extra_dense_units, reg)
     elif model_name == 'DAE':
         in_tensors, hidden_tensors = get_DAE(hidden_layer_sizes, input_dim, activation_fcn, dropout, reg)
         is_autoencoder = True
