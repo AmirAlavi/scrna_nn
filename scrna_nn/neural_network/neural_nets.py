@@ -275,6 +275,8 @@ def get_nn_model(args, model_name, hidden_layer_sizes, input_dim, activation_fcn
     if is_autoencoder or output_dim is None: # (no explicit output layer required here)
         out_tensors = hidden_tensors
     else:
+        if dropout > 0:
+            hidden_tensors = Dropout(dropout)(hidden_tensors)
         out_tensors = Dense(output_dim, activation='softmax')(hidden_tensors)
     model = Model(inputs=in_tensors, outputs=out_tensors)
     return model

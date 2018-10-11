@@ -150,7 +150,7 @@ def create_parser():
         default=0)
     group_arch_reg.add_argument(
         "--l2_reg",
-        help="Amount of L1 regularization to use (only on weights, not bias).",
+        help="Amount of L2 regularization to use (only on weights, not bias).",
         type=float,
         default=0)
 
