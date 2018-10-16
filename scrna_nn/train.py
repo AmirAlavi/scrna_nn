@@ -8,14 +8,16 @@ from os.path import join
 import matplotlib.pyplot as plt
 from keras import backend as K
 from keras.callbacks import LearningRateScheduler, EarlyStopping, ModelCheckpoint
-from keras.optimizers import SGD
+from keras.optimizers import SGD, RMSprop, Adam
 from keras.utils import multi_gpu_model
 from keras.models import Model
 from keras.layers import Lambda, Input
 from sklearn.decomposition import PCA
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import accuracy_score, log_loss
 
 from . import util
-from .data_manipulation.data_container import DataContainer
+from .data_manipulation.data_container import DataContainer, ExpressionSequence
 from .neural_network import callbacks
 from .neural_network import losses_and_metrics
 from .neural_network import neural_nets as nn
@@ -95,7 +97,7 @@ def get_base_model_architecture(args, input_dim, output_dim):
 def get_optimizer(args):
     if args.opt == 'sgd':
         print('Using SGD optimizer')
-        lr = args.sgd_lr
+        lr = args.opt_lr
         decay = args.sgd_d
         momentum = args.sgd_m
         return SGD(
@@ -103,6 +105,12 @@ def get_optimizer(args):
             decay=decay,
             momentum=momentum,
             nesterov=args.sgd_nesterov)
+    elif args.opt == 'adam':
+        print('Using Adam optimizer')
+        return RMSprop(lr=args.opt_lr)
+    elif args.opt == 'rmsprop':
+        print('Using RMSprop optimizer')
+        return Adam(lr=args.opt_lr)
     else:
         raise util.ScrnaException('Not a valid optimizer!')
 
@@ -149,8 +157,10 @@ def train_pca_model(working_dir_path, args, data):
     model = PCA(n_components=args.pca)
     X = data.get_expression_mat('train')
     model.fit(X)
-    with open(join(working_dir_path, 'pca.p'), 'wb') as f:
-        pickle.dump(model, f)
+    if not args.no_save:
+        with open(join(working_dir_path, 'pca.p'), 'wb') as f:
+            pickle.dump(model, f)
+    return model
 
 
 def fit_neural_net(model, args, data, callbacks_list, working_dir_path):
@@ -186,16 +196,26 @@ def fit_neural_net(model, args, data, callbacks_list, working_dir_path):
             print('Valid data shapes:')
             print(X_valid.shape)
             print(y_valid.shape)
-        history = model.fit(
-            X_train,
-            y_train,
-            batch_size=args.batch_size,
-            epochs=args.epochs,
-            verbose=1,
-            validation_data=(
-                X_valid,
-                y_valid),
-            callbacks=callbacks_list)
+        train_sequence = ExpressionSequence(X_train, y_train, args.batch_size, "train")
+        valid_sequence = ExpressionSequence(X_valid, y_valid, args.batch_size, "valid")
+        del X_train, y_train, X_valid, y_valid
+        history = model.fit_generator(train_sequence,
+                                      steps_per_epoch=args.batches_per_epoch,
+                                      epochs=args.epochs,
+                                      callbacks=callbacks_list,
+                                      validation_data=valid_sequence,
+                                      verbose=2,
+                                      shuffle=False)
+        # history = model.fit(
+        #     X_train,
+        #     y_train,
+        #     batch_size=args.batch_size,
+        #     epochs=args.epochs,
+        #     verbose=1,
+        #     validation_data=(
+        #         X_valid,
+        #         y_valid),
+        #     callbacks=callbacks_list)
     return history
 
 
@@ -205,12 +225,13 @@ def fit_triplet_neural_net(model, args, data, callbacks_list):
     P = args.batch_hard_P
     K = args.batch_hard_K
     num_batches = args.num_batches
+    num_batches_val = args.num_batches_val
     X_train, y_train = data.get_data_for_neural_net('train', one_hot=False)
     X_valid, y_valid = data.get_data_for_neural_net('valid', one_hot=False)
     train_data = triplet.TripletSequence(
         X_train, y_train, embedding_dim, P, K, num_batches)
     valid_data = triplet.TripletSequence(
-        X_valid, y_valid, embedding_dim, P, K, num_batches)
+        X_valid, y_valid, embedding_dim, P, K, num_batches_val)
     history = model.fit_generator(
         train_data,
         epochs=args.epochs,
@@ -293,6 +314,46 @@ def layerwise_train_neural_net(working_dir_path, args, data, training_report):
     # Greedy layerwise pretrain
     pt.pretrain_model(model, input_dim, opt, X, working_dir_path, args)
 
+def train_LR(feature_model, args, data, training_report):
+    lr = LogisticRegression(multi_class='multinomial', max_iter=1000, solver='sag')
+    for split in ['train', 'valid', 'test']:
+        X, y = data.get_data_for_neural_net(split, one_hot=False)
+        X, y_one_hot = data.get_data_for_neural_net(split, one_hot=True)
+        X = feature_model.transform(X)
+        if split == 'train':
+            print("Fitting LR model")
+            lr.fit(X, y)
+        loss = log_loss(y_one_hot, lr.predict_proba(X))
+        acc = accuracy_score(y, lr.predict(X))
+        training_report['res_{}_loss'.format(split)] = loss
+        print('{}\tLR loss\t{}'.format(split, loss))
+        training_report['res_{}_acc'.format(split)] = acc
+        print('{}\tLR acc\t{}'.format(split, acc))
+    
+def evaluate_pca_model(model, args, data, training_report):
+    # Use the principal components as input features for Logistic Regression clf
+    train_LR(model, args, data, training_report)
+    # Retrieval testing
+    print("Conducting retrieval testing...")
+    database = data.get_expression_mat(split='train')
+    database = model.transform(database)
+    database_labels = data.get_labels('train')
+    for split in ['valid', 'test']:
+        query = data.get_expression_mat(split)
+        query = model.transform(query)
+        query_labels = data.get_labels(split)
+        avg_map, wt_avg_map, avg_mafp, wt_avg_mafp = retrieval_test_in_memory(
+            database, database_labels, query, query_labels)
+        training_report['res_{}_avg_map'.format(split)] = avg_map
+        training_report['res_{}_wt_avg_map'.format(split)] = wt_avg_map
+        training_report['res_{}_avg_mafp'.format(split)] = avg_mafp
+        training_report['res_{}_wt_avg_mafp'.format(split)] = wt_avg_mafp
+        print("{}\tAvg MAP\t{}".format(split, avg_map))
+        print("{}\tWt Avg MAP\t{}".format(split, wt_avg_map))
+        print("{}\tAvg MAFP\t{}".format(split, avg_mafp))
+        print("{}\tWt Avg MAFP\t{}".format(split, wt_avg_mafp))
+    
+    
 def evaluate_model(model, args, data, training_report):
     # Get performance on each metric for each split
     if args.checkpoints:
@@ -328,6 +389,7 @@ def evaluate_model(model, args, data, training_report):
             print('{}\t{}\t{}'.format(split, metric, res))
     # Additionally, test retrieval performance with valid and test splits as
     # queries
+    print("Conducting retrieval testing...")
     database = data.get_expression_mat(split='train')
     if args.nn == "DAE":
         sample_in = Input(shape=model.layers[0].input_shape[1:],
@@ -359,7 +421,10 @@ def evaluate_model(model, args, data, training_report):
         training_report['res_{}_wt_avg_map'.format(split)] = wt_avg_map
         training_report['res_{}_avg_mafp'.format(split)] = avg_mafp
         training_report['res_{}_wt_avg_mafp'.format(split)] = wt_avg_mafp
-
+        print("{}\tAvg MAP\t{}".format(split, avg_map))
+        print("{}\tWt Avg MAP\t{}".format(split, wt_avg_map))
+        print("{}\tAvg MAFP\t{}".format(split, avg_mafp))
+        print("{}\tWt Avg MAFP\t{}".format(split, wt_avg_mafp))
 
 def train_neural_net(working_dir_path, args, data, training_report):
     print('Training a Neural Network model...')
@@ -405,7 +470,8 @@ def train_neural_net(working_dir_path, args, data, training_report):
     print('Evaluating')
     # Since evaluation functions may need to change the model,
     # save the model here first
-    save_neural_net(working_dir_path, args, template_model)
+    if not args.no_save:
+        save_neural_net(working_dir_path, args, template_model)
     # Also save the mapping of label to string:
     with open(join(working_dir_path, "label_to_int_map.pickle"), 'wb') as f:
         pickle.dump(data.label_to_int_map, f)
@@ -444,9 +510,9 @@ def report_config(args, training_report):
     if args.init:
         training_report['cfg_init'] = args.init
     # Optimizer
+    training_report['cfg_opt'] = args.opt
+    training_report['cfg_lr'] = args.opt_lr
     if args.opt == 'sgd':
-        training_report['cfg_opt'] = 'sgd'
-        training_report['cfg_lr'] = args.sgd_lr
         training_report['cfg_decay'] = args.sgd_d
         training_report['cfg_momentum'] = args.sgd_m
         training_report['cfg_nesterov?'] = 'Y' if args.sgd_nesterov else 'N'
@@ -514,7 +580,8 @@ def train(args: argparse.Namespace):
     print('loading data and setting up model...')
     data = load_data(args, working_dir_path)
     if args.pca:
-        train_pca_model(working_dir_path, args, data)
+        model = train_pca_model(working_dir_path, args, data)
+        evaluate_pca_model(model, args, data, training_report)
         training_report['cfg_DIMS'] = args.pca
     elif args.nn:
         if args.layerwise_pt:

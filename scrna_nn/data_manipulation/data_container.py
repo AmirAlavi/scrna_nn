@@ -6,7 +6,7 @@ from os.path import join, exists
 
 import numpy as np
 import pandas as pd
-from keras.utils import np_utils
+from keras.utils import np_utils, Sequence
 
 from . import siamese
 
@@ -159,3 +159,24 @@ class DataContainer(object):
     def create_siamese_data(self, args):
         for split in self.splits.keys():
             self._create_siamese_data_split(args, split)
+
+class ExpressionSequence(Sequence):
+    def __init__(self, x_set, y_set, batch_size, name, shuffle=True):
+        self.x = x_set
+        self.y = y_set
+        self.batch_size = batch_size
+        self.name = name
+        if shuffle:
+            idx_array = np.arange(self.x.shape[0])
+            np.random.shuffle(idx_array)
+            self.x = self.x[idx_array]
+            self.y = self.y[idx_array]
+
+    def __len__(self):
+        return int(np.ceil(len(self.x) / float(self.batch_size)))
+
+    def __getitem__(self, idx):
+        # print("ExpressionSequence {} idx={}".format(self.name, idx))
+        batch_x = self.x[idx * self.batch_size:(idx + 1) * self.batch_size]
+        batch_y = self.y[idx * self.batch_size:(idx + 1) * self.batch_size]
+        return batch_x, batch_y

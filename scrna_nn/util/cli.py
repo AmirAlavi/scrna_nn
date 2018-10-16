@@ -54,6 +54,10 @@ def create_parser():
         "--freeze",
         help="Freeze all but the last N layers (for fine tuning).",
         type=int)
+    parser_train.add_argument(
+        "--no_save",
+        help="Do not save model weights.",
+        action="store_true")        
 
     group_model_type = parser_train.add_mutually_exclusive_group()
     group_model_type.add_argument(
@@ -171,12 +175,22 @@ def create_parser():
         help="Number of samples per batch.",
         type=int,
         default=32)
-    group_opt.add_argument("--opt", help="Optimizer to use.", default="sgd")
     group_opt.add_argument(
-        "--sgd_lr",
-        help="Learning rate for SGD.",
+        "--batches_per_epoch",
+        help="Number of batches per training epoch.",
+        type=int,
+        default=None)
+    group_opt.add_argument("--opt", help="Optimizer to use.",
+                           choices=[
+                               "sgd",
+                               "adam",
+                               "rmsprop"],
+                           default="sgd")
+    group_opt.add_argument(
+        "--opt_lr",
+        help="Learning rate for optimizer.",
         type=float,
-        default=0.01)
+        default=0.001)
     group_opt_decay = group_opt.add_mutually_exclusive_group()
     group_opt_decay.add_argument(
         "--sgd_d",
@@ -331,6 +345,11 @@ def create_parser():
     group_trip.add_argument(
         "--num_batches",
         help="Number of batches to be drawn in an epoch.",
+        type=int,
+        default=1000)
+    group_trip.add_argument(
+        "--num_batches_val",
+        help="Number of validation batches to be drawn in an epoch.",
         type=int,
         default=1000)
 
