@@ -64,7 +64,7 @@ optional arguments:
 ## Example Invocations
 First, we can train a basic Dense (aka Multi-Layer Perceptron) network. The network is trained to classify labeled cell types in the data. Later, this saved model can be used to embed data by using the last hidden layer as a learned embedding representation.
 ```
-scrna-nn train --nn=dense 1000 100 --act=tanh --epochs=100 --checkpoints=val_loss --data=data_FOLDER --out=model_FOLDER
+scrna-nn train --nn=dense 1000 100 --act=tanh --opt=sgd --epochs=100 --batch_size=256 --loss_history --checkpoints=val_loss --data=data_FOLDER --out=model_FOLDER
 ```
 Then we can use the model to reduce some data:
 ```
