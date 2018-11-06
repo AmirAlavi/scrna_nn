@@ -12,7 +12,7 @@ The pipeline exists as a script, installed via a python package.
 `bin/scrna-nn` is the main script.
 
 ## Installation
-You can install it into a python environment by cloning this repository, and from within it's root folder, executing:
+You can install it into a python environment by cloning this repository, and from within its root folder, executing:
 ```
 pip install .
 ```
