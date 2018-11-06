@@ -128,10 +128,13 @@ def compile_model(model, args, optimizer):
             loss = nn.contrastive_loss
     elif args.triplet:
         batch_size = args.batch_hard_P * args.batch_hard_K
-        loss = losses_and_metrics.get_triplet_batch_hard_loss(batch_size)
+        margin = args.batch_hard_margin
+        loss = losses_and_metrics.get_triplet_batch_hard_loss(batch_size, margin)
         frac_active_triplets = losses_and_metrics.get_frac_active_triplet_metric(
-            batch_size)
-        metrics = [frac_active_triplets]
+            batch_size, margin)
+        avg_pos_dists = losses_and_metrics.get_embed_pos_dists_metric(batch_size)
+        avg_neg_dists = losses_and_metrics.get_embed_neg_dists_metric(batch_size)
+        metrics = [frac_active_triplets, avg_pos_dists, avg_neg_dists, losses_and_metrics.embed_l2_metric]
     elif args.nn == "DAE":
         loss = 'mean_squared_error'
     else:
@@ -166,13 +169,20 @@ def train_pca_model(working_dir_path, args, data):
 def fit_neural_net(model, args, data, callbacks_list, working_dir_path):
     if args.triplet:
         history = fit_triplet_neural_net(model, args, data, callbacks_list)
-        plt.figure()
-        plt.semilogy(history.history['frac_active_triplet_metric'])
-        plt.title('Fraction of active triplets per epoch')
-        plt.ylabel('% active triplets')
-        plt.xlabel('epoch')
-        plt.savefig(join(working_dir_path, 'frac_active_triplets.png'))
-        plt.close()
+        triplet_net_metrics = ['frac_active_triplet_metric', 'embed_l2_metric', 'embed_pos_dists_metric', 'embed_neg_dists_metric']
+        for metric in triplet_net_metrics:
+            plt.figure()
+            if metric == 'frac_active_triplet_metric':
+                plt.semilogy(history.history[metric])
+                plt.semilogy(history.history['val_'+metric])
+            else:
+                plt.plot(history.history[metric])
+                plt.plot(history.history['val_'+metric])
+            plt.title(metric)
+            plt.xlabel('epoch')
+            plt.legend(['train', 'valid'], loc='upper center')
+            plt.savefig(join(working_dir_path, '{}.pdf'.format(metric)))
+            plt.close()
     else:
         if args.siamese:
             # Specially routines for training siamese models
@@ -374,7 +384,7 @@ def evaluate_model(model, args, data, training_report):
             embedding_dim = model.layers[-1].output_shape[1]
             bh_P = args.batch_hard_P
             bh_K = args.batch_hard_K
-            num_batches = args.num_batches
+            num_batches = args.num_batches_val
             eval_data = triplet.TripletSequence(
                 X, y, embedding_dim, bh_P, bh_K, num_batches)
             eval_results = model.evaluate_generator(eval_data, verbose=1)
@@ -450,6 +460,21 @@ def train_neural_net(working_dir_path, args, data, training_report):
     print('model compiled and ready for training')
     # Prep callbacks
     callbacks_list = get_callbacks_list(working_dir_path, args)
+    # Maybe add Plotter callback
+    if args.triplet and args.plotter is not None:
+        print("Adding a Plotter callback")
+        callbacks_list.append(
+            callbacks.TSNEPlotter(
+                model,
+                data=args.plotter,
+                out_dir=join(working_dir_path, 'plotter'),
+                interval=args.plotter_int,
+                sample_normalize=args.sn,
+                feature_normalize=args.gn,
+                feature_mean=data.mean,
+                feature_std=data.std
+            )
+        )
     # Fit the model
     print('training model...')
     t0 = datetime.datetime.now()

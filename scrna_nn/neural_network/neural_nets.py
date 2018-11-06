@@ -119,15 +119,21 @@ def get_triplet(base_network):
     embedding = base_network.layers[-2].output
     return Model(name="TripletNet", inputs=base_network.layers[0].input, outputs=embedding)
 
-def get_dense(hidden_layer_sizes, input_dim, activation_fcn='tanh', dropout=0.0, regularization=None):
+def get_dense(hidden_layer_sizes, input_dim, activation_fcn='tanh', dropout=0.0, regularization=None, linear_last_layer=False):
     inputs = Input(shape=(input_dim,))
     # Hidden layers
     x = inputs
-    for size in hidden_layer_sizes:
+    for i, size in enumerate(hidden_layer_sizes):
         if dropout > 0:
             print("Using dropout layer")
             x = Dropout(dropout)(x)
-        x = Dense(size, activation=activation_fcn, kernel_regularizer=regularization)(x)
+        if i == len(hidden_layer_sizes)-1 and linear_last_layer:
+            # Trying for triplet, don't use a range limited activation function like
+            # tanh or sigmoid
+            print("Last layer index: {}, size: {}, using linear activation".format(i, size))
+            x = Dense(size, activation='linear', kernel_regularizer=regularization)(x)
+        else:
+            x = Dense(size, activation=activation_fcn, kernel_regularizer=regularization)(x)
     return inputs, x
 
 def get_sparse(hidden_layer_sizes, input_dim, adj_df, activation_fcn='tanh', dropout=0.0, extra_dense_units=0, regularization=None):
@@ -261,7 +267,7 @@ def get_nn_model(args, model_name, hidden_layer_sizes, input_dim, activation_fcn
     print(hidden_layer_sizes)
     # First get the tensors from hidden layers
     if model_name == 'dense':
-        in_tensors, hidden_tensors = get_dense(hidden_layer_sizes, input_dim, activation_fcn, dropout, reg)
+        in_tensors, hidden_tensors = get_dense(hidden_layer_sizes, input_dim, activation_fcn, dropout, reg, linear_last_layer=args.triplet)
     elif model_name == 'sparse':
         in_tensors, hidden_tensors = get_sparse(hidden_layer_sizes, input_dim, adj_mat, activation_fcn, dropout, extra_dense_units, reg)
     elif model_name == 'GO':

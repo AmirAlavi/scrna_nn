@@ -331,6 +331,20 @@ def create_parser():
         help="Uses 'batch-hard' triplet loss to train a triplet network.",
         action="store_true")
     group_trip.add_argument(
+        "--plotter",
+        help="Plot the triplet embeddings via t-SNE after each epoch " +
+        "using the data in the folder specified.",
+        default=None)
+    group_trip.add_argument(
+        "--plotter_int",
+        help="Interval for plotting, plot every n epochs.",
+        type=int,
+        default=1)
+    group_trip.add_argument(
+        "--batch_hard_margin",
+        help="Margin parameter to use in the loss calculation.",
+        default='soft')
+    group_trip.add_argument(
         "--batch_hard_P",
         help="'P' parameter in 'batch-hard' triplet loss " +
         "(number of classes to pick).",
