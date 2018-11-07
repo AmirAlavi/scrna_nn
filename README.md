@@ -1,16 +1,14 @@
 # scrna-nn
-## Table of Contents
-- [Installation](#installation)
-- [Documentation (minimal)](#documentation)
-- [Examples](#example-invocations)
-- [Notes](#notes)
-
 A pipeline for reducing the dimensions of single-cell RNA-seq data using neural networks.
 
 The pipeline exists as a script, installed via a python package.
 
 `bin/scrna-nn` is the main script.
-
+## Table of Contents
+- [Installation](#installation)
+- [Documentation (minimal)](#documentation)
+- [Examples](#example-invocations)
+- [Notes](#notes)
 ## Installation
 You can install it into a python environment by cloning this repository, and from within its root folder, executing:
 ```
