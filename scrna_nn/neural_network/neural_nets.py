@@ -18,11 +18,14 @@ def save_trained_nn(model, model_path, weights_path):
     model.save(model_path)
     model.save_weights(weights_path)
 
-def load_trained_nn(path, triplet_loss_batch_size=-1, dynamic_margin=-1, siamese=False):
+def load_trained_nn(path, triplet_loss_batch_size=-1, triplet_margin=-1, dynamic_margin=-1, siamese=False):
     custom_objects={'Sparse': Sparse, 'DenseLayerAutoencoder': DenseLayerAutoencoder}
     if triplet_loss_batch_size >= 0:
-        custom_objects['triplet_batch_hard_loss'] = losses_and_metrics.get_triplet_batch_hard_loss(triplet_loss_batch_size)
-        custom_objects['frac_active_triplet_metric'] = losses_and_metrics.get_frac_active_triplet_metric(triplet_loss_batch_size)
+        custom_objects['triplet_batch_hard_loss'] = losses_and_metrics.get_triplet_batch_hard_loss(triplet_loss_batch_size, triplet_margin)
+        custom_objects['frac_active_triplet_metric'] = losses_and_metrics.get_frac_active_triplet_metric(triplet_loss_batch_size, triplet_margin)
+        custom_objects['embed_pos_dists_metric'] = losses_and_metrics.get_embed_pos_dists_metric(triplet_loss_batch_size)
+        custom_objects['embed_neg_dists_metric'] = losses_and_metrics.get_embed_neg_dists_metric(triplet_loss_batch_size)
+        custom_objects['embed_l2_metric'] = losses_and_metrics.embed_l2_metric
     if siamese:
         if dynamic_margin == -1:
             dynamic_margin=1

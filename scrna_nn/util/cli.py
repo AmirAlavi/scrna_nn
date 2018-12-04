@@ -57,6 +57,11 @@ def create_parser():
     parser_train.add_argument(
         "--no_save",
         help="Do not save model weights.",
+        action="store_true")
+
+    parser_train.add_argument(
+        "--no_eval",
+        help="Do not run evaluation metrics after training.",
         action="store_true")        
 
     group_model_type = parser_train.add_mutually_exclusive_group()
@@ -87,7 +92,22 @@ def create_parser():
         help="Subtract the mean and divide by standard deviation within each " +
         "gene.",
         action="store_true")
+    group_normalization.add_argument(
+        "--mn",
+        help="Scale values into a [min, max] range within each " +
+        "gene.",
+        action="store_true")
 
+    parser_train.add_argument(
+        "--minmax_min",
+        help="Min of feature range for MinMax normalization.",
+        type=float,
+        default=-1)
+    parser_train.add_argument(
+        "--minmax_max",
+        help="Max of feature range for MinMax normalization.",
+        type=float,
+        default=1)
     parser_train.add_argument(
         "--noise_level",
         help="Amount of corrupting noise to add to data " +
@@ -336,6 +356,11 @@ def create_parser():
         "using the data in the folder specified.",
         default=None)
     group_trip.add_argument(
+        "--pca_plotter",
+        help="Plot the triplet embeddings via PCA instead of t-SNE." +
+        " Pre-fitted PCA model in pickle file specified",
+        default=None)
+    group_trip.add_argument(
         "--plotter_int",
         help="Interval for plotting, plot every n epochs.",
         type=int,
@@ -365,7 +390,7 @@ def create_parser():
         "--num_batches_val",
         help="Number of validation batches to be drawn in an epoch.",
         type=int,
-        default=1000)
+        default=100)
 
     # reduce
     parser_reduce = subparsers.add_parser(

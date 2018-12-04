@@ -9,6 +9,7 @@ from matplotlib.lines import Line2D
 import numpy as np
 from keras.callbacks import Callback
 from sklearn.manifold import TSNE
+from sklearn.decomposition import PCA
 
 from ..data_manipulation.data_container import DataContainer
 
@@ -75,17 +76,39 @@ class Plotter(Callback):
         imageio.mimsave(out_file, images)
 
 class TSNEPlotter(Callback):
-    def __init__(self, embedding_model, data, out_dir, interval=1, sample_normalize=False, feature_normalize=False, feature_mean=None, feature_std=None):
+    def __init__(self,
+                 embedding_model,
+                 data,
+                 out_dir,
+                 interval=1,
+                 sample_normalize=False,
+                 feature_normalize=False,
+                 feature_mean=None,
+                 feature_std=None,
+                 minmax_normalize=False,
+                 minmax_scaler=None):                 
         self.embedding_model = embedding_model
         self.data = data
         self.interval = interval
         with open(join(self.data, 'color_map.pickle'), 'rb') as f:
             color_map = pickle.load(f)
-        train_data = DataContainer(join(self.data, 'train_data.h5'), sample_normalize, feature_normalize, feature_mean, feature_std)
+        train_data = DataContainer(join(self.data, 'train_data.h5'),
+                                   sample_normalize=sample_normalize,
+                                   feature_normalize=feature_normalize,
+                                   feature_mean=feature_mean,
+                                   feature_std=feature_std,
+                                   minmax_normalize=minmax_normalize,
+                                   minmax_scaler=minmax_scaler)
         self.X_train = train_data.get_expression_mat()
         self.y_train = train_data.get_labels()
         self.colors_train = [color_map[y] for y in self.y_train]
-        valid_data = DataContainer(join(self.data, 'valid_data.h5'), sample_normalize, feature_normalize, feature_mean, feature_std)
+        valid_data = DataContainer(join(self.data, 'valid_data.h5'),
+                                   sample_normalize=sample_normalize,
+                                   feature_normalize=feature_normalize,
+                                   feature_mean=feature_mean,
+                                   feature_std=feature_std,
+                                   minmax_normalize=minmax_normalize,
+                                   minmax_scaler=minmax_scaler)
         self.X_valid = valid_data.get_expression_mat()
         self.y_valid = valid_data.get_labels()
         self.colors_valid = [color_map[y] for y in self.y_valid]
@@ -149,6 +172,118 @@ class TSNEPlotter(Callback):
         fig, ax = plt.subplots()
         ax.scatter(tSNE_all[:train_end,0], tSNE_all[:train_end,1], c=self.colors_train, marker='o', alpha=0.5)
         ax.scatter(tSNE_all[train_end:,0], tSNE_all[train_end:,1], c=self.colors_valid, marker='x')
+        lgd = ax.legend(handles=self.legend_elements, bbox_to_anchor=(1.05, 1), loc=2, fancybox=True, shadow=True)
+        filename = join(self.combined_out_dir, "plot_" + str(name) + ".png")
+        fig.savefig(filename, bbox_extra_artists=(lgd,), bbox_inches='tight')
+        plt.close()
+        self.combined_plot_files.append(filename)
+
+    def make_gif(self, image_files, out_file):
+        images = []
+        for filename in image_files:
+            images.append(imageio.imread(filename))
+        imageio.mimsave(out_file, images)
+
+class PCAPlotter(Callback):
+    def __init__(self,
+                 pca_model,
+                 embedding_model,
+                 data,
+                 out_dir,
+                 interval=1,
+                 sample_normalize=False,
+                 feature_normalize=False,
+                 feature_mean=None,
+                 feature_std=None,
+                 minmax_normalize=False,
+                 minmax_scaler=None):
+        with open(pca_model, 'rb') as f:
+            self.pca_model = pickle.load(f)
+        self.embedding_model = embedding_model
+        self.data = data
+        self.interval = interval
+        with open(join(self.data, 'color_map.pickle'), 'rb') as f:
+            color_map = pickle.load(f)
+        train_data = DataContainer(join(self.data, 'train_data.h5'),
+                                   sample_normalize=sample_normalize,
+                                   feature_normalize=feature_normalize,
+                                   feature_mean=feature_mean,
+                                   feature_std=feature_std,
+                                   minmax_normalize=minmax_normalize,
+                                   minmax_scaler=minmax_scaler)
+        self.X_train = train_data.get_expression_mat()
+        self.y_train = train_data.get_labels()
+        self.colors_train = [color_map[y] for y in self.y_train]
+        valid_data = DataContainer(join(self.data, 'valid_data.h5'),
+                                   sample_normalize=sample_normalize,
+                                   feature_normalize=feature_normalize,
+                                   feature_mean=feature_mean,
+                                   feature_std=feature_std,
+                                   minmax_normalize=minmax_normalize,
+                                   minmax_scaler=minmax_scaler)
+        self.X_valid = valid_data.get_expression_mat()
+        self.y_valid = valid_data.get_labels()
+        self.colors_valid = [color_map[y] for y in self.y_valid]
+        # build legend
+        self.legend_elements = []
+        for label, color in color_map.items():
+            circ = Line2D([0], [0], marker='o', color='w',
+                          label=label, markerfacecolor=color,
+                          markersize=15)
+            self.legend_elements.append(circ)
+        self.out_dir = out_dir
+        if not exists(self.out_dir):
+            makedirs(self.out_dir)
+        self.train_out_dir = join(self.out_dir, 'train')
+        if not exists(self.train_out_dir):
+            makedirs(self.train_out_dir)
+        self.valid_out_dir = join(self.out_dir, 'valid')
+        if not exists(self.valid_out_dir):
+            makedirs(self.valid_out_dir)
+        self.combined_out_dir = join(self.out_dir, 'combined')
+        if not exists(self.combined_out_dir):
+            makedirs(self.combined_out_dir)
+        self.train_plot_files = []
+        self.valid_plot_files = []
+        self.combined_plot_files = []
+
+    def on_train_begin(self, logs={}):
+        self.plot('init')
+    
+    def on_epoch_end(self, epoch, logs={}):
+        if epoch % self.interval == 0:
+            self.plot(epoch)
+
+    def on_train_end(self, logs={}):
+        self.make_gif(self.train_plot_files, join(self.out_dir, "train.gif"))
+        self.make_gif(self.valid_plot_files, join(self.out_dir, "valid.gif"))
+        self.make_gif(self.combined_plot_files, join(self.out_dir, "combined.gif"))
+
+    def plot(self, name):
+        X_train_embed = self.embedding_model.predict(self.X_train)
+        X_valid_embed = self.embedding_model.predict(self.X_valid)
+        pca_all = self.pca_model.transform(np.concatenate((X_train_embed, X_valid_embed), axis=0))
+        # Train only
+        fig, ax = plt.subplots()
+        train_end = X_train_embed.shape[0]
+        ax.scatter(pca_all[:train_end,0], pca_all[:train_end,1], c=self.colors_train, marker='o', alpha=0.5)
+        lgd = ax.legend(handles=self.legend_elements, bbox_to_anchor=(1.05, 1), loc=2, fancybox=True, shadow=True)
+        filename = join(self.train_out_dir, "plot_" + str(name) + ".png")
+        fig.savefig(filename, bbox_extra_artists=(lgd,), bbox_inches='tight')
+        plt.close()
+        self.train_plot_files.append(filename)
+        # Valid only
+        fig, ax = plt.subplots()
+        ax.scatter(pca_all[train_end:,0], pca_all[train_end:,1], c=self.colors_valid, marker='x')
+        lgd = ax.legend(handles=self.legend_elements, bbox_to_anchor=(1.05, 1), loc=2, fancybox=True, shadow=True)
+        filename = join(self.valid_out_dir, "plot_" + str(name) + ".png")
+        fig.savefig(filename, bbox_extra_artists=(lgd,), bbox_inches='tight')
+        plt.close()
+        self.valid_plot_files.append(filename)
+        # Combined
+        fig, ax = plt.subplots()
+        ax.scatter(pca_all[:train_end,0], pca_all[:train_end,1], c=self.colors_train, marker='o', alpha=0.5)
+        ax.scatter(pca_all[train_end:,0], pca_all[train_end:,1], c=self.colors_valid, marker='x')
         lgd = ax.legend(handles=self.legend_elements, bbox_to_anchor=(1.05, 1), loc=2, fancybox=True, shadow=True)
         filename = join(self.combined_out_dir, "plot_" + str(name) + ".png")
         fig.savefig(filename, bbox_extra_artists=(lgd,), bbox_inches='tight')

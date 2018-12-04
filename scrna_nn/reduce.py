@@ -46,7 +46,8 @@ def _reduce_helper(trained_model_folder, data_to_reduce):
     if training_args.nn:
         if training_args.triplet:
             triplet_batch_size = training_args.batch_hard_P*training_args.batch_hard_K
-            model = nn.load_trained_nn(join(trained_model_folder, "model.h5"), triplet_loss_batch_size=triplet_batch_size)
+            margin = training_args.batch_hard_margin
+            model = nn.load_trained_nn(join(trained_model_folder, "model.h5"), triplet_loss_batch_size=triplet_batch_size, triplet_margin=margin)
         elif training_args.siamese:
             dynamic_margin=-1
             if '--dynMargin' in training_args:

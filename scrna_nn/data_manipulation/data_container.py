@@ -7,6 +7,7 @@ from os.path import join, exists
 import numpy as np
 import pandas as pd
 from keras.utils import np_utils, Sequence
+from sklearn.preprocessing import MinMaxScaler
 
 from . import siamese
 
@@ -15,11 +16,15 @@ class DataContainer(object):
     """Parses and holds the input data table (gene expression file) in memory
     and provides access to various aspects of it.
     """
-    def __init__(self, filepath, sample_normalize=False, feature_normalize=False, feature_mean=None, feature_std=None):
+    def __init__(self, filepath, sample_normalize=False, feature_normalize=False, feature_mean=None, feature_std=None, minmax_normalize=False, min=-1, max=1, minmax_scaler=None):
         self.sample_normalize = sample_normalize
         self.feature_normalize = feature_normalize
         self.mean = feature_mean
         self.std = feature_std
+        self.minmax_normalize = minmax_normalize
+        self.min = min
+        self.max = max
+        self.minmax_scaler = minmax_scaler
         self.splits = defaultdict(dict)
         self.add_split(filepath, 'train')
         self.label_to_int_map = None
@@ -46,6 +51,16 @@ class DataContainer(object):
                 self.mean = self.splits[split]['rpkm_df'].mean()
                 self.std = self.splits[split]['rpkm_df'].std(ddof=0)
             self.splits[split]['rpkm_df'] = (self.splits[split]['rpkm_df'] - self.mean) / (self.std + eps)
+            print("time to normalize: ", time.time() - t0)
+        elif self.minmax_normalize:
+            print("minmax normalizing...")
+            t0 = time.time()
+            if split == 'train' and self.minmax_scaler is None:
+                self.minmax_scaler = MinMaxScaler(feature_range=(self.min, self.max))
+                self.minmax_scaler.fit(self.splits[split]['rpkm_df'].values)
+            self.splits[split]['rpkm_df'].iloc[:,:] = self.minmax_scaler.transform(self.splits[split]['rpkm_df'].values)
+            print("min = {}".format(np.amin(self.splits[split]['rpkm_df'].values)))
+            print("max = {}".format(np.amax(self.splits[split]['rpkm_df'].values)))
             print("time to normalize: ", time.time() - t0)
             
     def add_split(self, filepath, split):

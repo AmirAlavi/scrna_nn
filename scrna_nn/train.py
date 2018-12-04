@@ -463,18 +463,37 @@ def train_neural_net(working_dir_path, args, data, training_report):
     # Maybe add Plotter callback
     if args.triplet and args.plotter is not None:
         print("Adding a Plotter callback")
-        callbacks_list.append(
-            callbacks.TSNEPlotter(
-                model,
-                data=args.plotter,
-                out_dir=join(working_dir_path, 'plotter'),
-                interval=args.plotter_int,
-                sample_normalize=args.sn,
-                feature_normalize=args.gn,
-                feature_mean=data.mean,
-                feature_std=data.std
+        if args.pca_plotter is not None:
+            callbacks_list.append(
+                callbacks.PCAPlotter(
+                    args.pca_plotter,
+                    model,
+                    data=args.plotter,
+                    out_dir=join(working_dir_path, 'pca_plotter'),
+                    interval=args.plotter_int,
+                    sample_normalize=args.sn,
+                    feature_normalize=args.gn,
+                    feature_mean=data.mean,
+                    feature_std=data.std,
+                    minmax_normalize=args.mn,
+                    minmax_scaler=data.minmax_scaler
+                )
             )
-        )
+        else:
+            callbacks_list.append(
+                callbacks.TSNEPlotter(
+                    model,
+                    data=args.plotter,
+                    out_dir=join(working_dir_path, 'tsne_plotter'),
+                    interval=args.plotter_int,
+                    sample_normalize=args.sn,
+                    feature_normalize=args.gn,
+                    feature_mean=data.mean,
+                    feature_std=data.std,
+                    minmax_normalize=args.mn,
+                    minmax_scaler=data.minmax_scaler
+                )
+            )
     # Fit the model
     print('training model...')
     t0 = datetime.datetime.now()
@@ -500,7 +519,8 @@ def train_neural_net(working_dir_path, args, data, training_report):
     # Also save the mapping of label to string:
     with open(join(working_dir_path, "label_to_int_map.pickle"), 'wb') as f:
         pickle.dump(data.label_to_int_map, f)
-    evaluate_model(model, args, data, training_report)
+    if not args.no_eval:
+        evaluate_model(model, args, data, training_report)
     
 
 
@@ -510,6 +530,10 @@ def report_config(args, training_report):
         training_report['cfg_normalization'] = 'sn'
     elif args.gn:
         training_report['cfg_normalization'] = 'gn'
+    elif args.mn:
+        training_report['cfg_normalization'] = 'mn'
+        training_report['cfg_normalization_mn_min'] = args.minmax_min
+        training_report['cfg_normalization_mn_max'] = args.minmax_max
     else:
         training_report['cfg_normalization'] = 'none'
     # Rest of configuration space not relevant to PCA
@@ -573,20 +597,29 @@ def load_data(args, working_dir):
                 args.data,
                 'unlabeled_data.h5'),
             sample_normalize=args.sn,
-            feature_normalize=args.gn)
+            feature_normalize=args.gn,
+            minmax_normalize=args.mn,
+            min=args.minmax_min,
+            max=args.minmax_max)
     else:
         data = DataContainer(
             join(
                 args.data,
                 'train_data.h5'),
             sample_normalize=args.sn,
-            feature_normalize=args.gn)
+            feature_normalize=args.gn,
+            minmax_normalize=args.mn,
+            min=args.minmax_min,
+            max=args.minmax_max)
         data.add_split(join(args.data, 'valid_data.h5'), 'valid')
         data.add_split(join(args.data, 'test_data.h5'), 'test')
     if args.gn:
         # save the training data mean and std for later use on new data
         data.mean.to_pickle(join(working_dir, 'mean.p'))
         data.std.to_pickle(join(working_dir, 'std.p'))
+    if args.mn:
+        with open(join(working_dir, 'minmax_scaler.p'), 'wb') as f:
+            pickle.dump(data.minmax_scaler, f)
     return data
 
 
@@ -606,7 +639,8 @@ def train(args: argparse.Namespace):
     data = load_data(args, working_dir_path)
     if args.pca:
         model = train_pca_model(working_dir_path, args, data)
-        evaluate_pca_model(model, args, data, training_report)
+        if not args.no_eval:
+            evaluate_pca_model(model, args, data, training_report)
         training_report['cfg_DIMS'] = args.pca
     elif args.nn:
         if args.layerwise_pt:
