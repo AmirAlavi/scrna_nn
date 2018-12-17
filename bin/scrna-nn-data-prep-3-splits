@@ -28,7 +28,7 @@ import sys
 from collections import defaultdict, namedtuple
 from typing import List, Tuple
 
-sys.setrecursionlimit(5000)
+#sys.setrecursionlimit(5000)
 
 import mygene
 import numpy as np
