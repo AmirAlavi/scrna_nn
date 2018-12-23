@@ -2,6 +2,7 @@ import numbers
 
 from keras import backend as K
 from theano import tensor as T
+import numpy as np
 
 from .. import util
 
@@ -19,6 +20,36 @@ def get_dynamic_contrastive_loss(margin=1):
         else:
             return 0.5*K.square(K.maximum((1-y_true)*margin - y_pred, 0))
     return dynamic_contrastive_loss
+
+def get_contrastive_batch_loss(batch_size, margin):
+    try:
+        margin = float(margin)
+        print("Using hard-margin of {} in contrastive batch loss".format(margin))
+        final_loss_tensor = lambda pos_dists, neg_dists: 0.5*K.square(pos_dists) + 0.5*K.square(K.maximum(margin-neg_dists, 0))
+    except ValueError:
+        raise util.ScrnaException('Contrastive margin must be a real number!')
+    def contrastive_batch_loss(y_true, y_pred):
+        # y_pred is the embedding, y_true is the IDs (labels) of the samples (not 1-hot encoded)
+        # They are mini-batched. If batch_size is B, and embedding dimension is D, shapes are:
+        #   y_true: (B,)
+        #   y_pred: (B,D)
+    
+        # Get all-pairs distances
+        y_true = K.sum(y_true, axis=1)
+        diffs = K.expand_dims(y_pred, axis=1) - K.expand_dims(y_pred, axis=0)
+        dist_mat = K.sqrt(K.sum(K.square(diffs), axis=-1) + K.epsilon())
+        dist_mat = np.tril(dist_mat, -1) # Keep only half the dist matrix (avoid double counting)
+        same_identity_mask = K.equal(K.expand_dims(y_true, axis=1), K.expand_dims(y_true, axis=0))
+        negative_mask = T.bitwise_not(same_identity_mask)
+        positive_mask = T.bitwise_xor(same_identity_mask, K.eye(batch_size, dtype='bool'))
+        negative_mask = np.tril(negative_mask, -1)
+        positive_mask = np.tril(positive_mask, -1)
+        positive_distances = K.sum(dist_mat*positive_mask, axis=1) / K.sum(positive_mask, axis=1)
+        negative_distances = K.sum(dist_mat*negative_mask + 1e6*same_identity_mask, axis=1) / K.sum(negative_mask, axis=1)
+
+        loss = final_loss_tensor(positive_distances, negative_distances)
+        return loss
+    return contrastive_batch_loss
 
 def get_triplet_batch_hard_loss(batch_size, margin):
     if margin == 'soft':
