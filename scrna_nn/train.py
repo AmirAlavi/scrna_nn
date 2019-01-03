@@ -17,7 +17,8 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score, log_loss
 
 from . import util
-from .data_manipulation.data_container import DataContainer, ExpressionSequence
+#from .data_manipulation.data_container import DataContainer, ExpressionSequence
+from scrna_data_container import DataContainer, ExpressionSequence
 from .neural_network import callbacks
 from .neural_network import losses_and_metrics
 from .neural_network import neural_nets as nn
@@ -605,14 +606,14 @@ def load_data(args, working_dir):
         data = DataContainer(
             join(
                 args.data,
-                'train_data.h5'),
+                'train_data'),
             sample_normalize=args.sn,
             feature_normalize=args.gn,
             minmax_normalize=args.mn,
             min=args.minmax_min,
             max=args.minmax_max)
-        data.add_split(join(args.data, 'valid_data.h5'), 'valid')
-        data.add_split(join(args.data, 'test_data.h5'), 'test')
+        data.add_split(join(args.data, 'valid_data'), 'valid')
+        data.add_split(join(args.data, 'test_data'), 'test')
     if args.gn:
         # save the training data mean and std for later use on new data
         data.mean.to_pickle(join(working_dir, 'mean.p'))

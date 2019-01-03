@@ -24,6 +24,7 @@ Options:
 import math
 import json
 import sys
+import pickle
 # import pdb; pdb.set_trace()
 from collections import defaultdict, namedtuple
 from typing import List, Tuple
@@ -197,12 +198,19 @@ def write_data_to_npy(foldername, df, labels=None, true_cell_ids=None, gene_symb
     np.save(join(foldername, 'gene_IDs.npy'), df.columns.values)
     np.save(join(foldername, 'gene_symbols.npy'), np.array(gene_symbols))
     accessions = get_accessions_from_accessionSeries(df.index)
-    np.save(join(foldername, 'studies.npy'), np.array(accesssions))
+    np.save(join(foldername, 'studies.npy'), np.array(accessions))
     if labels is not None:
         np.save(join(foldername, 'labels.npy'), np.array(labels))
     # if true_cell_ids is not None:
     #     new_h5_store['true_ids'] = pd.Series(data=true_cell_ids, index=df.index)
 
+    # Also compute and save stats:
+    stats = {
+        'mean': df.mean(),
+        'std': df.std(ddof=0)
+    }
+    with open(join(foldername, 'stats.pickle'), 'wb') as f:
+        pickle.dump(stats, f)
     return gene_symbols
 
 def write_data_to_h5(name, df, labels=None, true_cell_ids=None, gene_symbols=None):
@@ -360,7 +368,7 @@ if __name__ == '__main__':
         print("valid/test cell types: ")
         valid_test_types_count = 0
         for cell_type, accn_list in valid_accns_for_label.items():
-            if len(accn_list > 0):
+            if len(accn_list) > 0:
                 print("\t", cell_type)
                 valid_test_types_count += 1
         print("Total valid/test cell types: {}".format(valid_test_types_count))
@@ -408,8 +416,7 @@ if __name__ == '__main__':
             makedirs('three_splits')
         # Saving this is redundant and is now costly given the size of our datasets
         # gene_symbols = write_data_to_npy('selected_data', assigned_rpkm_df, pod.labels, pod.true_id_index)
-        gene_symbols = write_data_to_npy(join('three_splits','train_data'), assigned_rpkm_df.loc[traindb_ids], traindb_labels, traindb_true_ids,
-                         gene_symbols)
+        gene_symbols = write_data_to_npy(join('three_splits','train_data'), assigned_rpkm_df.loc[traindb_ids], traindb_labels, traindb_true_ids)
         write_data_to_npy(join('three_splits','valid_data'), assigned_rpkm_df.loc[valid_ids], valid_labels, valid_true_ids,
                          gene_symbols)
         write_data_to_npy(join('three_splits','test_data'), assigned_rpkm_df.loc[test_ids], test_labels, test_true_ids,
