@@ -7,7 +7,7 @@ from os.path import join, exists
 import numpy as np
 import pandas as pd
 from keras.utils import np_utils, Sequence
-from sklearn.preprocessing import MinMaxScaler
+from sklearn.preprocessing import MinMaxScaler, OneHotEncoder
 
 from . import siamese
 
@@ -87,6 +87,14 @@ class DataContainer(object):
 
     def get_dataset_IDs(self, split):
         return self.splits[split]['accessions_series'].values
+
+    def build_dataset_ID_encoder(self):
+        self.dataset_encoder = OneHotEncoder(sparse=False)
+        X = np.concatenate((self.get_dataset_IDs('train'), self.get_dataset_IDs('valid'))).reshape(-1, 1)
+        self.dataset_encoder.fit_transform(X)
+
+    def get_dataset_IDs_one_hot(self, split):
+        return self.dataset_encoder.transform(self.get_dataset_IDs(split).reshape(-1, 1))
 
     def get_labels(self, split='train'):
         return self.splits[split]['labels_series'].values

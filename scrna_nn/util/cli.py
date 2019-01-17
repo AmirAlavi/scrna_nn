@@ -79,7 +79,33 @@ def create_parser():
             "flatGO_ppitf",
             "GO_ppitf",
             "DAE",
-            "sparseDAE"])
+            "sparseDAE",
+            "DANN"])
+
+    group_dann = parser_train.add_argument_group('Domain adversarial neural nets')
+    group_dann.add_argument(
+        "--grl_lambda",
+        help="Lambda parameter used in Gradient Reversal Layer.",
+        type=float,
+        default="1e-2")
+    group_dann.add_argument(
+        "--dann_siam",
+        help="Use a Siamese loss function on domain network output.",
+        action="store_true")
+    group_dann.add_argument(
+        "--dann_siam_margin",
+        help="Margin parameter in contrastive loss for siamese DANN.",
+        type=float,
+        default=1)
+    group_dann.add_argument(
+        "--dann_clf",
+        help="Use a traditional classification loss on domain network output.",
+        action="store_true")
+    group_dann.add_argument(
+        "--dann_siam_arch",
+        help="Architecture for domain classifier branch.",
+        type=int,
+        default=50)
 
     group_normalization = parser_train.add_mutually_exclusive_group()
     group_normalization.add_argument(

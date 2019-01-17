@@ -12,6 +12,7 @@ from . import losses_and_metrics
 from sparsely_connected_keras import Sparse
 from tied_autoencoder_keras import DenseLayerAutoencoder
 from ..util import ScrnaException
+from .dann import GradientReversalLayer
 
 
 def save_trained_nn(model, model_path, weights_path):
@@ -258,7 +259,7 @@ def get_regularization(args):
     print('Using regularizer: {}'.format(reg))
     return reg
 
-def get_nn_model(args, model_name, hidden_layer_sizes, input_dim, activation_fcn='tanh', output_dim=None, adj_mat=None, GO_adj_mats=None, extra_dense_units=0, dropout=0.0):
+def get_nn_model(args, model_name, hidden_layer_sizes, input_dim, activation_fcn='tanh', output_dim=None, adj_mat=None, GO_adj_mats=None, extra_dense_units=0, dropout=0.0, num_studies=None):
     # if is_autoencoder:
     #     # autoencoder architectures in a separate module for organizational purposes
     #     latent_size = None
@@ -278,6 +279,28 @@ def get_nn_model(args, model_name, hidden_layer_sizes, input_dim, activation_fcn
     elif model_name == 'DAE':
         in_tensors, hidden_tensors = get_DAE(hidden_layer_sizes, input_dim, activation_fcn, dropout, reg)
         is_autoencoder = True
+    elif model_name == 'DANN':
+        in_tensors, hidden_tensors = get_dense(hidden_layer_sizes, input_dim, activation_fcn, dropout, reg, linear_last_layer=args.triplet)
+        # classification branch
+        clf_tensors = hidden_tensors
+        if dropout > 0:
+            clf_tensors = Dropout(dropout)(hidden_tensors)
+        clf_tensors = Dense(output_dim, activation='softmax', name="celltype_clf_out")(clf_tensors)
+        # domain classifier branch
+        if args.dann_siam:
+            # Siamese loss used here
+            dclf_tensors = GradientReversalLayer(args.grl_lambda)(hidden_tensors)
+            if dropout > 0:
+                dclf_tensors = Dropout(dropout)(dclf_tensors)
+            dclf_tensors = Dense(args.dann_siam_arch, name="domain_clf_out")(dclf_tensors)
+        else:
+            # Below for classifier
+            dclf_tensors = GradientReversalLayer(1e-2)(hidden_tensors)
+            if dropout > 0:
+                dclf_tensors = Dropout(dropout)(dclf_tensors)
+            dclf_tensors = Dense(num_studies, name="domain_clf_out", activation='softmax')(dclf_tensors)
+        model = Model(inputs=in_tensors, outputs=[clf_tensors, dclf_tensors])
+        return model
     else:
         raise ScrnaException("Bad neural network name: " + model_name)
     # Then add output layer on top

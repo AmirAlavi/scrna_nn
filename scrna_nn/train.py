@@ -5,11 +5,12 @@ import pickle
 import time
 from os.path import join
 
+import numpy as np
 import matplotlib.pyplot as plt
 from keras import backend as K
 from keras.callbacks import LearningRateScheduler, EarlyStopping, ModelCheckpoint
 from keras.optimizers import SGD, RMSprop, Adam
-from keras.utils import multi_gpu_model
+from keras.utils import multi_gpu_model, Sequence, plot_model
 from keras.models import Model
 from keras.layers import Lambda, Input
 from sklearn.decomposition import PCA
@@ -37,10 +38,11 @@ def get_model_architecture(
         working_dir_path,
         args,
         input_dim,
-        output_dim):
+        output_dim, num_datasets=None):
     base_model = get_base_model_architecture(
-        args, input_dim, output_dim)
-    embedding_dim = base_model.layers[-1].input_shape[1]
+        args, input_dim, output_dim, num_datasets)
+    #embedding_dim = base_model.layers[-1].input_shape[1]
+    embedding_dim = int(args.hidden_layer_sizes[-1])
     if args.nn == "DAE":
         embedding_dim = int(args.hidden_layer_sizes[-1])
     print(base_model.summary())
@@ -61,7 +63,7 @@ def get_model_architecture(
     return model, embedding_dim
 
 
-def get_base_model_architecture(args, input_dim, output_dim):
+def get_base_model_architecture(args, input_dim, output_dim, num_datasets=None):
     '''Possible options for neural network architectures are outlined in the
     '--help' command
 
@@ -91,7 +93,7 @@ def get_base_model_architecture(args, input_dim, output_dim):
         adj_mat,
         GO_adj_mats,
         args.with_dense,
-        args.dropout)
+        args.dropout, num_datasets)
 
 
 def get_optimizer(args):
@@ -137,6 +139,13 @@ def compile_model(model, args, optimizer):
         metrics = [frac_active_triplets, avg_pos_dists, avg_neg_dists, losses_and_metrics.embed_l2_metric]
     elif args.nn == "DAE":
         loss = 'mean_squared_error'
+    elif args.nn == 'DANN':
+        if args.dann_siam:
+            siamese_domain_loss = losses_and_metrics.get_contrastive_batch_loss(args.batch_size, args.dann_siam_margin)
+            loss = ['categorical_crossentropy', siamese_domain_loss] # muliple outputs, multiple losses
+        else:
+            loss = 'categorical_crossentropy'
+            metrics = ['accuracy']
     else:
         loss = 'categorical_crossentropy'
         metrics = ['accuracy']
@@ -165,6 +174,56 @@ def train_pca_model(working_dir_path, args, data):
             pickle.dump(model, f)
     return model
 
+class DANNSequence(Sequence):
+    def __init__(self, x_set, celltype_set, study_set, batch_size, name, shuffle=True):
+        self.x = x_set
+        self.y = celltype_set
+        self.y2 = study_set
+        self.batch_size = batch_size
+        self.name = name
+        if shuffle:
+            idx_array = np.arange(self.x.shape[0])
+            np.random.shuffle(idx_array)
+            self.x = self.x[idx_array]
+            self.y = self.y[idx_array]
+            self.y2 = self.y2[idx_array]
+
+    def __len__(self):
+        return int(np.floor(len(self.x) / float(self.batch_size)))
+
+    def __getitem__(self, idx):
+        # print("ExpressionSequence {} idx={}".format(self.name, idx))
+        batch_x = self.x[idx * self.batch_size:(idx + 1) * self.batch_size]
+        batch_y = self.y[idx * self.batch_size:(idx + 1) * self.batch_size]
+        batch_y2 = self.y2[idx * self.batch_size:(idx + 1) * self.batch_size]
+        return batch_x, [batch_y, batch_y2]
+
+
+def fit_DANN(model, args, data, callbacks_list, working_dir_path):
+    X_train, y_train = data.get_data_for_neural_net(
+        'train', one_hot=True)
+    d_train = data.get_dataset_IDs_one_hot('train')
+    X_valid, y_valid = data.get_data_for_neural_net(
+        'valid', one_hot=True)
+    d_valid = data.get_dataset_IDs_one_hot('valid')
+    print('Train data shapes:')
+    print(X_train.shape)
+    print(y_train.shape)
+    print(d_train.shape)
+    print('Valid data shapes:')
+    print(X_valid.shape)
+    print(y_valid.shape)
+    train_sequence = DANNSequence(X_train, y_train, d_train, args.batch_size, "train")
+    valid_sequence = DANNSequence(X_valid, y_valid, d_valid, args.batch_size, "valid")
+    del X_train, y_train, d_train, X_valid, y_valid, d_valid
+    history = model.fit_generator(train_sequence,
+                                  steps_per_epoch=args.batches_per_epoch,
+                                  epochs=args.epochs,
+                                  #callbacks=callbacks_list,
+                                  validation_data=valid_sequence,
+                                  verbose=2,
+                                  shuffle=False)
+    return history
 
 def fit_neural_net(model, args, data, callbacks_list, working_dir_path):
     if args.triplet:
@@ -441,6 +500,10 @@ def train_neural_net(working_dir_path, args, data, training_report):
     # Construct network architecture
     ngpus = args.ngpus
     input_dim, output_dim = data.get_in_out_dims()
+    # Calculate total studies for DANN (in train and valid for now)
+    data.build_dataset_ID_encoder()
+    num_datasets = len(data.dataset_encoder.categories_[0])
+    print("num datasets for DANN: ", num_datasets)
     if ngpus > 1:
         import tensorflow as tf
         with tf.device('/cpu:0'):
@@ -449,7 +512,7 @@ def train_neural_net(working_dir_path, args, data, training_report):
         model = multi_gpu_model(template_model, gpus=ngpus)
     else:
         template_model, embed_dims = get_model_architecture(
-            working_dir_path, args, input_dim, output_dim)
+            working_dir_path, args, input_dim, output_dim, num_datasets)
         model = template_model
     training_report['cfg_DIMS'] = embed_dims
     # Set up optimizer
@@ -457,6 +520,8 @@ def train_neural_net(working_dir_path, args, data, training_report):
     # Compile the model
     compile_model(model, args, opt)
     print(model.summary())
+    if args.nn == 'DANN':
+        plot_model(model, to_file=join(working_dir_path, 'architecture.png'), show_shapes=True)
     print('model compiled and ready for training')
     # Prep callbacks
     callbacks_list = get_callbacks_list(working_dir_path, args)
@@ -497,19 +562,62 @@ def train_neural_net(working_dir_path, args, data, training_report):
     # Fit the model
     print('training model...')
     t0 = datetime.datetime.now()
-    history = fit_neural_net(
-        model,
-        args,
-        data,
-        callbacks_list,
-        working_dir_path)
+    if args.nn == 'DANN':
+        history = fit_DANN(
+            model,
+            args,
+            data,
+            callbacks_list,
+            working_dir_path)
+        print(history.history.keys())
+        # Plot losses
+        f, axarr = plt.subplots(2, sharex=True)
+        f.suptitle('GRL Lambda={}'.format(args.grl_lambda))
+        axarr[0].plot(history.history['celltype_clf_out_loss'], label='train')
+        axarr[0].plot(history.history['val_celltype_clf_out_loss'], label='valid')
+        axarr[0].set_title('CellType Loss')
+        axarr[0].set_ylabel('Loss')
+        axarr[1].plot(history.history['domain_clf_out_loss'], label='train')
+        axarr[1].plot(history.history['val_domain_clf_out_loss'], label='valid')
+        axarr[1].set_title('Domain Loss')
+        axarr[1].set_ylabel('Loss')
+        axarr[1].set_xlabel('Epoch')
+        handles, labels = axarr[1].get_legend_handles_labels()
+        axarr[1].legend(handles, labels)
+        plt.savefig(join(working_dir_path, 'dann_losses.png'))
+        plt.close()
+        if args.dann_clf or not args.dann_siam:
+            # Plot accuracies
+            f, axarr = plt.subplots(2, sharex=True)
+            f.suptitle('GRL Lambda={}'.format(args.grl_lambda))
+            axarr[0].plot(history.history['celltype_clf_out_acc'], label='train')
+            axarr[0].plot(history.history['val_celltype_clf_out_acc'], label='valid')
+            axarr[0].set_title('CellType Acc')
+            axarr[0].set_ylabel('Acc')
+            axarr[1].plot(history.history['domain_clf_out_acc'], label='train')
+            axarr[1].plot(history.history['val_domain_clf_out_acc'], label='valid')
+            axarr[1].set_title('Domain Acc')
+            axarr[1].set_ylabel('Acc')
+            axarr[1].set_xlabel('Epoch')
+            handles, labels = axarr[1].get_legend_handles_labels()
+            axarr[1].legend(handles, labels)
+            plt.savefig(join(working_dir_path, 'dann_accs.png'))
+            plt.close()
+        
+    else:
+        history = fit_neural_net(
+            model,
+            args,
+            data,
+            callbacks_list,
+            working_dir_path)
     t1 = datetime.datetime.now()
     time_str = pretty_tdelta(t1 - t0)
     print('Training neural net took ' + time_str)
     training_report['res_train_time'] = time_str
     # Evaluate model
     # TODO: make this automatically happen via callback
-    if not args.siamese and not args.triplet and args.nn != "DAE": # TODO: just do this by checking if 'acc' is a current metric
+    if not args.siamese and not args.triplet and args.nn != "DAE" and args.nn != 'DANN': # TODO: just do this by checking if 'acc' is a current metric
         plot_accuracy_history(history, join(working_dir_path, 'accuracy.png'))
     print('Evaluating')
     # Since evaluation functions may need to change the model,
