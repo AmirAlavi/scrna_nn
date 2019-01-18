@@ -198,6 +198,38 @@ class DANNSequence(Sequence):
         batch_y2 = self.y2[idx * self.batch_size:(idx + 1) * self.batch_size]
         return batch_x, [batch_y, batch_y2]
 
+class DANNSequence2(Sequence):
+    # This one picks the study pairs in a better way
+    def __init__(self, x_set, celltype_set, study_set, batch_size, name, shuffle=True):
+        self.x = x_set
+        self.y = celltype_set
+        self.y2 = study_set
+        self.batch_size = batch_size
+        self.name = name
+        # if shuffle:
+        #     idx_array = np.arange(self.x.shape[0])
+        #     np.random.shuffle(idx_array)
+        #     self.x = self.x[idx_array]
+        #     self.y = self.y[idx_array]
+        #     self.y2 = self.y2[idx_array]
+
+    def build_indices(self):
+        # study -> cell types
+        # cell type -> studies
+        # study -> idx
+        # cell type -> idx
+        pass
+        
+    def __len__(self):
+        return int(np.floor(len(self.x) / float(self.batch_size)))
+
+    def __getitem__(self, idx):
+        # print("ExpressionSequence {} idx={}".format(self.name, idx))
+        batch_x = self.x[idx * self.batch_size:(idx + 1) * self.batch_size]
+        batch_y = self.y[idx * self.batch_size:(idx + 1) * self.batch_size]
+        batch_y2 = self.y2[idx * self.batch_size:(idx + 1) * self.batch_size]
+        return batch_x, [batch_y, batch_y2]
+
 
 def fit_DANN(model, args, data, callbacks_list, working_dir_path):
     X_train, y_train = data.get_data_for_neural_net(
